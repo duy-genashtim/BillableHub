@@ -1,0 +1,17 @@
+@use "sass:map";
+@use "@core-scss/base";
+
+// layouts
+@use "vertical-nav";
+@use "default-layout-w-vertical-nav";
+
+// Utilities
+@use "utilities";
+
+// Duy changed to 106% to make rem bigger
+html {
+  font-size: 108%;
+
+  // Set base font size to 325% of the browser default (usually 16px)
+  // 16px * 3.25 = 52px. 1rem will now equal 52px.
+}

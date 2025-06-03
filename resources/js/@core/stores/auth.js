@@ -1,0 +1,272 @@
+import { PublicClientApplication } from '@azure/msal-browser'
+import axios from 'axios'
+import { defineStore } from 'pinia'
+
+const msalConfig = {
+  auth: {
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID}`,
+    redirectUri: import.meta.env.VITE_AZURE_REDIRECT_URI,
+  },
+  cache: {
+    cacheLocation: 'localStorage',
+    storeAuthStateInCookie: false,
+  },
+}
+
+let msalInstance = null
+
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: null,
+    token: null,
+    isAuthenticated: false,
+    isLoading: false,
+    msalInstance: null,
+  }),
+
+  getters: {
+    getUser: (state) => state.user,
+    getToken: (state) => state.token,
+    isAuth: (state) => state.isAuthenticated,
+  },
+
+  actions: {
+    async initializeAuth() {
+      this.isLoading = true
+      
+      try {
+        if (!import.meta.env.VITE_AZURE_CLIENT_ID || !import.meta.env.VITE_AZURE_TENANT_ID) {
+          throw new Error('Azure configuration missing')
+        }
+
+        if (!msalInstance) {
+          msalInstance = new PublicClientApplication(msalConfig)
+          await msalInstance.initialize()
+        }
+        
+        this.msalInstance = msalInstance
+        
+        // Check if user is already authenticated
+        const token = localStorage.getItem('auth_token')
+        if (token) {
+          this.token = token
+          this.setAuthHeader(token)
+          await this.fetchUser()
+        }
+      } catch (error) {
+        console.error('Auth initialization failed:', error)
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async loginWithMicrosoft() {
+      try {
+        this.isLoading = true
+        
+        if (!this.msalInstance) {
+          throw new Error('MSAL not initialized')
+        }
+
+        const loginRequest = {
+          scopes: ['User.Read'],
+          prompt: 'select_account',
+        }
+        
+        let accounts = []
+        try {
+          accounts = this.msalInstance.getAllAccounts() || []
+        } catch (accountError) {
+          accounts = []
+        }
+        
+        let response = null
+
+        if (accounts.length > 0) {
+          try {
+            response = await this.msalInstance.acquireTokenSilent({
+              ...loginRequest,
+              account: accounts[0],
+            })
+          } catch (silentError) {
+            try {
+              response = await this.msalInstance.loginPopup(loginRequest)
+            } catch (popupError) {
+              throw popupError
+            }
+          }
+        } else {
+          try {
+            response = await this.msalInstance.loginPopup(loginRequest)
+          } catch (popupError) {
+            throw popupError
+          }
+        }
+        
+        if (response && response.accessToken) {
+          await this.authenticateWithBackend(response.accessToken)
+        } else {
+          throw new Error('No access token received from Microsoft')
+        }
+        
+      } catch (error) {
+        let errorMessage = 'Login failed. Please try again.'
+        
+        if (error.errorCode === 'user_cancelled') {
+          errorMessage = 'Login was cancelled'
+        } else if (error.errorCode === 'popup_window_error' || error.message?.includes('popup')) {
+          errorMessage = 'Popup was blocked. Please allow popups for this site.'
+        } else if (error.message?.includes('network')) {
+          errorMessage = 'Network error. Please check your connection.'
+        } else if (error.message) {
+          errorMessage = error.message
+        }
+        
+        throw new Error(errorMessage)
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async handleRedirectCallback() {
+      try {
+        this.isLoading = true
+        
+        if (!this.msalInstance) {
+          throw new Error('MSAL not initialized')
+        }
+        
+        const response = await this.msalInstance.handleRedirectPromise()
+        
+        if (response && response.accessToken) {
+          await this.authenticateWithBackend(response.accessToken)
+          return true
+        }
+        
+        let accounts = []
+        try {
+          accounts = this.msalInstance.getAllAccounts() || []
+        } catch (accountError) {
+          return false
+        }
+
+        if (accounts.length > 0) {
+          try {
+            const tokenResponse = await this.msalInstance.acquireTokenSilent({
+              scopes: ['User.Read'],
+              account: accounts[0],
+            })
+            
+            if (tokenResponse && tokenResponse.accessToken) {
+              await this.authenticateWithBackend(tokenResponse.accessToken)
+              return true
+            }
+          } catch (silentError) {
+            console.error('Silent token acquisition failed:', silentError)
+          }
+        }
+        
+        return false
+      } catch (error) {
+        console.error('Redirect callback failed:', error)
+        throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async authenticateWithBackend(accessToken) {
+      try {
+        const response = await axios.post('/api/auth/login', {
+          access_token: accessToken,
+        })
+        console.log('Backend authentication response:', response.data);
+        
+        if (response.data && response.data.token) {
+          this.token = response.data.token
+          this.user = response.data.user
+          this.isAuthenticated = true
+          
+          localStorage.setItem('auth_token', this.token)
+          this.setAuthHeader(this.token)
+        } else {
+          throw new Error('Invalid response from backend')
+        }
+      } catch (error) {
+        let errorMessage = 'Authentication failed'
+        
+        if (error.response) {
+          if (error.response.data && error.response.data.error) {
+            errorMessage = error.response.data.error
+          } else if (error.response.status === 401) {
+            errorMessage = 'Invalid credentials'
+          } else if (error.response.status >= 500) {
+            errorMessage = 'Server error. Please try again later.'
+          }
+        } else if (error.request) {
+          errorMessage = 'Network error. Please check your connection.'
+        }
+        
+        throw new Error(errorMessage)
+      }
+    },
+
+    async fetchUser() {
+      try {
+        const response = await axios.get('/api/auth/me')
+        console.log('Fetch user response:', response.data);
+        if (response.data && response.data.user) {
+          this.user = response.data.user
+          this.isAuthenticated = true
+        } else {
+          throw new Error('Invalid user data')
+        }
+      } catch (error) {
+        console.error('Fetch user failed:', error)
+        this.logout()
+      }
+    },
+
+    setAuthHeader(token) {
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      }
+    },
+
+    async logout() {
+      try {
+        if (this.token) {
+          try {
+            await axios.post('/api/auth/logout')
+          } catch (logoutError) {
+            console.warn('Backend logout failed:', logoutError)
+          }
+        }
+      } catch (error) {
+        console.error('Logout error:', error)
+      } finally {
+        this.user = null
+        this.token = null
+        this.isAuthenticated = false
+        
+        localStorage.removeItem('auth_token')
+        delete axios.defaults.headers.common['Authorization']
+        
+        if (this.msalInstance) {
+          try {
+            const accounts = this.msalInstance.getAllAccounts() || []
+            if (accounts.length > 0) {
+              await this.msalInstance.logoutPopup({
+                account: accounts[0],
+                postLogoutRedirectUri: window.location.origin + '/login',
+              })
+            }
+          } catch (msalLogoutError) {
+            console.warn('Microsoft logout failed:', msalLogoutError)
+          }
+        }
+      }
+    },
+  },
+})
