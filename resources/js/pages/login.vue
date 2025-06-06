@@ -1,5 +1,5 @@
 <script setup>
-import { appLongName, appName } from '@/@core/config/siteConsts'
+import { appLongName, appName } from '@/@core/config/siteConfigs'
 import { useAuthStore } from '@/@core/stores/auth'
 import logo from '@images/logo.svg?raw'
 import authV1MaskDark from '@images/pages/auth-v1-mask-dark.png'

@@ -29,6 +29,15 @@ export const useAuthStore = defineStore('auth', {
     getUser: (state) => state.user,
     getToken: (state) => state.token,
     isAuth: (state) => state.isAuthenticated,
+    userPermissions: (state) => state.user?.permissions || [],
+    userRoles: (state) => state.user?.roles || [],
+    hasPermission: (state) => (permission) => {
+      return state.user?.permissions?.some(p => p.name === permission) || false
+    },
+    hasRole: (state) => (role) => {
+      return state.user?.roles?.some(r => r.name === role) || false
+    },
+    isSuperAdmin: (state) => state.user?.is_super_admin || false,
   },
 
   actions: {
@@ -128,7 +137,6 @@ export const useAuthStore = defineStore('auth', {
         this.isLoading = false
       }
     },
-
     async handleRedirectCallback() {
       try {
         this.isLoading = true
@@ -185,11 +193,20 @@ export const useAuthStore = defineStore('auth', {
         
         if (response.data && response.data.token) {
           this.token = response.data.token
-          this.user = response.data.user
+          this.user = {
+            ...response.data.user,
+            roles: [],
+            permissions: [],
+            is_super_admin: false,
+          }
           this.isAuthenticated = true
           
           localStorage.setItem('auth_token', this.token)
           this.setAuthHeader(this.token)
+          
+          // Fetch user details with roles and permissions
+          // await this.fetchUserDetails()
+          await this.fetchUser()
         } else {
           throw new Error('Invalid response from backend')
         }
@@ -217,14 +234,41 @@ export const useAuthStore = defineStore('auth', {
         const response = await axios.get('/api/auth/me')
         console.log('Fetch user response:', response.data);
         if (response.data && response.data.user) {
-          this.user = response.data.user
+          this.user = {
+            ...response.data.user,
+            roles: response.data.user.roles || [],
+            permissions: response.data.user.permissions || [],
+            is_super_admin: response.data.user.is_super_admin || false,
+          }
           this.isAuthenticated = true
+          
+          // Fetch user details with roles and permissions
+          // await this.fetchUserDetails()
         } else {
           throw new Error('Invalid user data')
         }
       } catch (error) {
         console.error('Fetch user failed:', error)
         this.logout()
+      }
+    },
+
+    async fetchUserDetails() {
+      try {
+        if (!this.user) return
+        
+        const response = await axios.get(`/api/admin/users/${this.user.id}`)
+        if (response.data && response.data.user) {
+          this.user = {
+            ...this.user,
+            roles: response.data.user.roles || [],
+            permissions: response.data.user.permissions || [],
+            is_super_admin: response.data.user.is_super_admin || false,
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to fetch user details:', error)
+        // Don't logout on this error, just log warning
       }
     },
 

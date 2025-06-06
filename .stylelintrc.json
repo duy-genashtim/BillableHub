@@ -23,6 +23,14 @@
     }
   ],
   "rules": {
+    "selector-pseudo-class-no-unknown": [
+      true,
+      {
+        "ignorePseudoClasses": [
+          "deep"
+        ]
+      }
+    ],
     "@stylistic/max-line-length": [
       220,
       {

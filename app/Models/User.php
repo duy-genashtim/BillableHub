@@ -4,10 +4,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -58,5 +59,37 @@ class User extends Authenticatable
         }
 
         return null;
+    }
+
+    /**
+     * Activity logs created by this user
+     */
+    public function activityLogs()
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
+
+    /**
+     * Check if user is super admin
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->id === 1;
+    }
+
+    /**
+     * Get user's role names
+     */
+    public function getRoleNamesAttribute()
+    {
+        return $this->roles->pluck('name')->toArray();
+    }
+
+    /**
+     * Get user's permission names
+     */
+    public function getPermissionNamesAttribute()
+    {
+        return $this->getAllPermissions()->pluck('name')->toArray();
     }
 }

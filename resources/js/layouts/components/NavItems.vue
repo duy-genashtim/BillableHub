@@ -1,7 +1,27 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import VerticalNavSectionTitle from '@/@layouts/components/VerticalNavSectionTitle.vue';
 import VerticalNavGroup from '@layouts/components/VerticalNavGroup.vue';
 import VerticalNavLink from '@layouts/components/VerticalNavLink.vue';
+
+const authStore = useAuthStore()
+
+// Helper function to check if user has permission
+const hasPermission = (permission) => {
+  return authStore.user?.permissions?.some(p => p.name === permission) || false
+}
+
+// Helper function to check if user has any admin permissions
+const hasAnyAdminPermission = () => {
+  const adminPermissions = ['manage_roles', 'manage_users', 'view_activity_logs']
+  return adminPermissions.some(permission => hasPermission(permission))
+}
+console.log('hasAnyAdminPermission:', hasAnyAdminPermission.value);
+console.log('User Permissions:', authStore.user?.permissions || []);
+console.log('User:', authStore.user);
+console.log('Auth Store:', authStore);
+console.log(authStore.user);
+
 </script>
 
 <template>
@@ -15,6 +35,70 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue';
     }"
   />
 
+  <!-- 👉 Admin Section -->
+  <template v-if="hasAnyAdminPermission()">
+    <VerticalNavSectionTitle
+      :item="{
+        heading: 'Administration',
+      }"
+    />
+
+    <VerticalNavLink
+        v-if="hasPermission('manage_roles')"
+        :item="{
+          title: 'Role Management',
+          icon: 'ri-shield-user-line',
+          to: '/admin/roles',
+        }"
+      />
+     <VerticalNavLink
+        v-if="hasPermission('manage_users')"
+        :item="{
+          title: 'User Roles',
+          icon: 'ri-group-line',
+          to: '/admin/users',
+        }"
+      />
+      <VerticalNavLink
+  :item="{
+    title: 'System Settings',
+    icon: 'ri-settings-3-line',
+    to: '/admin/configuration',
+  }"
+/>
+    <VerticalNavGroup
+      :item="{
+        title: 'User Management',
+        icon: 'ri-user-settings-line',
+      }"
+    >
+      <VerticalNavLink
+        v-if="hasPermission('manage_roles')"
+        :item="{
+          title: 'Roles & Permissions',
+          icon: 'ri-shield-user-line',
+          to: '/admin/roles',
+        }"
+      />
+      <VerticalNavLink
+        v-if="hasPermission('manage_users')"
+        :item="{
+          title: 'User Roles',
+          icon: 'ri-group-line',
+          to: '/admin/users',
+        }"
+      />
+    </VerticalNavGroup>
+
+    <VerticalNavLink
+      v-if="hasPermission('view_activity_logs')"
+      :item="{
+        title: 'Activity Logs',
+        icon: 'ri-file-list-3-line',
+        to: '/admin/activity-logs',
+      }"
+    />
+  </template>
 
   <!-- 👉 Front Pages -->
   <VerticalNavGroup
@@ -151,3 +235,29 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue';
 
  
 </template>
+<!-- <style lang="scss">
+.layout-vertical-nav {
+  .nav-item-title {
+    overflow: visible !important;
+    line-height: 1.4;
+    padding-block: 0.375rem;
+    text-overflow: unset !important;
+    white-space: normal !important;
+  }
+
+  .nav-group {
+    margin-block-end: 0.5rem;
+  }
+
+  .nav-group > :first-child {
+    margin-block-end: 0.375rem;
+  }
+
+  &:not(.layout-vertical-nav-collapsed) {
+    .nav-item-title {
+      padding-block: 0.375rem;
+      white-space: normal !important;
+    }
+  }
+}
+</style> -->

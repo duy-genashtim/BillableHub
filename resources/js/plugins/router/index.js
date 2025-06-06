@@ -24,6 +24,7 @@ router.beforeEach(async (to, from, next) => {
 
   const isAuthenticated = authStore.isAuth
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+  const requiredPermission = to.meta.permission
 
   if (requiresAuth && !isAuthenticated) {
     // Redirect to login if route requires auth and user is not authenticated
@@ -31,6 +32,17 @@ router.beforeEach(async (to, from, next) => {
   } else if (to.path === '/login' && isAuthenticated) {
     // Redirect to dashboard if user is already authenticated and tries to access login
     next('/dashboard')
+  } else if (requiredPermission && isAuthenticated) {
+    // Check permissions for protected routes
+    if (!authStore.hasPermission(requiredPermission)) {
+      // Redirect to dashboard with error message
+      next({
+        path: '/dashboard',
+        query: { error: 'insufficient_permissions' }
+      })
+    } else {
+      next()
+    }
   } else {
     next()
   }
@@ -38,9 +50,6 @@ router.beforeEach(async (to, from, next) => {
 
 router.afterEach(() => {
   isLoading.value = false
-  // setTimeout(() => {
-  //   isLoading.value = false // Stop loading indicator after delay
-  // }, 10000) // 3000 milliseconds = 3 seconds
 })
 
 export default function (app) {

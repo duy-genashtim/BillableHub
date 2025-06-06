@@ -29,8 +29,8 @@ class AuthController extends Controller
             $azureUser = $response->json();
 
             // Get user photo with multiple fallback attempts
-            // $avatar = $this->getUserAvatar($request->access_token);
             $avatar = $this->saveAvatarToStorage($request->access_token, $azureUser['id']);
+
             // Find or create user
             $user = User::updateOrCreate(
                 ['email' => $azureUser['mail'] ?? $azureUser['userPrincipalName']],
@@ -54,12 +54,30 @@ class AuthController extends Controller
 
             $token = JWT::encode($payload, config('app.key'), 'HS256');
 
+            // Load user with roles and permissions
+            $user->load(['roles', 'permissions']);
+
+            $permissionsConfig = config('constants.permissions');
+
             return response()->json([
                 'user'  => [
-                    'id'     => $user->id,
-                    'name'   => $user->name,
-                    'email'  => $user->email,
-                    'avatar' => $avatar ? asset('storage/' . $avatar) : null, //$user->avatar,
+                    'id'             => $user->id,
+                    'name'           => $user->name,
+                    'email'          => $user->email,
+                    'avatar'         => $avatar ? asset('storage/' . $avatar) : null,
+                    'roles'          => $user->roles->map(function ($role) {
+                        return [
+                            'name'         => $role->name,
+                            'display_name' => $role->display_name ?? strtoupper(str_replace('_', ' ', $role->name)),
+                        ];
+                    }),
+                    'permissions'    => $user->getAllPermissions()->map(function ($permission) use ($permissionsConfig) {
+                        return [
+                            'name'         => $permission->name,
+                            'display_name' => $permissionsConfig[$permission->name] ?? $permission->name,
+                        ];
+                    }),
+                    'is_super_admin' => $user->isSuperAdmin(),
                 ],
                 'token' => $token,
             ]);
@@ -227,12 +245,29 @@ class AuthController extends Controller
         try {
             $user = $request->user();
 
+            // Load user with roles and permissions
+            $user->load(['roles', 'permissions']);
+
             return response()->json([
                 'user' => [
-                    'id'     => $user->id,
-                    'name'   => $user->name,
-                    'email'  => $user->email,
-                    'avatar' => $user->avatar ? asset('storage/' . $user->avatar) : null,
+                    'id'             => $user->id,
+                    'name'           => $user->name,
+                    'email'          => $user->email,
+                    'avatar'         => $user->avatar ? asset('storage/' . $user->avatar) : null,
+                    'roles'          => $user->roles->map(function ($role) {
+                        return [
+                            'name'         => $role->name,
+                            'display_name' => $role->display_name ?? $role->name,
+                        ];
+                    }),
+                    'permissions'    => $user->getAllPermissions()->map(function ($permission) {
+                        $displayName = config("constants.permissions.{$permission->name}", $permission->name);
+                        return [
+                            'name'         => $permission->name,
+                            'display_name' => $displayName, //$permission->display_name ?? $permission->name,
+                        ];
+                    }),
+                    'is_super_admin' => $user->isSuperAdmin(),
                 ],
             ]);
         } catch (\Exception $e) {
