@@ -55,6 +55,31 @@ export const routes = [
         meta: { permission: 'view_activity_logs' },
       },
 
+      // Region Management routes
+      {
+        path: 'admin/regions',
+        name: 'regions-list',
+        component: () => import('@/pages/regions/RegionsList.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/regions/create',
+        name: 'region-create',
+        component: () => import('@/pages/regions/RegionCreate.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/regions/:id/edit',
+        name: 'region-edit',
+        component: () => import('@/pages/regions/RegionEdit.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/regions/:id',
+        name: 'region-detail',
+        component: () => import('@/pages/regions/RegionDetail.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
       
       // Configuration Management routes
       {
@@ -105,6 +130,40 @@ export const routes = [
         path: 'admin/configuration/types/:id/edit',
         name: 'configuration-type-edit',
         component: () => import('@/pages/configuration/ConfigurationTypeEdit.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+
+       // TimeDoctor Integration routes
+      {
+        path: 'admin/timedoctor',
+        name: 'timedoctor-integration',
+        component: () => import('@/pages/timedoctor/TimeDoctorIntegration.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+
+      // Task Categories Management routes
+      {
+        path: 'admin/categories',
+        name: 'categories-list',
+        component: () => import('@/pages/categories/CategoriesList.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/categories/create',
+        name: 'category-create',
+        component: () => import('@/pages/categories/CategoryCreate.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/categories/:id/edit',
+        name: 'category-edit',
+        component: () => import('@/pages/categories/CategoryEdit.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/categories/:id',
+        name: 'category-detail',
+        component: () => import('@/pages/categories/CategoryDetail.vue'),
         meta: { permission: 'manage_configuration' },
       },
     ],

@@ -9,8 +9,20 @@ use Illuminate\Http\Request;
 
 class AuthenticateWithJWT
 {
+    private const EXCLUDED_ROUTES = [
+        'api/timedoctor/auth',
+        'api/timedoctor/callback',
+        'api/timedoctor/stream-worklog-sync',
+    ];
     public function handle(Request $request, Closure $next)
     {
+        // ✅ Skip JWT auth if current route is in the excluded list
+        foreach (self::EXCLUDED_ROUTES as $excluded) {
+            if ($request->is($excluded)) {
+                return $next($request);
+            }
+        }
+
         $token = $request->bearerToken();
 
         if (! $token) {
