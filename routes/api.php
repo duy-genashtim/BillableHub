@@ -6,6 +6,11 @@ use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConfigurationSettingsController;
 use App\Http\Controllers\ConfigurationSettingTypeController;
+use App\Http\Controllers\RegionController;
+use App\Http\Controllers\ReportCategoryController;
+use App\Http\Controllers\TimeDoctorAuthController;
+use App\Http\Controllers\TimeDoctorController;
+use App\Http\Controllers\TimeDoctorLongOperationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -40,6 +45,18 @@ Route::middleware('auth.jwt')->group(function () {
         Route::get('activity-logs/{activityLog}', [ActivityLogController::class, 'show']);
         Route::get('activity-logs-export', [ActivityLogController::class, 'export']);
         Route::get('activity-logs-filter-options', [ActivityLogController::class, 'filterOptions']);
+
+        // Region Management Routes (require manage_configuration permission)
+        Route::prefix('regions')->name('regions.')->group(function () {
+            Route::get('/', [RegionController::class, 'index']);
+            Route::post('/', [RegionController::class, 'store']);
+            Route::get('/available-users', [RegionController::class, 'getAvailableUsers']);
+            Route::get('/{region}', [RegionController::class, 'show']);
+            Route::put('/{region}', [RegionController::class, 'update']);
+            Route::delete('/{region}', [RegionController::class, 'destroy']);
+            Route::post('/{region}/assign-users', [RegionController::class, 'assignUsers']);
+            Route::delete('/{region}/remove-users', [RegionController::class, 'removeUsers']);
+        });
     });
 
     // Configuration Settings Routes
@@ -61,5 +78,44 @@ Route::middleware('auth.jwt')->group(function () {
         Route::get('/{id}', [ConfigurationSettingTypeController::class, 'show'])->name('show');
         Route::put('/{id}', [ConfigurationSettingTypeController::class, 'update'])->name('update');
         Route::delete('/{id}', [ConfigurationSettingTypeController::class, 'destroy'])->name('destroy');
+    });
+
+    // TimeDoctor Integration Routes (require manage_configuration permission)
+    Route::prefix('timedoctor')->group(function () {
+        // Authentication routes
+        Route::get('/auth', [TimeDoctorAuthController::class, 'redirect']);
+        Route::get('/callback', [TimeDoctorAuthController::class, 'callback']);
+        Route::get('/status', [TimeDoctorAuthController::class, 'checkToken']);
+        Route::get('/disconnect', [TimeDoctorAuthController::class, 'disconnect']);
+        Route::get('/company-info', [TimeDoctorAuthController::class, 'getCompanyInfo']);
+
+        // Sync routes
+        Route::post('/sync-users', [TimeDoctorController::class, 'syncUsers']);
+        Route::post('/sync-projects', [TimeDoctorController::class, 'syncProjects']);
+        Route::post('/sync-tasks', [TimeDoctorController::class, 'syncTasks']);
+        Route::post('/sync-worklogs', [TimeDoctorController::class, 'syncWorklogs']);
+
+        // Count routes
+        Route::get('/users/count', [TimeDoctorController::class, 'getUserCount']);
+        Route::get('/projects/count', [TimeDoctorController::class, 'getProjectCount']);
+        Route::get('/tasks/count', [TimeDoctorController::class, 'getTaskCount']);
+        Route::get('/worklogs/count', [TimeDoctorController::class, 'getWorklogCount']);
+
+        // Long operation routes
+        Route::get('/stream-worklog-sync', [TimeDoctorLongOperationController::class, 'streamWorklogSync']);
+    });
+
+    // Report Categories Management
+    Route::prefix('categories')->name('categories.')->group(function () {
+        Route::get('/', [ReportCategoryController::class, 'index'])->name('index');
+        Route::post('/', [ReportCategoryController::class, 'store'])->name('store');
+        Route::get('/types', [ReportCategoryController::class, 'getCategoryTypes'])->name('types');
+        Route::get('/tasks/available', [ReportCategoryController::class, 'getAvailableTasks'])->name('tasks.available');
+        Route::get('/{id}', [ReportCategoryController::class, 'show'])->name('show');
+        Route::put('/{id}', [ReportCategoryController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ReportCategoryController::class, 'destroy'])->name('destroy');
+        Route::patch('/{id}/status', [ReportCategoryController::class, 'toggleStatus'])->name('toggle-status');
+        Route::post('/{id}/tasks', [ReportCategoryController::class, 'assignTasks'])->name('assign-tasks');
+        Route::delete('/{id}/tasks', [ReportCategoryController::class, 'removeTasks'])->name('remove-tasks');
     });
 });

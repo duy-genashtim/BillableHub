@@ -96,44 +96,63 @@ return [
     ],
 
     'activity_log_actions' => [
-        'create'             => 'Created',
-        'update'             => 'Updated',
-        'delete'             => 'Deleted',
-        'assign'             => 'Assigned',
-        'unassign'           => 'Unassigned',
-        'approve'            => 'Approved',
-        'reject'             => 'Rejected',
-        'import'             => 'Imported',
-        'export'             => 'Exported',
-        'login'              => 'Logged In',
-        'logout'             => 'Logged Out',
-        'view'               => 'Viewed',
-        'download'           => 'Downloaded',
-        'upload'             => 'Uploaded',
-        'toggle_status'      => 'Status Changed',
-        'create_config'      => 'Configuration Created',
-        'update_config'      => 'Configuration Updated',
-        'delete_config'      => 'Configuration Deleted',
-        'create_config_type' => 'Configuration Type Created',
-        'update_config_type' => 'Configuration Type Updated',
-        'delete_config_type' => 'Configuration Type Deleted',
+        'create'                         => 'Created',
+        'update'                         => 'Updated',
+        'delete'                         => 'Deleted',
+        'assign'                         => 'Assigned',
+        'unassign'                       => 'Unassigned',
+        'approve'                        => 'Approved',
+        'reject'                         => 'Rejected',
+        'import'                         => 'Imported',
+        'export'                         => 'Exported',
+        'login'                          => 'Logged In',
+        'logout'                         => 'Logged Out',
+        'view'                           => 'Viewed',
+        'download'                       => 'Downloaded',
+        'upload'                         => 'Uploaded',
+        'toggle_status'                  => 'Status Changed',
+        'create_config'                  => 'Configuration Created',
+        'update_config'                  => 'Configuration Updated',
+        'delete_config'                  => 'Configuration Deleted',
+        'create_config_type'             => 'Configuration Type Created',
+        'update_config_type'             => 'Configuration Type Updated',
+        'delete_config_type'             => 'Configuration Type Deleted',
+        'region_create'                  => 'Region Created',
+        'region_update'                  => 'Region Updated',
+        'region_delete'                  => 'Region Deleted',
+        'region_deactivate'              => 'Region Deactivated',
+        'region_assign_users'            => 'Users Assigned to Region',
+        'region_remove_users'            => 'Users Removed from Region',
+        'timedoctor_auth_redirect'       => 'TimeDoctor Auth Redirect',
+        'timedoctor_auth_error'          => 'TimeDoctor Auth Error',
+        'timedoctor_auth_token_error'    => 'TimeDoctor Token Error',
+        'timedoctor_auth_success'        => 'TimeDoctor Connected',
+        'timedoctor_auth_callback_error' => 'TimeDoctor Callback Error',
+        'timedoctor_token_refresh'       => 'TimeDoctor Token Refreshed',
+        'timedoctor_disconnect'          => 'TimeDoctor Disconnected',
+
+        // Task Categories Management
+        'create_category'                => 'Create Category',
+        'update_category'                => 'Update Category',
+        'delete_category'                => 'Delete Category',
+        'view_category'                  => 'View Category',
+        'view_categories_list'           => 'View Categories List',
+        'assign_tasks_to_category'       => 'Assign Tasks to Category',
+        'remove_tasks_from_category'     => 'Remove Tasks from Category',
+        'toggle_category_status'         => 'Toggle Category Status',
+        'view_available_tasks'           => 'View Available Tasks',
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Pagination Defaults
-    |--------------------------------------------------------------------------
-    |
-    | Default pagination settings for various data lists
-    |
-    */
-
     'pagination'           => [
-        'default_per_page'  => 20,
-        'max_per_page'      => 100,
-        'users_per_page'    => 15,
-        'worklogs_per_page' => 25,
-        'reports_per_page'  => 10,
+        'default_per_page'    => 20,
+        'max_per_page'        => 100,
+        'users_per_page'      => 15,
+        'worklogs_per_page'   => 25,
+        'reports_per_page'    => 10,
+        'regions_per_page'    => 15,
+        'timedoctor_per_page' => 20,
+        'options'             => [15, 25, 50, 100],
+        'mobile_per_page'     => 5,
     ],
 
     'setting_categories'   => [
@@ -145,5 +164,4 @@ return [
         'system'      => 'System Settings',
         'other'       => 'Other Settings',
     ],
-
 ];

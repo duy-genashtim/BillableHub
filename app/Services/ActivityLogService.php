@@ -53,14 +53,6 @@ class ActivityLogService
             'description' => $description ?? $actionLabel,
             'detail_log'  => $encodedLog,
         ]);
-
-        // return ActivityLog::create([
-        //     'user_id'     => $user?->id,
-        //     'email'       => $user?->email,
-        //     'action'      => $action,
-        //     'description' => $description ?? $actionLabel,
-        //     'detail_log'  => json_encode($logData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
-        // ]);
     }
 
     /**
@@ -322,6 +314,79 @@ class ActivityLogService
             'allow_delete'       => $settingType->allow_delete,
             'allow_create'       => $settingType->allow_create,
             'module'             => 'configuration_types',
+        ], $additionalDetails));
+    }
+
+    /**
+     * Log task category creation
+     */
+    public static function logCategoryCreate($category, array $additionalDetails = []): ActivityLog
+    {
+        $categoryType = $category->categoryType ?? null;
+        $description  = "Created task category: {$category->cat_name}";
+
+        if ($categoryType) {
+            $description .= " (Type: {$categoryType->setting_value})";
+        }
+
+        return self::log('create_category', $description, array_merge([
+            'category_id'      => $category->id,
+            'category_name'    => $category->cat_name,
+            'category_type_id' => $category->category_type,
+            'category_type'    => $categoryType?->setting_value,
+            'description'      => $category->cat_description,
+            'is_active'        => $category->is_active,
+            'category_order'   => $category->category_order,
+            'module'           => 'task_categories',
+        ], $additionalDetails));
+    }
+
+    /**
+     * Log task category update
+     */
+    public static function logCategoryUpdate($category, array $oldValues = [], array $additionalDetails = []): ActivityLog
+    {
+        $categoryType = $category->categoryType ?? null;
+        $description  = "Updated task category: {$category->cat_name}";
+
+        if ($categoryType) {
+            $description .= " (Type: {$categoryType->setting_value})";
+        }
+
+        return self::log('update_category', $description, array_merge([
+            'category_id'      => $category->id,
+            'category_name'    => $category->cat_name,
+            'category_type_id' => $category->category_type,
+            'category_type'    => $categoryType?->setting_value,
+            'description'      => $category->cat_description,
+            'is_active'        => $category->is_active,
+            'category_order'   => $category->category_order,
+            'old_values'       => $oldValues,
+            'module'           => 'task_categories',
+        ], $additionalDetails));
+    }
+
+    /**
+     * Log task category deletion
+     */
+    public static function logCategoryDelete($category, array $additionalDetails = []): ActivityLog
+    {
+        $categoryType = $category->categoryType ?? null;
+        $description  = "Deleted task category: {$category->cat_name}";
+
+        if ($categoryType) {
+            $description .= " (Type: {$categoryType->setting_value})";
+        }
+
+        return self::log('delete_category', $description, array_merge([
+            'category_id'      => $category->id,
+            'category_name'    => $category->cat_name,
+            'category_type_id' => $category->category_type,
+            'category_type'    => $categoryType?->setting_value,
+            'description'      => $category->cat_description,
+            'is_active'        => $category->is_active,
+            'category_order'   => $category->category_order,
+            'module'           => 'task_categories',
         ], $additionalDetails));
     }
 }

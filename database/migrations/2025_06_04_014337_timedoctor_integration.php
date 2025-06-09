@@ -23,6 +23,7 @@ return new class extends Migration
             // Add index for frequently queried columns
             $table->index('name');
             $table->index('is_active');
+            $table->index('region_order');
         });
 
         // 2. iva_user table - moved up for dependency order

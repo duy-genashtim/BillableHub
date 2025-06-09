@@ -2,4 +2,5 @@
 
 return [
     App\Providers\AppServiceProvider::class,
+    App\Providers\TimeDoctorServiceProvider::class,
 ];
