@@ -156,7 +156,7 @@ class TimeDoctorLongOperationController extends Controller
                     flush();
                 }
 
-                ActivityLogService::log('import_excel_time', 'TimeDoctor worklog sync completed via streaming', [
+                ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync completed via streaming', [
                     'module'       => 'timedoctor_integration',
                     'start_date'   => $startDate->format('Y-m-d'),
                     'end_date'     => $endDate->format('Y-m-d'),
@@ -178,7 +178,7 @@ class TimeDoctorLongOperationController extends Controller
                     'trace' => $e->getTraceAsString(),
                 ]);
 
-                ActivityLogService::log('import_excel_time', 'TimeDoctor worklog sync failed via streaming', [
+                ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync failed via streaming', [
                     'module' => 'timedoctor_integration',
                     'error'  => $e->getMessage(),
                 ]);

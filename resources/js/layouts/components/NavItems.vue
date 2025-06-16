@@ -60,9 +60,24 @@ console.log(authStore.user);
       to: '/admin/regions',
     }" />
     <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'Cohorts',
+      icon: 'ri-team-line',
+      to: '/admin/cohorts',
+    }" />
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
       title: 'Task Categories',
       icon: 'ri-price-tag-3-line',
       to: '/admin/categories',
+    }" />
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'IVA Users',
+      icon: 'ri-user-line',
+      to: '/admin/iva-users',
+    }" />
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'IVA Managers',
+      icon: 'ri-user-settings-line',
+      to: '/admin/iva-managers',
     }" />
     <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
       title: 'TimeDoctor Integration',
@@ -77,37 +92,16 @@ console.log(authStore.user);
   </template>
 
   <!-- 👉 Front Pages -->
-  <VerticalNavGroup :item="{
-    title: 'Front Pages',
-    icon: 'ri-file-copy-line',
-    badgeContent: 'Pro',
-    badgeClass: 'bg-light-primary text-primary',
+  <VerticalNavGroup v-if="hasPermission('manage_configuration')" :item="{
+    title: 'Sync Data',
+    icon: 'ri-time-line',
   }">
-    <VerticalNavLink :item="{
-      title: 'Landing',
-      href: 'https://demos.themeselection.com/materio-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/landing-page',
-      target: '_blank',
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'TimeDoctor V1',
+      icon: 'ri-progress-1-line',
+      to: '/admin/timedoctor',
     }" />
-    <VerticalNavLink :item="{
-      title: 'Pricing',
-      href: 'https://demos.themeselection.com/materio-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/pricing',
-      target: '_blank',
-    }" />
-    <VerticalNavLink :item="{
-      title: 'Payment',
-      href: 'https://demos.themeselection.com/materio-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/payment',
-      target: '_blank',
-    }" />
-    <VerticalNavLink :item="{
-      title: 'Checkout',
-      href: 'https://demos.themeselection.com/materio-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/checkout',
-      target: '_blank',
-    }" />
-    <VerticalNavLink :item="{
-      title: 'Help Center',
-      href: 'https://demos.themeselection.com/materio-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/help-center',
-      target: '_blank',
-    }" />
+
   </VerticalNavGroup>
 
   <!-- 👉 Apps & Pages -->
@@ -175,29 +169,3 @@ console.log(authStore.user);
 
 
 </template>
-<!-- <style lang="scss">
-.layout-vertical-nav {
-  .nav-item-title {
-    overflow: visible !important;
-    line-height: 1.4;
-    padding-block: 0.375rem;
-    text-overflow: unset !important;
-    white-space: normal !important;
-  }
-
-  .nav-group {
-    margin-block-end: 0.5rem;
-  }
-
-  .nav-group > :first-child {
-    margin-block-end: 0.375rem;
-  }
-
-  &:not(.layout-vertical-nav-collapsed) {
-    .nav-item-title {
-      padding-block: 0.375rem;
-      white-space: normal !important;
-    }
-  }
-}
-</style> -->

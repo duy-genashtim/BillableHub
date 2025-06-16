@@ -72,6 +72,16 @@ class ConfigurationSettingTypeSeeder extends Seeder
                 'allow_delete'       => false,
                 'allow_create'       => false,
             ],
+            [
+                'key'                => 'iva_logs_type',
+                'name'               => 'IVAs Logs Type',
+                'description'        => 'Types of logs for IVAs',
+                'setting_category'   => 'other',
+                'for_user_customize' => false,
+                'allow_edit'         => false,
+                'allow_delete'       => false,
+                'allow_create'       => true,
+            ],
 
         ];
 

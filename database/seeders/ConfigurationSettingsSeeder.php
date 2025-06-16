@@ -49,6 +49,12 @@ class ConfigurationSettingsSeeder extends Seeder
             ['setting_value' => 'billable', 'description' => 'Billable'],
             ['setting_value' => 'non-billable', 'description' => 'Non-Billable'],
         ]);
+        // IVAs Logs types
+        $this->createSettings('iva_logs_type', [
+            ['setting_value' => 'note', 'description' => 'Note'],
+            ['setting_value' => 'nad', 'description' => 'NAD'],
+            ['setting_value' => 'performance', 'description' => 'Performance'],
+        ]);
     }
 
     /**

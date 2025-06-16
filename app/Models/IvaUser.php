@@ -20,6 +20,7 @@ class IvaUser extends Model
         'end_date',
         'is_active',
         'region_id',
+        'cohort_id',
         'work_status',
         'timedoctor_version',
     ];
@@ -36,6 +37,11 @@ class IvaUser extends Model
         return $this->belongsTo(Region::class);
     }
 
+    public function cohort()
+    {
+        return $this->belongsTo(Cohort::class);
+    }
+
     public function timedoctorUser(): HasOne
     {
         return $this->hasOne(TimedoctorV1User::class, 'iva_user_id');
@@ -46,6 +52,46 @@ class IvaUser extends Model
         return $this->hasMany(WorklogsData::class, 'iva_id');
     }
 
+    /**
+     * Get the managers for this user.
+     */
+    public function managers(): HasMany
+    {
+        return $this->hasMany(IvaManager::class, 'iva_id');
+    }
+
+    /**
+     * Get the subordinates for this user (when user is a manager).
+     */
+    public function subordinates(): HasMany
+    {
+        return $this->hasMany(IvaManager::class, 'iva_manager_id');
+    }
+
+    /**
+     * Get the user customizations.
+     */
+    public function customizations(): HasMany
+    {
+        return $this->hasMany(IvaUserCustomize::class, 'iva_user_id');
+    }
+
+    /**
+     * Get the user changelogs.
+     */
+    public function changelogs(): HasMany
+    {
+        return $this->hasMany(IvaUserChangelog::class, 'iva_user_id');
+    }
+
+    /**
+     * Get the user logs.
+     */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(IvaUserLog::class, 'iva_user_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
@@ -54,5 +100,55 @@ class IvaUser extends Model
     public function scopeByRegion($query, $regionId)
     {
         return $query->where('region_id', $regionId);
+    }
+
+    /**
+     * Load manager information for the user
+     */
+    public function loadManagerInfo()
+    {
+        $managers = $this->managers()
+            ->with(['manager', 'managerType', 'region'])
+            ->get()
+            ->map(function ($manager) {
+                return [
+                    'id'           => $manager->id,
+                    'manager_name' => $manager->manager ? $manager->manager->full_name : null,
+                    'manager_type' => $manager->managerType ? $manager->managerType->setting_value : null,
+                    'region_name'  => $manager->region ? $manager->region->name : null,
+                ];
+            });
+
+        $this->setAttribute('managers_info', $managers);
+
+        return $this;
+    }
+
+    /**
+     * Get formatted hire date.
+     */
+    public function getFormattedHireDateAttribute()
+    {
+        return $this->hire_date ? $this->hire_date->format('Y-m-d') : null;
+    }
+
+    /**
+     * Get formatted end date.
+     */
+    public function getFormattedEndDateAttribute()
+    {
+        return $this->end_date ? $this->end_date->format('Y-m-d') : null;
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            // Set default timedoctor_version if not provided
+            if (! isset($model->timedoctor_version)) {
+                $model->timedoctor_version = 1;
+            }
+        });
     }
 }

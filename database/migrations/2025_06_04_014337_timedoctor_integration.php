@@ -26,6 +26,21 @@ return new class extends Migration
             $table->index('region_order');
         });
 
+        Schema::create('cohorts', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->integer('cohort_order')->default(10);
+            $table->date('start_date')->nullable();
+            $table->timestamps();
+
+            // Add index for frequently queried columns
+            $table->index('name');
+            $table->index('is_active');
+            $table->index('cohort_order');
+        });
+
         // 2. iva_user table - moved up for dependency order
         Schema::create('iva_user', function (Blueprint $table) {
             $table->id();
@@ -35,6 +50,7 @@ return new class extends Migration
             $table->date('end_date')->nullable();
             $table->boolean('is_active')->default(true);
             $table->foreignId('region_id')->nullable()->constrained('regions');
+            $table->foreignId('cohort_id')->nullable()->constrained('cohorts');
             $table->string('work_status')->nullable();
             $table->smallInteger('timedoctor_version');
 
@@ -45,6 +61,7 @@ return new class extends Migration
             $table->index('end_date');
             $table->index('is_active');
             $table->index('region_id');
+            $table->index('cohort_id');
         });
 
         // 3. timedoctor_v1_user table
@@ -123,10 +140,10 @@ return new class extends Migration
         // 5. tasks table - UPDATED
         Schema::create('tasks', function (Blueprint $table) {
             $table->id();
-            $table->smallInteger('timedoctor_version');
-            $table->string('task_name');           // Made unique
-            $table->string('slug');                // Added slug field
-            $table->text('user_list')->nullable(); // Changed from timedoctor_id to user_list as JSON
+                                                         // $table->smallInteger('timedoctor_version');
+            $table->string('task_name');                 // Made unique
+            $table->string('slug');                      // Added slug field
+            $table->mediumText('user_list')->nullable(); // Changed from timedoctor_id to user_list as JSON
             $table->boolean('is_active')->default(true);
             $table->timestamp('last_synced_at')->nullable();
             $table->timestamps();
@@ -249,6 +266,7 @@ return new class extends Migration
         Schema::dropIfExists('timedoctor_v1_user');
         Schema::dropIfExists('timedoctor_v2_user');
         Schema::dropIfExists('iva_user');
+        Schema::dropIfExists('cohorts');
         Schema::dropIfExists('regions');
     }
 };

@@ -20,10 +20,15 @@ class ConfigurationSettingsController extends Controller
     public function index(Request $request)
     {
         $query = ConfigurationSetting::with('settingType');
-
+        // dd($query->toSql(), $query->getBindings(), $query);
         // Filter by type if provided
         if ($request->has('type_id') && ! empty($request->type_id)) {
             $query->where('setting_type_id', $request->type_id);
+        }
+        if ($request->has('type_key') && ! empty($request->type_key)) {
+            $query->whereHas('settingType', function ($q) use ($request) {
+                $q->where('key', $request->type_key);
+            });
         }
 
         // Get settings and apply sorting if requested

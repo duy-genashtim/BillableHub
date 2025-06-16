@@ -14,21 +14,37 @@ class TaskReportCategory extends Model
     protected $fillable = [
         'task_id',
         'cat_id',
+        'created_at',
+        'updated_at',
     ];
 
-    /**
-     * Get the task associated with this relationship.
-     */
+    protected $casts = [
+        'task_id' => 'integer',
+        'cat_id'  => 'integer',
+    ];
+
     public function task(): BelongsTo
     {
         return $this->belongsTo(Task::class, 'task_id');
     }
 
-    /**
-     * Get the report category associated with this relationship.
-     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(ReportCategory::class, 'cat_id');
+    }
+
+    public function scopeByTask($query, $taskId)
+    {
+        return $query->where('task_id', $taskId);
+    }
+
+    public function scopeByCategory($query, $categoryId)
+    {
+        return $query->where('cat_id', $categoryId);
+    }
+
+    public function scopeWithRelations($query)
+    {
+        return $query->with(['task', 'category']);
     }
 }

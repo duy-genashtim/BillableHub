@@ -80,6 +80,32 @@ export const routes = [
         component: () => import('@/pages/regions/RegionDetail.vue'),
         meta: { permission: 'manage_configuration' },
       },
+
+      // Cohort Management routes
+      {
+        path: 'admin/cohorts',
+        name: 'cohorts-list',
+        component: () => import('@/pages/cohorts/CohortsList.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/cohorts/create',
+        name: 'cohort-create',
+        component: () => import('@/pages/cohorts/CohortCreate.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/cohorts/:id/edit',
+        name: 'cohort-edit',
+        component: () => import('@/pages/cohorts/CohortEdit.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/cohorts/:id',
+        name: 'cohort-detail',
+        component: () => import('@/pages/cohorts/CohortDetail.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
       
       // Configuration Management routes
       {
@@ -164,6 +190,113 @@ export const routes = [
         path: 'admin/categories/:id',
         name: 'category-detail',
         component: () => import('@/pages/categories/CategoryDetail.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+
+      // IVA User Management routes
+     // IVA Users Management Routes
+{
+  path: '/admin/iva-users',
+  name: 'iva-users-list',
+  component: () => import('@/pages/iva-users/IvaUsersList.vue'),
+  meta: {
+    requiresAuth: true,
+    layout: 'admin',
+    breadcrumb: [
+      { title: 'Home', url: '/' },
+      { title: 'IVA Users', active: true },
+    ],
+  },
+},
+{
+  path: '/admin/iva-users/create',
+  name: 'iva-user-create',
+  component: () => import('@/pages/iva-users/IvaUserCreate.vue'),
+  meta: {
+    requiresAuth: true,
+    layout: 'admin',
+    breadcrumb: [
+      { title: 'Home', url: '/' },
+      { title: 'IVA Users', url: '/admin/iva-users' },
+      { title: 'Create', active: true },
+    ],
+  },
+},
+{
+  path: '/admin/iva-users/:id',
+  name: 'iva-user-detail',
+  component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
+  meta: {
+    requiresAuth: true,
+    layout: 'admin',
+    breadcrumb: [
+      { title: 'Home', url: '/' },
+      { title: 'IVA Users', url: '/admin/iva-users' },
+      { title: 'User Details', active: true },
+    ],
+  },
+},
+{
+  path: '/admin/iva-users/:id/edit',
+  name: 'iva-user-edit',
+  component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
+  props: { isEditMode: true },
+  meta: {
+    requiresAuth: true,
+    layout: 'admin',
+    breadcrumb: [
+      { title: 'Home', url: '/' },
+      { title: 'IVA Users', url: '/admin/iva-users' },
+      { title: 'Edit User', active: true },
+    ],
+  },
+},
+{
+  path: '/admin/iva-users/:id/worklog-dashboard',
+  name: 'iva-user-worklog-dashboard',
+  component: () => import('@/pages/iva-users/IvaWorklogDashboard.vue'),
+  meta: {
+    requiresAuth: true,
+    layout: 'admin',
+    breadcrumb: [
+      { title: 'Home', url: '/' },
+      { title: 'IVA Users', url: '/admin/iva-users' },
+      { title: 'Working Hours Dashboard', active: true },
+    ],
+  },
+},
+{
+  path: '/admin/iva-users/:id/timedoctor-records',
+  name: 'iva-user-timedoctor-records',
+  component: () => import('@/pages/iva-users/IvaUserTimeDoctorRecords.vue'),
+  meta: {
+    requiresAuth: true,
+    layout: 'admin',
+    breadcrumb: [
+      { title: 'Home', url: '/' },
+      { title: 'IVA Users', url: '/admin/iva-users' },
+      { title: 'Time Doctor Records', active: true },
+    ],
+  },
+},
+
+      // IVA Manager Management routes
+      {
+        path: 'admin/iva-managers',
+        name: 'iva-managers-list',
+        component: () => import('@/pages/iva-managers/IvaManagersList.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/iva-managers/assign',
+        name: 'iva-manager-assign',
+        component: () => import('@/pages/iva-managers/IvaManagerAssign.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
+      {
+        path: 'admin/iva-managers/:id',
+        name: 'iva-manager-detail',
+        component: () => import('@/pages/iva-managers/IvaManagerDetail.vue'),
         meta: { permission: 'manage_configuration' },
       },
     ],
