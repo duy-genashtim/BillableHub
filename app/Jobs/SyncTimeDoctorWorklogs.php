@@ -137,7 +137,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                 $currentDate->addDay();
             }
 
-            ActivityLogService::log('import_excel_time', 'TimeDoctor worklog sync job completed', [
+            ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job completed', [
                 'module'       => 'timedoctor_integration',
                 'start_date'   => $startDate->format('Y-m-d'),
                 'end_date'     => $endDate->format('Y-m-d'),
@@ -162,7 +162,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                 'job_id'     => $this->job->getJobId(),
             ]);
 
-            ActivityLogService::log('import_excel_time', 'TimeDoctor worklog sync job failed', [
+            ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job failed', [
                 'module'     => 'timedoctor_integration',
                 'start_date' => $startDate->format('Y-m-d'),
                 'end_date'   => $endDate->format('Y-m-d'),
@@ -428,7 +428,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
             'job_id'     => $this->job?->getJobId(),
         ]);
 
-        ActivityLogService::log('import_excel_time', 'TimeDoctor worklog sync job failed permanently', [
+        ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job failed permanently', [
             'module'     => 'timedoctor_integration',
             'start_date' => $this->startDate,
             'end_date'   => $this->endDate,

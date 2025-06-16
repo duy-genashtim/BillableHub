@@ -222,7 +222,7 @@ class TimeDoctorController extends Controller
 
                 DB::commit();
 
-                ActivityLogService::log('import_excel_time', 'TimeDoctor users synced successfully', [
+                ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor users synced successfully', [
                     'module'       => 'timedoctor_integration',
                     'synced_count' => $syncCount,
                     'total_users'  => count($usersData['users']),
@@ -243,7 +243,7 @@ class TimeDoctorController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            ActivityLogService::log('import_excel_time', 'Failed to sync TimeDoctor users', [
+            ActivityLogService::log('sync_timedoctor_data', 'Failed to sync TimeDoctor users', [
                 'module' => 'timedoctor_integration',
                 'error'  => $e->getMessage(),
             ]);
@@ -289,7 +289,7 @@ class TimeDoctorController extends Controller
 
                 DB::commit();
 
-                ActivityLogService::log('import_excel_time', 'TimeDoctor projects synced successfully', [
+                ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor projects synced successfully', [
                     'module'         => 'timedoctor_integration',
                     'synced_count'   => $syncCount,
                     'total_projects' => count($projectsData['count']),
@@ -310,7 +310,7 @@ class TimeDoctorController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            ActivityLogService::log('import_excel_time', 'Failed to sync TimeDoctor projects', [
+            ActivityLogService::log('sync_timedoctor_data', 'Failed to sync TimeDoctor projects', [
                 'module' => 'timedoctor_integration',
                 'error'  => $e->getMessage(),
             ]);
@@ -358,8 +358,8 @@ class TimeDoctorController extends Controller
 
                     foreach ($tasksData['tasks'] as $task) {
                         $userListData = [
-                            'userId'       => $user->timedoctor_id,
-                            'timedoctorId' => $task['task_id'] ?? null,
+                            'tId' => $task['task_id'] ?? null,
+                            'vId' => 1,
                         ];
 
                         $existingTask = Task::where('task_name', $task['task_name'])->first();
@@ -370,7 +370,8 @@ class TimeDoctorController extends Controller
 
                             if (is_array($existingUserList)) {
                                 foreach ($existingUserList as $key => $userData) {
-                                    if (isset($userData['userId']) && $userData['userId'] == $user->timedoctor_id) {
+                                    // Check if this task already exists for this user by comparing tId
+                                    if (isset($userData['tId']) && $userData['tId'] == ($task['task_id'] ?? null)) {
                                         $existingUserList[$key] = $userListData;
                                         $userExists             = true;
                                         break;
@@ -391,11 +392,10 @@ class TimeDoctorController extends Controller
                             ]);
                         } else {
                             Task::create([
-                                'timedoctor_version' => 1,
-                                'task_name'          => $task['task_name'],
-                                'user_list'          => [$userListData],
-                                'is_active'          => ($task['status'] === 'Active' || $task['active'] ?? false),
-                                'last_synced_at'     => now(),
+                                'task_name'      => $task['task_name'],
+                                'user_list'      => [$userListData],
+                                'is_active'      => ($task['status'] === 'Active' || $task['active'] ?? false),
+                                'last_synced_at' => now(),
                             ]);
                         }
 
@@ -405,7 +405,7 @@ class TimeDoctorController extends Controller
 
                 DB::commit();
 
-                ActivityLogService::log('import_excel_time', 'TimeDoctor tasks synced successfully', [
+                ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor tasks synced successfully', [
                     'module'          => 'timedoctor_integration',
                     'synced_count'    => $syncCount,
                     'users_processed' => $users->count(),
@@ -426,7 +426,7 @@ class TimeDoctorController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            ActivityLogService::log('import_excel_time', 'Failed to sync TimeDoctor tasks', [
+            ActivityLogService::log('sync_timedoctor_data', 'Failed to sync TimeDoctor tasks', [
                 'module' => 'timedoctor_integration',
                 'error'  => $e->getMessage(),
             ]);
@@ -468,7 +468,7 @@ class TimeDoctorController extends Controller
         if ($queueJob) {
             SyncTimeDoctorWorklogs::dispatch($startDate->toDateString(), $endDate->toDateString());
 
-            ActivityLogService::log('import_excel_time', 'TimeDoctor worklog sync job queued', [
+            ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job queued', [
                 'module'     => 'timedoctor_integration',
                 'start_date' => $startDate->toDateString(),
                 'end_date'   => $endDate->toDateString(),

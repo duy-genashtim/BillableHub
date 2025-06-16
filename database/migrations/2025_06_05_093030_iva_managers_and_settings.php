@@ -59,6 +59,8 @@ return new class extends Migration
             $table->foreignId('iva_user_id')->constrained('iva_user')->onDelete('cascade');
 
             $table->foreignId('setting_id')->constrained('configuration_settings')->onDelete('cascade');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
             //  $table->foreignId('setting_type_id')->constrained('configuration_settings_type')->onDelete('cascade');
             $table->text('custom_value');
             $table->timestamps();
@@ -69,6 +71,37 @@ return new class extends Migration
             // Add indexes for better query performance
             $table->index('iva_user_id');
             $table->index('setting_id');
+            $table->index('start_date');
+            $table->index('end_date');
+        });
+
+        Schema::create('iva_user_logs', function (Blueprint $table) {
+            $table->id();
+
+            // Link to the IVA user the log is about
+            $table->foreignId('iva_user_id')->constrained('iva_user')->onDelete('cascade');
+
+            // Link to user table, optional
+            $table->foreignId('created_by')->nullable();
+
+            // Optional log type: 'note', 'performance', 'reminder', etc.
+            // refer to configuration_settings for types
+            $table->string('log_type')->default('note');
+
+            // Log title and content
+            $table->string('title')->nullable();
+            $table->text('content');
+
+            // Visibility control
+            $table->boolean('is_private')->default(false);
+
+            // Timestamps
+            $table->timestamps();
+
+            // Indexes for performance
+            $table->index('iva_user_id');
+            $table->index('created_by');
+            $table->index('log_type');
         });
 
     }
@@ -81,5 +114,6 @@ return new class extends Migration
         Schema::dropIfExists('iva_user_customize');
         Schema::dropIfExists('iva_user_changelogs');
         Schema::dropIfExists('iva_manager');
+        Schema::dropIfExists('iva_user_logs');
     }
 };

@@ -4,13 +4,18 @@ use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CohortController;
 use App\Http\Controllers\ConfigurationSettingsController;
 use App\Http\Controllers\ConfigurationSettingTypeController;
+use App\Http\Controllers\IvaManagerController;
+use App\Http\Controllers\IvaUserController;
+use App\Http\Controllers\IvaUserTimeDoctorRecordsController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\ReportCategoryController;
 use App\Http\Controllers\TimeDoctorAuthController;
 use App\Http\Controllers\TimeDoctorController;
 use App\Http\Controllers\TimeDoctorLongOperationController;
+use App\Http\Controllers\WorklogDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -56,6 +61,68 @@ Route::middleware('auth.jwt')->group(function () {
             Route::delete('/{region}', [RegionController::class, 'destroy']);
             Route::post('/{region}/assign-users', [RegionController::class, 'assignUsers']);
             Route::delete('/{region}/remove-users', [RegionController::class, 'removeUsers']);
+        });
+
+        // Cohort Management Routes (require manage_configuration permission)
+        Route::prefix('cohorts')->name('cohorts.')->group(function () {
+            Route::get('/', [CohortController::class, 'index']);
+            Route::post('/', [CohortController::class, 'store']);
+            Route::get('/available-users', [CohortController::class, 'getAvailableUsers']);
+            Route::get('/{cohort}', [CohortController::class, 'show']);
+            Route::put('/{cohort}', [CohortController::class, 'update']);
+            Route::delete('/{cohort}', [CohortController::class, 'destroy']);
+            Route::post('/{cohort}/assign-users', [CohortController::class, 'assignUsers']);
+            Route::delete('/{cohort}/remove-users', [CohortController::class, 'removeUsers']);
+        });
+
+        // IVA User Management Routes (require manage_ivas permission)
+        Route::prefix('iva-users')->name('iva-users.')->group(function () {
+            Route::get('/', [IvaUserController::class, 'index']);
+            Route::post('/', [IvaUserController::class, 'store']);
+            Route::get('/{id}', [IvaUserController::class, 'show']);
+            Route::put('/{id}', [IvaUserController::class, 'update']);
+
+            // User customizations
+            Route::post('/{id}/customizations', [IvaUserController::class, 'updateCustomizations']);
+            Route::delete('/{id}/customizations/{customizationId}', [IvaUserController::class, 'removeCustomization']);
+
+            // User managers
+            Route::get('/{id}/available-managers', [IvaUserController::class, 'getAvailableManagers']);
+            Route::post('/{id}/managers', [IvaUserController::class, 'addManager']);
+            Route::delete('/{id}/managers/{managerId}', [IvaUserController::class, 'removeManager']);
+
+            // User logs
+            Route::get('/{id}/logs', [IvaUserController::class, 'getLogs']);
+            Route::post('/{id}/logs', [IvaUserController::class, 'addLog']);
+            Route::put('/{id}/logs/{logId}', [IvaUserController::class, 'updateLog']);
+            Route::delete('/{id}/logs/{logId}', [IvaUserController::class, 'deleteLog']);
+
+            // Time Doctor Records Management Routes
+            Route::get('/{id}/timedoctor-records', [IvaUserTimeDoctorRecordsController::class, 'index']);
+            Route::post('/{id}/timedoctor-records', [IvaUserTimeDoctorRecordsController::class, 'store']);
+            Route::put('/{id}/timedoctor-records/{worklogId}', [IvaUserTimeDoctorRecordsController::class, 'update']);
+            Route::delete('/{id}/timedoctor-records/{worklogId}', [IvaUserTimeDoctorRecordsController::class, 'destroy']);
+            Route::patch('/{id}/timedoctor-records/{worklogId}/toggle-status', [IvaUserTimeDoctorRecordsController::class, 'toggleStatus']);
+            Route::post('/{id}/timedoctor-records/sync', [IvaUserTimeDoctorRecordsController::class, 'syncTimeDoctorRecords']);
+
+            // Helper routes for dropdowns
+            Route::get('/timedoctor-records/projects', [IvaUserTimeDoctorRecordsController::class, 'getProjects']);
+            Route::get('/timedoctor-records/tasks', [IvaUserTimeDoctorRecordsController::class, 'getTasks']);
+
+            // Working Hours Dashboard
+            Route::get('/{id}/worklog-dashboard', [WorklogDashboardController::class, 'getDashboardData']);
+        });
+
+        // IVA Manager Management Routes (require manage_ivas permission)
+        Route::prefix('iva-managers')->name('iva-managers.')->group(function () {
+            Route::get('/', [IvaManagerController::class, 'index']);
+            Route::post('/', [IvaManagerController::class, 'store']);
+            Route::get('/{id}', [IvaManagerController::class, 'show']);
+            Route::delete('/{id}', [IvaManagerController::class, 'destroy']);
+            Route::delete('/{id}/users', [IvaManagerController::class, 'removeUser']);
+            Route::get('/{id}/available-users', [IvaManagerController::class, 'getAvailableUsers']);
+            Route::post('/{id}/users', [IvaManagerController::class, 'addUsers']);
+            Route::get('/regions/{regionId}', [IvaManagerController::class, 'getRegionData']);
         });
     });
 
@@ -118,4 +185,27 @@ Route::middleware('auth.jwt')->group(function () {
         Route::post('/{id}/tasks', [ReportCategoryController::class, 'assignTasks'])->name('assign-tasks');
         Route::delete('/{id}/tasks', [ReportCategoryController::class, 'removeTasks'])->name('remove-tasks');
     });
+
+    // Worklog Dashboard API Routes
+    // Route::get('/worklog-dashboard/weeks', [WorklogDashboardController::class, 'getAvailableWeeks'])
+    //     ->name('api.worklog-dashboard.weeks');
+
+    // Worklog Dashboard API Routes (Global/Shared)
+    // Route::prefix('worklog-dashboard')->name('worklog-dashboard.')->group(function () {
+    //     Route::get('/weeks', [WorklogDashboardController::class, 'getAvailableWeeks'])->name('weeks');
+    //     Route::get('/years', [WorklogDashboardController::class, 'getAvailableYears'])->name('years');
+    //     Route::get('/performance-targets', [WorklogDashboardController::class, 'getPerformanceTargets'])->name('performance-targets');
+    //     Route::get('/category-mappings', [WorklogDashboardController::class, 'getCategoryMappings'])->name('category-mappings');
+    //     Route::get('/analytics', [WorklogDashboardController::class, 'getAnalytics'])->name('analytics');
+    //     Route::post('/bulk-export', [WorklogDashboardController::class, 'bulkExportDashboardData'])->name('bulk-export');
+    // });
+
+    // Additional Worklog Dashboard API Routes for advanced features
+    // Route::prefix('dashboard')->name('dashboard.')->group(function () {
+    //     Route::get('/overview', [WorklogDashboardController::class, 'getOverviewData'])->name('overview');
+    //     Route::get('/team-performance', [WorklogDashboardController::class, 'getTeamPerformance'])->name('team-performance');
+    //     Route::get('/productivity-insights', [WorklogDashboardController::class, 'getProductivityInsights'])->name('productivity-insights');
+    //     Route::get('/time-tracking-summary', [WorklogDashboardController::class, 'getTimeTrackingSummary'])->name('time-tracking-summary');
+    // });
+
 });
