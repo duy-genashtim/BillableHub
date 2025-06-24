@@ -329,17 +329,6 @@ class IvaUserController extends Controller
                 $user->work_status = $request->work_status;
             }
 
-            // For active status changes
-            if ($user->is_active != $request->is_active) {
-                $changedFields['is_active'] = [
-                    'old'            => $user->is_active,
-                    'new'            => $request->is_active,
-                    'reason'         => 'Status updated',
-                    'effective_date' => now(),
-                ];
-                $user->is_active = $request->is_active;
-            }
-
             $user->timedoctor_version = $request->timedoctor_version;
             $user->save();
 
@@ -702,7 +691,7 @@ class IvaUserController extends Controller
             $tdUser = TimedoctorV2User::where('iva_user_id', $user->id)->first();
             if ($tdUser) {
                 $status['is_linked']      = true;
-                $status['can_sync']       = false; // V2 sync on hold
+                $status['can_sync']       = true;
                 $status['td_user_id']     = $tdUser->timedoctor_id;
                 $status['last_synced']    = $tdUser->last_synced_at;
                 $status['sync_available'] = false;
@@ -760,107 +749,80 @@ class IvaUserController extends Controller
     /**
      * Update user customizations.
      */
-    public function updateCustomizations(Request $request, $id)
+    public function updateCustomization(Request $request, $id, $customizationId)
     {
-        $user = IvaUser::findOrFail($id);
+        $user          = IvaUser::findOrFail($id);
+        $customization = IvaUserCustomize::where('iva_user_id', $id)
+            ->where('id', $customizationId)
+            ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
-            'customizations'                => 'required|array',
-            'customizations.*.setting_id'   => 'required|exists:configuration_settings,id',
-            'customizations.*.custom_value' => 'required|string',
-            'customizations.*.start_date'   => 'nullable|date',
-            'customizations.*.end_date'     => 'nullable|date|after_or_equal:customizations.*.start_date',
+            'custom_value' => 'required|string',
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date|after_or_equal:start_date',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Get the setting to verify it allows customization
+        $setting = ConfigurationSetting::with('settingType')->find($customization->setting_id);
+        if (! $setting || ! $setting->settingType || ! $setting->settingType->for_user_customize) {
+            return response()->json([
+                'message' => 'This setting cannot be customized',
+            ], 422);
+        }
+
         DB::beginTransaction();
 
         try {
-            // Process each customization
-            foreach ($request->customizations as $customization) {
-                // Get the setting to check if customization is allowed
-                $setting = ConfigurationSetting::with('settingType')->find($customization['setting_id']);
-                if (! $setting || ! $setting->settingType || ! $setting->settingType->for_user_customize) {
-                    continue;
-                }
+            $oldValue     = $customization->custom_value;
+            $oldStartDate = $customization->start_date;
+            $oldEndDate   = $customization->end_date;
 
-                // Check if customization already exists for this specific setting
-                $existingCustomization = IvaUserCustomize::where('iva_user_id', $user->id)
-                    ->where('setting_id', $customization['setting_id'])
-                    ->first();
+            $customization->update([
+                'custom_value' => $request->custom_value,
+                'start_date'   => $request->start_date ?? null,
+                'end_date'     => $request->end_date ?? null,
+            ]);
 
-                if ($existingCustomization) {
-                    // Update existing
-                    $oldValue = $existingCustomization->custom_value;
-                    $existingCustomization->update([
-                        'custom_value' => $customization['custom_value'],
-                        'start_date'   => $customization['start_date'] ?? null,
-                        'end_date'     => $customization['end_date'] ?? null,
-                    ]);
-
-                    // Log the update
-                    ActivityLogService::log(
-                        'update_iva_user_customization',
-                        'Updated customization for user: ' . $user->full_name,
-                        [
-                            'user_id'      => $user->id,
-                            'setting_id'   => $customization['setting_id'],
-                            'setting_name' => $setting->setting_value,
-                            'old_value'    => $oldValue,
-                            'new_value'    => $customization['custom_value'],
-                            'start_date'   => $customization['start_date'] ?? null,
-                            'end_date'     => $customization['end_date'] ?? null,
-                        ]
-                    );
-                } else {
-                    // Create new
-                    $newCustomization = IvaUserCustomize::create([
-                        'iva_user_id'  => $user->id,
-                        'setting_id'   => $customization['setting_id'],
-                        'custom_value' => $customization['custom_value'],
-                        'start_date'   => $customization['start_date'] ?? null,
-                        'end_date'     => $customization['end_date'] ?? null,
-                    ]);
-
-                    // Log the creation
-                    ActivityLogService::log(
-                        'create_iva_user_customization',
-                        'Added customization for user: ' . $user->full_name,
-                        [
-                            'user_id'          => $user->id,
-                            'customization_id' => $newCustomization->id,
-                            'setting_id'       => $customization['setting_id'],
-                            'setting_name'     => $setting->setting_value,
-                            'custom_value'     => $customization['custom_value'],
-                            'start_date'       => $customization['start_date'] ?? null,
-                            'end_date'         => $customization['end_date'] ?? null,
-                        ]
-                    );
-                }
-            }
+            // Log the update
+            ActivityLogService::log(
+                'update_iva_user_customization',
+                'Updated customization for user: ' . $user->full_name,
+                [
+                    'user_id'          => $user->id,
+                    'customization_id' => $customization->id,
+                    'setting_id'       => $customization->setting_id,
+                    'setting_name'     => $setting->setting_value,
+                    'old_custom_value' => $oldValue,
+                    'new_custom_value' => $request->custom_value,
+                    'old_start_date'   => $oldStartDate,
+                    'new_start_date'   => $request->start_date,
+                    'old_end_date'     => $oldEndDate,
+                    'new_end_date'     => $request->end_date,
+                ]
+            );
 
             DB::commit();
 
-            // Refresh user with updated customizations
-            $user = $user->fresh(['customizations.setting.settingType']);
+            // Return the updated customization with relationships
+            $updatedCustomization = $customization->fresh(['setting.settingType']);
 
             return response()->json([
-                'message'        => 'User customizations updated successfully',
-                'customizations' => $user->customizations,
+                'message'       => 'Customization updated successfully',
+                'customization' => $updatedCustomization,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
-                'message' => 'Failed to update user customizations',
+                'message' => 'Failed to update customization',
                 'error'   => $e->getMessage(),
             ], 500);
         }
     }
-
     /**
      * Add a log entry for the user
      */

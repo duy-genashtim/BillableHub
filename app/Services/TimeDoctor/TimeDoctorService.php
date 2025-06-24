@@ -112,30 +112,44 @@ class TimeDoctorService
 
     public function getCompanyId()
     {
-        if ($this->companyId === null) {
-            try {
-                $companyInfo = $this->getCompanyInfo();
+        try {
+            $companyInfo = $this->getCompanyInfo();
 
-                if (is_array($companyInfo) && isset($companyInfo['accounts']) && ! empty($companyInfo['accounts'])) {
-                    $this->companyId = $companyInfo['accounts'][0]['company_id'] ?? null;
-                } else {
-                    Log::error('Invalid company info format', ['info' => $companyInfo]);
-                    throw new \Exception('Invalid company info format or empty accounts array');
-                }
-
-                if (! $this->companyId) {
-                    throw new \Exception('No company ID found in TimeDoctor account');
-                }
-            } catch (\Exception $e) {
-                Log::error('Failed to get TimeDoctor company info', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                throw $e;
+            if (isset($companyInfo['accounts'][0]['company_id'])) {
+                return $companyInfo['accounts'][0]['company_id'];
             }
-        }
 
-        return $this->companyId;
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Error getting company ID from TimeDoctor service', [
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+        // if ($this->companyId === null) {
+        //     try {
+        //         $companyInfo = $this->getCompanyInfo();
+
+        //         if (is_array($companyInfo) && isset($companyInfo['accounts']) && ! empty($companyInfo['accounts'])) {
+        //             $this->companyId = $companyInfo['accounts'][0]['company_id'] ?? null;
+        //         } else {
+        //             Log::error('Invalid company info format', ['info' => $companyInfo]);
+        //             throw new \Exception('Invalid company info format or empty accounts array');
+        //         }
+
+        //         if (! $this->companyId) {
+        //             throw new \Exception('No company ID found in TimeDoctor account');
+        //         }
+        //     } catch (\Exception $e) {
+        //         Log::error('Failed to get TimeDoctor company info', [
+        //             'error' => $e->getMessage(),
+        //             'trace' => $e->getTraceAsString(),
+        //         ]);
+        //         throw $e;
+        //     }
+        // }
+
+        // return $this->companyId;
     }
 
     public function getUsers($companyId)

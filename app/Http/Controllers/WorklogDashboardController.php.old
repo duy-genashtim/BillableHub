@@ -40,19 +40,11 @@ class WorklogDashboardController extends Controller
         $originalStartDate = $request->input('start_date');
         $endDate           = $request->input('end_date');
 
-        // get NAD Data
-        $data = [
-            'start_date' => $originalStartDate,
-            'end_date'   => $endDate,
-            'blab_only'  => 1,
-            'email_list' => [$user->email], // Use user's email for NAD API
-        ];
-
         // Apply start date adjustment logic
         $dateAdjustment = ivaAdjustStartDate($user, $originalStartDate, $endDate);
         $startDate      = $dateAdjustment['adjusted_start_date'];
 
-        // Validate date range (max 13 months)
+        // Validate date range (max 3 months)
         $daysDiff = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate));
         if ($daysDiff > 395) {
             return response()->json([
@@ -68,30 +60,30 @@ class WorklogDashboardController extends Controller
             ->with(['project', 'task'])
             ->orderBy('start_time')
             ->get();
+
         // Get work status changes during the period to handle performance calculations
-        $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
+        $workStatusChanges = getWorkStatusChangesForUser($user, $startDate, $endDate);
 
         // Calculate dashboard metrics
         $dashboardData = [
-            'user' => [
+            'user'               => [
                 'id'                 => $user->id,
                 'name'               => $user->full_name,
                 'work_status'        => $user->work_status,
                 'region'             => $user->region ? $user->region->name : null,
                 'timedoctor_version' => $user->timedoctor_version,
             ],
-            // 'nad_data'           => $NADData,
-            // 'date_range'         => [
-            //     'start'               => $startDate,
-            //     'end'                 => $endDate,
-            //     'original_start'      => $originalStartDate,
-            //     'start_date_adjusted' => $dateAdjustment['hire_date_used'],
-            //     'days_count'          => $daysDiff + 1,
-            //     'mode'                => $this->getDateMode($request),
-            // ],
-            // 'basic_metrics'      => calculateBasicMetrics($worklogs),
-            // 'daily_breakdown'    => calculateDailyBreakdown($worklogs, $startDate, $endDate),
-            // 'category_breakdown' => calculateCategoryBreakdown($worklogs),
+            'date_range'         => [
+                'start'               => $startDate,
+                'end'                 => $endDate,
+                'original_start'      => $originalStartDate,
+                'start_date_adjusted' => $dateAdjustment['hire_date_used'],
+                'days_count'          => $daysDiff + 1,
+                'mode'                => $this->getDateMode($request),
+            ],
+            'basic_metrics'      => calculateBasicMetricsForWorklogs($worklogs),
+            'daily_breakdown'    => calculateDailyBreakdownForWorklogs($worklogs, $startDate, $endDate),
+            'category_breakdown' => calculateCategoryBreakdownForWorklogs($worklogs),
         ];
 
         // Add performance data only for weekly reports
@@ -119,31 +111,12 @@ class WorklogDashboardController extends Controller
 
         // Add bimonthly data if needed
         if ($this->getDateMode($request) === 'bimonthly') {
-            $dashboardData['bimonthly_data'] = calculateBimonthlyData(
+            $dashboardData['bimonthly_data'] = calculateBimonthlyDataForUser(
                 $user,
                 $request->input('year'),
                 $request->input('month'),
                 $request->input('bimonthly_date', 15)
             );
-        } else {
-            $responseNAD = callNADApi('get_nad_by_date_range', $data);
-            $NADData     = [];
-
-            if (! empty($responseNAD['status']) && $responseNAD['status'] === true && ! empty($responseNAD['data']) && count($responseNAD['data']) > 0) {
-                $NADData = collect($responseNAD['data'])->firstWhere('email', $user->email) ?? [];
-            }
-            $dashboardData['basic_metrics'] = calculateBasicMetrics($worklogs);
-            $dashboardData['nad_data']      = $NADData;
-            $dashboardData['date_range']    = [
-                'start'               => $startDate,
-                'end'                 => $endDate,
-                'original_start'      => $originalStartDate,
-                'start_date_adjusted' => $dateAdjustment['hire_date_used'],
-                'days_count'          => $daysDiff + 1,
-                'mode'                => $this->getDateMode($request),
-            ];
-            $dashboardData['daily_breakdown']    = calculateDailyBreakdown($worklogs, $startDate, $endDate);
-            $dashboardData['category_breakdown'] = calculateCategoryBreakdown($worklogs);
         }
 
         // Log the activity
@@ -156,8 +129,7 @@ class WorklogDashboardController extends Controller
                 'original_start_date' => $originalStartDate,
                 'end_date'            => $endDate,
                 'start_date_adjusted' => $dateAdjustment['hire_date_used'],
-                'total_hours'         => $this->getDateMode($request) != 'bimonthly' ? $dashboardData['basic_metrics']['billable_hours'] : $dashboardData['bimonthly_data']['first_half']['basic_metrics']['billable_hours'] +
-                $dashboardData['bimonthly_data']['second_half']['basic_metrics']['billable_hours'],
+                'total_hours'         => $dashboardData['basic_metrics']['billable_hours'] + $dashboardData['basic_metrics']['non_billable_hours'],
                 'date_mode'           => $this->getDateMode($request),
                 'days_span'           => $daysDiff + 1,
             ]

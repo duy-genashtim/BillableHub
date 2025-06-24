@@ -202,6 +202,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Add indexes for better query performance
+            $table->index('iva_id');
             $table->index('work_mode');
             $table->index('start_time');
             $table->index('end_time');
@@ -211,6 +212,8 @@ return new class extends Migration
             $table->index('timedoctor_worklog_id');
             $table->index('timedoctor_project_id');
             $table->index('timedoctor_task_id');
+            $table->index('task_id');
+            $table->index('project_id');
         });
 
         // 10. timedoctor_sync_status table

@@ -1,9 +1,11 @@
 <script setup>
 import { WORKLOG_CONFIG } from '@/@core/utils/worklogConfig';
-import { formatDate, formatDateTime, formatHours, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
+import { formatDate, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import WorklogMetricsCards from './components/WorklogMetricsCards.vue';
+import WorklogTabs from './components/WorklogTabs.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -33,29 +35,6 @@ const customDateTo = ref('');
 const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
-const activeTab = ref('overview');
-const expandedCategories = ref({});
-const expandedTasks = ref({});
-
-const tabs = computed(() => {
-  const baseTabs = [
-    { key: 'overview', title: 'Overview', icon: 'ri-dashboard-line' },
-    { key: 'daily', title: 'Daily Breakdown', icon: 'ri-calendar-line' },
-    { key: 'categories', title: 'Categories', icon: 'ri-folder-line' }
-  ];
-
-  return baseTabs;
-});
-
-// Chart colors
-const chartColors = {
-  primary: '#6366f1',
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  info: '#06b6d4',
-  secondary: '#6b7280'
-};
 
 // Computed properties
 const dateRangeText = computed(() => {
@@ -77,39 +56,6 @@ const dateRangeText = computed(() => {
   const end = new Date(dashboardData.value.date_range.end);
 
   return `${formatDate(start)} - ${formatDate(end)}`;
-});
-
-const currentDashboardData = computed(() => {
-  if (!dashboardData.value) return null;
-
-  if (dateMode.value === 'bimonthly' && dashboardData.value.bimonthly_data) {
-    return bimonthlyPart.value === 'first'
-      ? dashboardData.value.bimonthly_data.first_half
-      : dashboardData.value.bimonthly_data.second_half;
-  }
-
-  return dashboardData.value;
-});
-
-const chartData = computed(() => {
-  const data = currentDashboardData.value;
-  if (!data?.daily_breakdown) return [];
-
-  return data.daily_breakdown.map(day => ({
-    date: day.date,
-    day_name: day.day_name,
-    day_short: day.day_name.substring(0, 3),
-    day_number: new Date(day.date).getDate(),
-    billable: day.billable_hours,
-    nonBillable: day.non_billable_hours,
-    total: day.total_hours,
-    entries_count: day.entries_count,
-  }));
-});
-
-const maxDailyHours = computed(() => {
-  if (!chartData.value.length) return 8;
-  return Math.max(8, Math.ceil(Math.max(...chartData.value.map(d => d.total))));
 });
 
 const weekOptions = computed(() => {
@@ -179,7 +125,6 @@ function getCurrentWeekNumber() {
   const now = new Date();
   const year = now.getFullYear();
   const weekRanges = getWeekRangeForYear(year);
-  console.log('Available week ranges:', weekRanges);
 
   for (let i = 0; i < weekRanges.length; i++) {
     const weekRange = weekRanges[i];
@@ -203,12 +148,11 @@ function getOrdinalSuffix(day) {
     default: return 'th';
   }
 }
-let isInitialized = false;
+
 onMounted(() => {
   fetchUserDetails();
   fetchAvailableWeeks();
   fetchDashboardData();
-  isInitialized = true;
   window.addEventListener('resize', handleResize);
 });
 
@@ -344,36 +288,7 @@ function onDateModeChange() {
     bimonthlyPart.value = 'first';
   }
 
-  //fetchDashboardData();
-}
-
-function onWeekSelectionChange() {
-  if (dateMode.value === 'weeks') {
-    fetchDashboardData();
-  }
-}
-
-function onMonthlySelectionChange() {
-  if (dateMode.value === 'monthly') {
-    fetchDashboardData();
-  }
-}
-
-function onBimonthlySelectionChange() {
-  if (dateMode.value === 'bimonthly') {
-    fetchDashboardData();
-  }
-}
-
-function onBimonthlyPartChange() {
-  // No need to refetch data, just switch between existing data
-  // The computed properties will handle the data switching
-}
-
-function onCustomDateChange() {
-  if (dateMode.value === 'custom' && customDateFrom.value && customDateTo.value) {
-    fetchDashboardData();
-  }
+  fetchDashboardData();
 }
 
 function selectWeek(week) {
@@ -412,13 +327,20 @@ function goToThisMonth() {
 
 function viewTimeDoctorRecords() {
   const params = {};
-  if (dateMode.value === 'custom') {
+
+  if (dateMode.value === 'bimonthly' && dashboardData.value?.bimonthly_data) {
+    const currentData = bimonthlyPart.value === 'first'
+      ? dashboardData.value.bimonthly_data.first_half
+      : dashboardData.value.bimonthly_data.second_half;
+
+    if (currentData && currentData.date_range) {
+      params.start_date = currentData.date_range.start;
+      params.end_date = currentData.date_range.end;
+    }
+  } else if (dateMode.value === 'custom') {
     params.start_date = customDateFrom.value;
     params.end_date = customDateTo.value;
-  } else if (currentDashboardData.value && currentDashboardData.value.date_range) {
-    params.start_date = currentDashboardData.value.date_range.start;
-    params.end_date = currentDashboardData.value.date_range.end;
-  } else if (dashboardData.value) {
+  } else if (dashboardData.value?.date_range) {
     params.start_date = dashboardData.value.date_range.start;
     params.end_date = dashboardData.value.date_range.end;
   }
@@ -434,96 +356,63 @@ function goBack() {
   router.push({ name: 'iva-user-detail', params: { id: userId } });
 }
 
-function getProgressColor(percentage) {
-  if (percentage >= 100) return 'success';
-  if (percentage >= 90) return 'warning';
-  return 'error';
+function showSnackbar(message, color = 'success') {
+  snackbarText.value = message;
+  snackbarColor.value = color;
+  snackbar.value = true;
 }
 
-function getPerformanceStatus(percentage) {
-  if (percentage >= 100) return 'EXCELLENT';
-  if (percentage >= 90) return 'WARNING';
-  return 'POOR';
-}
-
-function getPerformanceColor(status) {
-  switch (status) {
-    case 'EXCELLENT': return 'success';
-    case 'WARNING': return 'warning';
-    case 'POOR': return 'error';
-    default: return 'grey';
-  }
-}
-
-function getPerformanceIcon(status) {
-  switch (status) {
-    case 'EXCELLENT': return 'ri-checkbox-circle-line';
-    case 'WARNING': return 'ri-error-warning-line';
-    case 'POOR': return 'ri-close-circle-line';
-    default: return 'ri-time-line';
-  }
-}
-
-function toggleCategory(categoryName) {
-  expandedCategories.value[categoryName] = !expandedCategories.value[categoryName];
-}
-
-function toggleTask(categoryName, taskKey) {
-  const key = `${categoryName}-${taskKey}`;
-  expandedTasks.value[key] = !expandedTasks.value[key];
-}
-
-// Watch for year changes
+// Watch for changes in date selection
 watch(selectedYear, () => {
   if (dateMode.value === 'weeks') {
     fetchAvailableWeeks();
   }
+  fetchDashboardData();
 });
 
-watchEffect(() => {
-  if (!isInitialized || loading.value) return;
-
-  if (dateMode.value === 'weeks' && selectedWeekNumber.value && selectedWeekCount.value) {
-    fetchDashboardData();
-  } else if (dateMode.value === 'monthly' && selectedMonth.value) {
-    fetchDashboardData();
-  } else if (dateMode.value === 'bimonthly' && selectedMonth.value && bimonthlyDate.value) {
-    fetchDashboardData();
-  } else if (dateMode.value === 'custom' && customDateFrom.value && customDateTo.value) {
+watch(selectedWeekNumber, () => {
+  if (dateMode.value === 'weeks') {
     fetchDashboardData();
   }
 });
 
-// Watch for date range changes
-// watch(() => [selectedYear.value, selectedWeekNumber.value, selectedWeekCount.value], () => {
-//   if (dateMode.value === 'weeks') {
-//     fetchDashboardData();
-//   }
-// }, { deep: true });
+watch(selectedWeekCount, () => {
+  if (dateMode.value === 'weeks') {
+    fetchDashboardData();
+  }
+});
 
-// watch(() => [selectedYear.value, selectedMonth.value], () => {
-//   if (dateMode.value === 'monthly') {
-//     fetchDashboardData();
-//   }
-// }, { deep: true });
+watch(selectedMonth, () => {
+  if (dateMode.value === 'monthly' || dateMode.value === 'bimonthly') {
+    fetchDashboardData();
+  }
+});
 
-// watch(() => [selectedYear.value, selectedMonth.value, bimonthlyDate.value], () => {
-//   if (dateMode.value === 'bimonthly') {
-//     fetchDashboardData();
-//   }
-// }, { deep: true });
+watch(bimonthlyDate, () => {
+  if (dateMode.value === 'bimonthly') {
+    fetchDashboardData();
+  }
+});
 
-// watch(() => [customDateFrom.value, customDateTo.value], () => {
-//   if (dateMode.value === 'custom' && customDateFrom.value && customDateTo.value) {
-//     fetchDashboardData();
-//   }
-// }, { deep: true });
+watch(bimonthlyPart, () => {
+  if (dateMode.value === 'bimonthly') {
+    // For bimonthly, we don't need to refetch data, just switch display
+    // but we need to ensure the date range text updates
+  }
+});
 
-// watch(bimonthlyPart, () => {
-//   // No need to refetch data, just switch between existing data
-// });
+watch(customDateFrom, () => {
+  if (dateMode.value === 'custom' && customDateFrom.value && customDateTo.value) {
+    fetchDashboardData();
+  }
+});
+
+watch(customDateTo, () => {
+  if (dateMode.value === 'custom' && customDateFrom.value && customDateTo.value) {
+    fetchDashboardData();
+  }
+});
 </script>
-
 <template>
   <div>
     <!-- Breadcrumbs -->
@@ -613,7 +502,7 @@ watchEffect(() => {
 
               <VCol cols="12" md="4">
                 <VSelect v-model="selectedWeekNumber" :items="weekOptions" label="Week" density="comfortable"
-                  variant="outlined" @update:model-value="onWeekSelectionChange" aria-label="Select week">
+                  variant="outlined" aria-label="Select week">
                   <template v-slot:item="{ item, props }">
                     <VListItem v-bind="props" :title="item.raw.title" :subtitle="item.raw.subtitle">
                       <template v-slot:prepend>
@@ -626,8 +515,7 @@ watchEffect(() => {
 
               <VCol cols="12" md="3">
                 <VSelect v-model="selectedWeekCount" :items="weekCountOptions" label="Number of Weeks"
-                  density="comfortable" variant="outlined" @update:model-value="onWeekSelectionChange"
-                  aria-label="Number of weeks" />
+                  density="comfortable" variant="outlined" aria-label="Number of weeks" />
               </VCol>
             </template>
 
@@ -635,12 +523,12 @@ watchEffect(() => {
             <template v-else-if="dateMode === 'monthly'">
               <VCol cols="12" md="3">
                 <VSelect v-model="selectedYear" :items="yearOptions" label="Year" density="comfortable"
-                  variant="outlined" @update:model-value="onMonthlySelectionChange" aria-label="Select year" />
+                  variant="outlined" aria-label="Select year" />
               </VCol>
 
               <VCol cols="12" md="6">
                 <VSelect v-model="selectedMonth" :items="monthOptions" label="Month" density="comfortable"
-                  variant="outlined" @update:model-value="onMonthlySelectionChange" aria-label="Select month" />
+                  variant="outlined" aria-label="Select month" />
               </VCol>
             </template>
 
@@ -648,23 +536,23 @@ watchEffect(() => {
             <template v-else-if="dateMode === 'bimonthly'">
               <VCol cols="12" md="2">
                 <VSelect v-model="selectedYear" :items="yearOptions" label="Year" density="comfortable"
-                  variant="outlined" @update:model-value="onBimonthlySelectionChange" aria-label="Select year" />
+                  variant="outlined" aria-label="Select year" />
               </VCol>
 
               <VCol cols="12" md="3">
                 <VSelect v-model="selectedMonth" :items="monthOptions" label="Month" density="comfortable"
-                  variant="outlined" @update:model-value="onBimonthlySelectionChange" aria-label="Select month" />
+                  variant="outlined" aria-label="Select month" />
               </VCol>
 
               <VCol cols="12" md="2">
                 <VSelect v-model="bimonthlyDate" :items="bimonthlyDateOptions" label="Split Date" density="comfortable"
-                  variant="outlined" @update:model-value="onBimonthlySelectionChange" aria-label="Select split date"
+                  variant="outlined" aria-label="Select split date"
                   hint="Date that separates first and second half of the month" persistent-hint />
               </VCol>
 
               <VCol cols="12" md="2">
                 <VSelect v-model="bimonthlyPart" :items="bimonthlyPartOptions" label="Part" density="comfortable"
-                  variant="outlined" @update:model-value="onBimonthlyPartChange" aria-label="Select part of month" />
+                  variant="outlined" aria-label="Select part of month" />
               </VCol>
             </template>
 
@@ -672,12 +560,12 @@ watchEffect(() => {
             <template v-else-if="dateMode === 'custom'">
               <VCol cols="12" md="4">
                 <VTextField v-model="customDateFrom" label="From Date" type="date" density="comfortable"
-                  variant="outlined" @change="onCustomDateChange" aria-label="Start date" />
+                  variant="outlined" aria-label="Start date" />
               </VCol>
 
               <VCol cols="12" md="4">
                 <VTextField v-model="customDateTo" label="To Date" type="date" density="comfortable" variant="outlined"
-                  @change="onCustomDateChange" aria-label="End date" />
+                  aria-label="End date" />
               </VCol>
             </template>
           </VRow>
@@ -691,453 +579,55 @@ watchEffect(() => {
 
       <!-- Dashboard Content -->
       <div v-else-if="dashboardData">
-        <!-- Basic Metrics Summary -->
-        <VRow class="mb-6">
-          <VCol cols="12" md="4">
-            <VCard color="success" variant="tonal" class="h-100">
-              <VCardText class="d-flex align-center">
-                <VAvatar color="success" variant="flat" class="mr-4">
-                  <VIcon icon="ri-money-dollar-circle-line" size="24" />
-                </VAvatar>
-
-                <div class="flex-grow-1">
-                  <div class="text-h4 font-weight-bold mb-1">
-                    {{ formatHours(currentDashboardData?.basic_metrics?.billable_hours || 0) }}
-                  </div>
-                  <div class="text-body-2 font-weight-medium">
-                    Billable Hours
-                  </div>
-                </div>
+        <!-- Bimonthly Layout -->
+        <div v-if="dateMode === 'bimonthly' && dashboardData.bimonthly_data">
+          <!-- First Half -->
+          <div class="mb-8">
+            <VCard class="mb-4" color="primary" variant="tonal">
+              <VCardText class="text-center">
+                <h2 class="text-h6 font-weight-bold">First Half</h2>
+                <p class="text-body-2 mb-0">
+                  {{ formatDate(new Date(dashboardData.bimonthly_data.first_half.date_range.start)) }} -
+                  {{ formatDate(new Date(dashboardData.bimonthly_data.first_half.date_range.end)) }}
+                </p>
               </VCardText>
             </VCard>
-          </VCol>
 
-          <VCol cols="12" md="4">
-            <VCard color="info" variant="tonal" class="h-100">
-              <VCardText class="d-flex align-center">
-                <VAvatar color="info" variant="flat" class="mr-4">
-                  <VIcon icon="ri-time-line" size="24" />
-                </VAvatar>
+            <WorklogMetricsCards :dashboard-data="dashboardData.bimonthly_data.first_half" :show-performance="false"
+              :is-mobile="isMobile" class="mb-6" />
 
-                <div class="flex-grow-1">
-                  <div class="text-h4 font-weight-bold mb-1">
-                    {{ formatHours(currentDashboardData?.basic_metrics?.non_billable_hours || 0) }}
-                  </div>
-                  <div class="text-body-2 font-weight-medium">
-                    Non-Billable Hours
-                  </div>
-                </div>
+            <WorklogTabs :dashboard-data="dashboardData.bimonthly_data.first_half" :user="user" :user-id="userId"
+              :is-mobile="isMobile" :date-mode="dateMode" @show-snackbar="showSnackbar" />
+          </div>
+
+          <!-- Second Half -->
+          <div class="mb-8">
+            <VCard class="mb-4" color="secondary" variant="tonal">
+              <VCardText class="text-center">
+                <h2 class="text-h6 font-weight-bold">Second Half</h2>
+                <p class="text-body-2 mb-0">
+                  {{ formatDate(new Date(dashboardData.bimonthly_data.second_half.date_range.start)) }} -
+                  {{ formatDate(new Date(dashboardData.bimonthly_data.second_half.date_range.end)) }}
+                </p>
               </VCardText>
             </VCard>
-          </VCol>
 
-          <VCol cols="12" md="4">
-            <VCard color="secondary" variant="tonal" class="h-100">
-              <VCardText class="d-flex align-center">
-                <VAvatar color="secondary" variant="flat" class="mr-4">
-                  <VIcon icon="ri-calculator-line" size="24" />
-                </VAvatar>
+            <WorklogMetricsCards :dashboard-data="dashboardData.bimonthly_data.second_half" :show-performance="false"
+              :is-mobile="isMobile" class="mb-6" />
 
-                <div class="flex-grow-1">
-                  <div class="text-h4 font-weight-bold mb-1">
-                    {{ formatHours((currentDashboardData?.basic_metrics?.billable_hours || 0) +
-                      (currentDashboardData?.basic_metrics?.non_billable_hours || 0)) }}
-                  </div>
-                  <div class="text-body-2 font-weight-medium">
-                    Total Hours
-                  </div>
-                </div>
-              </VCardText>
-            </VCard>
-          </VCol>
-        </VRow>
+            <WorklogTabs :dashboard-data="dashboardData.bimonthly_data.second_half" :user="user" :user-id="userId"
+              :is-mobile="isMobile" :date-mode="dateMode" @show-snackbar="showSnackbar" />
+          </div>
+        </div>
 
-        <!-- Performance Overview for Weeks Only -->
-        <VCard v-if="showPerformance && dashboardData.target_performances?.length" class="mb-6">
-          <VCardText>
-            <h2 class="text-h6 font-weight-medium mb-4">Performance Overview</h2>
+        <!-- Non-Bimonthly Layout -->
+        <div v-else>
+          <WorklogMetricsCards :dashboard-data="dashboardData" :show-performance="showPerformance"
+            :performance-data="dashboardData.target_performances" :is-mobile="isMobile" class="mb-6" />
 
-            <VRow>
-              <VCol v-for="target in dashboardData.target_performances" :key="target.target_id"
-                :cols="dashboardData.target_performances.length === 1 ? 12 : 6">
-                <VCard variant="outlined" class="h-100">
-                  <VCardText>
-                    <div class="d-flex align-center justify-space-between mb-3">
-                      <h3 class="text-subtitle-1 font-weight-medium">
-                        Target Workweek Hours {{ target.target_hours_per_week }}
-                        <VChip size="small" color="primary" variant="tonal" class="ml-2">
-                          {{ target.work_status }}
-                        </VChip>
-                      </h3>
-                      <VChip :color="getPerformanceColor(target.status)"
-                        :prepend-icon="getPerformanceIcon(target.status)" size="small">
-                        {{ target.status }}
-                      </VChip>
-                    </div>
-
-                    <VProgressLinear :model-value="target.percentage" :color="getProgressColor(target.percentage)"
-                      height="20" rounded class="mb-2">
-                      <template v-slot:default="{ value }">
-                        <div class="text-center text-white font-weight-medium">
-                          {{ Math.ceil(value) }}%
-                        </div>
-                      </template>
-                    </VProgressLinear>
-
-                    <div class="d-flex justify-space-between text-body-2 mb-3">
-                      <span>0h</span>
-                      <span class="font-weight-medium">
-                        {{ formatHours(dashboardData.basic_metrics.billable_hours) }} / {{
-                          formatHours(target.target_total_hours) }}
-                      </span>
-                      <span>{{ formatHours(target.target_total_hours) }}</span>
-                    </div>
-
-                    <VAlert :type="target.actual_vs_target >= 0 ? 'success' : 'warning'" variant="tonal"
-                      class="text-center" density="compact">
-                      <template v-if="target.actual_vs_target >= 0">
-                        <strong>{{ formatHours(target.actual_vs_target) }} ahead of target!</strong>
-                      </template>
-                      <template v-else>
-                        <strong>{{ formatHours(Math.abs(target.actual_vs_target)) }} behind target</strong>
-                      </template>
-                    </VAlert>
-                  </VCardText>
-                </VCard>
-              </VCol>
-            </VRow>
-          </VCardText>
-        </VCard>
-
-        <!-- Main Content Tabs -->
-        <VTabs v-model="activeTab" class="mb-6">
-          <VTab v-for="tab in tabs" :key="tab.key" :value="tab.key" class="text-none">
-            <VIcon :icon="tab.icon" class="mr-2" />
-            {{ tab.title }}
-          </VTab>
-        </VTabs>
-
-        <!-- Tab Content -->
-        <VWindow v-model="activeTab">
-          <!-- Overview Tab -->
-          <VWindowItem value="overview">
-            <VCard>
-              <VCardText>
-                <h3 class="text-h6 font-weight-medium mb-4">Daily Hours Chart</h3>
-
-                <div v-if="chartData.length > 0" class="enhanced-chart-container">
-                  <div class="chart-grid" :style="{ height: '320px', position: 'relative' }">
-                    <!-- Y-axis hour lines -->
-                    <div v-for="hour in maxDailyHours" :key="hour" class="hour-line" :style="{
-                      position: 'absolute',
-                      top: `${((maxDailyHours - hour) / maxDailyHours) * 260 + 30}px`,
-                      left: '50px',
-                      right: '20px',
-                      height: '1px',
-                      backgroundColor: hour % 2 === 0 ? '#e0e0e0' : '#f5f5f5',
-                      zIndex: 1
-                    }">
-                      <span class="hour-label" :style="{
-                        position: 'absolute',
-                        left: '-45px',
-                        top: '-8px',
-                        fontSize: '11px',
-                        color: '#666',
-                        fontWeight: hour % 4 === 0 ? '600' : '400'
-                      }">
-                        {{ hour }}h
-                      </span>
-                    </div>
-
-                    <!-- Chart bars -->
-                    <div class="d-flex justify-space-between align-end chart-bars" :style="{
-                      height: '260px',
-                      marginTop: '30px',
-                      marginLeft: '50px',
-                      marginRight: '20px',
-                      position: 'relative',
-                      zIndex: 2
-                    }">
-                      <div v-for="day in chartData" :key="day.date" class="chart-bar-container" :style="{
-                        flex: 1,
-                        margin: '0 3px',
-                        position: 'relative',
-                        minWidth: '30px'
-                      }">
-                        <!-- Bar Stack -->
-                        <div class="bar-stack" :style="{
-                          height: '260px',
-                          display: 'flex',
-                          flexDirection: 'column-reverse',
-                          cursor: 'pointer'
-                        }"
-                          :title="`${day.day_name} ${day.day_number}: ${formatHours(day.total)} total (${formatHours(day.billable)} billable, ${formatHours(day.nonBillable)} non-billable)`">
-                          <!-- Billable Hours Bar -->
-                          <div v-if="day.billable > 0" class="bar-segment billable-bar" :style="{
-                            height: `${(day.billable / maxDailyHours) * 260}px`,
-                            backgroundColor: '#4CAF50',
-                            borderRadius: '0 0 6px 6px',
-                            marginBottom: '1px',
-                            transition: 'all 0.3s ease',
-                            boxShadow: '0 2px 4px rgba(76, 175, 80, 0.3)'
-                          }" />
-
-                          <!-- Non-Billable Hours Bar -->
-                          <div v-if="day.nonBillable > 0" class="bar-segment non-billable-bar" :style="{
-                            height: `${(day.nonBillable / maxDailyHours) * 260}px`,
-                            backgroundColor: '#2196F3',
-                            borderRadius: '6px 6px 0 0',
-                            transition: 'all 0.3s ease',
-                            boxShadow: '0 2px 4px rgba(33, 150, 243, 0.3)'
-                          }" />
-                        </div>
-
-                        <!-- Day Label -->
-                        <div class="day-info text-center mt-3">
-                          <div class="text-subtitle-2 font-weight-bold text-primary">
-                            {{ day.day_short }}
-                          </div>
-                          <div class="text-caption text-medium-emphasis">
-                            {{ day.day_number }}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Legend -->
-                  <div class="d-flex justify-center gap-6 mt-6 pt-4 border-t">
-                    <div class="d-flex align-center">
-                      <div class="legend-color mr-2" style="
-                          border-radius: 4px;
-                          background-color: #4caf50;
-                          block-size: 16px;
-                          box-shadow: 0 2px 4px rgba(76, 175, 80, 30%);
-                          inline-size: 16px;
-"></div>
-                      <span class="text-body-2 font-weight-medium">Billable Hours</span>
-                    </div>
-                    <div class="d-flex align-center">
-                      <div class="legend-color mr-2" style="
-                          border-radius: 4px;
-                          background-color: #2196f3;
-                          block-size: 16px;
-                          box-shadow: 0 2px 4px rgba(33, 150, 243, 30%);
-                          inline-size: 16px;
-"></div>
-                      <span class="text-body-2 font-weight-medium">Non-Billable Hours</span>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="text-center py-8">
-                  <VIcon size="48" color="secondary" icon="ri-line-chart-line" class="mb-4" />
-                  <p class="text-secondary">No data available for the selected period</p>
-                </div>
-              </VCardText>
-            </VCard>
-          </VWindowItem>
-
-          <!-- Daily Breakdown Tab -->
-          <VWindowItem value="daily">
-            <VCard>
-              <VCardText>
-                <h3 class="text-h6 font-weight-medium mb-4">Daily Hours Breakdown</h3>
-
-                <VDataTable :headers="[
-                  { title: 'Date', key: 'date' },
-                  { title: 'Day', key: 'day_name' },
-                  { title: 'Billable Hours', key: 'billable_hours' },
-                  { title: 'Non-Billable Hours', key: 'non_billable_hours' },
-                  { title: 'Entries', key: 'entries_count' }
-                ]" :items="currentDashboardData?.daily_breakdown || []" density="comfortable" class="elevation-1">
-                  <template #[`item.date`]="{ item }">
-                    <span>{{ formatDate(new Date(item.date)) }}</span>
-                  </template>
-
-                  <template #[`item.billable_hours`]="{ item }">
-                    <VChip size="small" color="success" variant="outlined">
-                      {{ formatHours(item.billable_hours) }}
-                    </VChip>
-                  </template>
-
-                  <template #[`item.non_billable_hours`]="{ item }">
-                    <VChip size="small" color="info" variant="outlined">
-                      {{ formatHours(item.non_billable_hours) }}
-                    </VChip>
-                  </template>
-                </VDataTable>
-              </VCardText>
-            </VCard>
-          </VWindowItem>
-
-          <!-- Categories Tab -->
-          <VWindowItem value="categories">
-            <VCard>
-              <VCardText>
-                <h2 class="text-h6 font-weight-medium mb-4">Work Category Breakdown</h2>
-
-                <div v-if="!currentDashboardData?.category_breakdown?.length" class="text-center py-8">
-                  <VIcon size="48" icon="ri-folder-open-line" color="grey-lighten-1" class="mb-2" />
-                  <p class="text-body-2">No work entries found for the selected period</p>
-                </div>
-
-                <div v-else class="category-breakdown">
-                  <!-- Main Category Level (Billable/Non-Billable) -->
-                  <div v-for="mainCategory in currentDashboardData.category_breakdown" :key="mainCategory.type"
-                    class="main-category-section mb-6">
-                    <!-- Main Category Header -->
-                    <VCard variant="elevated" class="mb-3"
-                      :color="mainCategory.type.includes('Billable') ? 'success' : 'info'">
-                      <VCardItem class="cursor-pointer text-white" @click="toggleCategory(mainCategory.type)">
-                        <template v-slot:prepend>
-                          <VAvatar :color="mainCategory.type.includes('Billable') ? 'success' : 'info'" variant="flat"
-                            size="32">
-                            <VIcon
-                              :icon="mainCategory.type.includes('Billable') ? 'ri-money-dollar-circle-line' : 'ri-time-line'"
-                              size="18" />
-                          </VAvatar>
-                        </template>
-
-                        <VCardTitle class="d-flex align-center">
-                          <span class="mr-3">{{ mainCategory.type }}</span>
-                          <VChip color="white" size="small"
-                            :text-color="mainCategory.type.includes('Billable') ? 'success' : 'info'">
-                            {{ formatHours(mainCategory.total_hours) }}
-                          </VChip>
-                          <VChip color="white" size="small" variant="outlined" class="ml-2"
-                            :text-color="mainCategory.type.includes('Billable') ? 'success' : 'info'">
-                            {{ mainCategory.categories.length }} {{ mainCategory.categories.length === 1 ? 'category' :
-                              'categories' }}
-                          </VChip>
-                        </VCardTitle>
-
-                        <template v-slot:append>
-                          <VIcon
-                            :icon="expandedCategories[mainCategory.type] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"
-                            color="white" />
-                        </template>
-                      </VCardItem>
-                    </VCard>
-
-                    <!-- Categories within Main Category -->
-                    <VExpandTransition>
-                      <div v-show="expandedCategories[mainCategory.type]" class="ml-4">
-                        <div v-for="category in mainCategory.categories" :key="category.category_name"
-                          class="category-section mb-4">
-                          <!-- Category Header -->
-                          <VCard variant="outlined" class="mb-2">
-                            <VCardItem class="cursor-pointer"
-                              @click="toggleCategory(mainCategory.type + '-' + category.category_name)">
-                              <template v-slot:prepend>
-                                <VAvatar color="primary" variant="tonal" size="24">
-                                  <VIcon icon="ri-folder-line" size="12" />
-                                </VAvatar>
-                              </template>
-
-                              <VCardTitle class="d-flex align-center">
-                                <span class="mr-3">{{ category.category_name }}</span>
-                                <VChip color="primary" size="small">
-                                  {{ formatHours(category.total_hours) }}
-                                </VChip>
-                                <VChip color="info" size="small" variant="outlined" class="ml-2">
-                                  {{ category.tasks.length }} {{ category.tasks.length === 1 ? 'task' : 'tasks' }}
-                                </VChip>
-                              </VCardTitle>
-
-                              <template v-slot:append>
-                                <VIcon
-                                  :icon="expandedCategories[mainCategory.type + '-' + category.category_name] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" />
-                              </template>
-                            </VCardItem>
-                          </VCard>
-
-                          <!-- Tasks in Category -->
-                          <VExpandTransition>
-                            <div v-show="expandedCategories[mainCategory.type + '-' + category.category_name]"
-                              class="ml-4">
-                              <div v-for="task in category.tasks" :key="task.task_name" class="task-section mb-3">
-                                <!-- Task Header -->
-                                <VCard variant="tonal" color="grey-lighten-4" class="mb-2">
-                                  <VCardItem class="cursor-pointer"
-                                    @click="toggleTask(mainCategory.type + '-' + category.category_name, task.task_name)">
-                                    <template v-slot:prepend>
-                                      <VAvatar color="secondary" variant="tonal" size="20">
-                                        <VIcon icon="ri-task-line" size="10" />
-                                      </VAvatar>
-                                    </template>
-
-                                    <VCardTitle class="text-body-1">
-                                      <div class="font-weight-medium">{{ task.task_name }}</div>
-                                    </VCardTitle>
-
-                                    <template v-slot:append>
-                                      <div class="d-flex align-center gap-2">
-                                        <VChip color="secondary" size="small">
-                                          {{ formatHours(task.total_hours) }}
-                                        </VChip>
-                                        <VChip color="info" size="small" variant="outlined">
-                                          {{ task.entries.length }} {{ task.entries.length === 1 ? 'entry' : 'entries'
-                                          }}
-                                        </VChip>
-                                        <VIcon
-                                          :icon="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_name] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"
-                                          size="14" />
-                                      </div>
-                                    </template>
-                                  </VCardItem>
-                                </VCard>
-
-                                <!-- Task Entries -->
-                                <VExpandTransition>
-                                  <div
-                                    v-show="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_name]"
-                                    class="ml-4">
-                                    <div class="entries-list">
-                                      <VCard v-for="entry in task.entries" :key="entry.id" variant="outlined"
-                                        class="mb-2 entry-card">
-                                        <VCardText class="pa-3">
-                                          <div class="d-flex justify-space-between align-start">
-                                            <div class="entry-details flex-grow-1">
-                                              <div class="d-flex align-center mb-2">
-                                                <VIcon icon="ri-time-line" size="12" class="mr-2" />
-                                                <span class="text-body-2 font-weight-medium">
-                                                  {{ formatDateTime(entry.start_time) }}
-                                                </span>
-                                                <VIcon icon="ri-arrow-right-line" size="10" class="mx-2" />
-                                                <span class="text-body-2 font-weight-medium">
-                                                  {{ formatDateTime(entry.end_time) }}
-                                                </span>
-                                              </div>
-
-                                              <div v-if="entry.comment" class="text-caption text-medium-emphasis">
-                                                <VIcon icon="ri-chat-3-line" size="10" class="mr-1" />
-                                                {{ entry.comment }}
-                                              </div>
-                                            </div>
-
-                                            <div class="entry-duration text-right">
-                                              <VChip color="accent" size="small" variant="tonal">
-                                                {{ formatHours(entry.duration_hours) }}
-                                              </VChip>
-                                            </div>
-                                          </div>
-                                        </VCardText>
-                                      </VCard>
-                                    </div>
-                                  </div>
-                                </VExpandTransition>
-                              </div>
-                            </div>
-                          </VExpandTransition>
-                        </div>
-                      </div>
-                    </VExpandTransition>
-                  </div>
-                </div>
-              </VCardText>
-            </VCard>
-          </VWindowItem>
-        </VWindow>
+          <WorklogTabs :dashboard-data="dashboardData" :user="user" :user-id="userId" :is-mobile="isMobile"
+            :date-mode="dateMode" @show-snackbar="showSnackbar" />
+        </div>
       </div>
 
       <!-- No Data State -->
@@ -1164,7 +654,6 @@ watchEffect(() => {
     </VSnackbar>
   </div>
 </template>
-
 <style scoped>
 @media (max-width: 767px) {
 
@@ -1192,107 +681,20 @@ watchEffect(() => {
     gap: 8px;
   }
 
-  .enhanced-chart-container {
-    padding: 16px;
-  }
-
-  .chart-grid {
-    block-size: 280px !important;
-  }
-
   .text-h4 {
     font-size: 1.4rem !important;
   }
-
-  .category-section,
-  .task-section {
-    padding-inline-start: 8px;
-  }
-
-  .entry-card {
-    margin-block-end: 8px !important;
-  }
-
-  .ml-4 {
-    margin-inline-start: 8px !important;
-  }
 }
 
-/* Enhanced chart styling */
-.enhanced-chart-container {
-  padding: 24px;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
-  inline-size: 100%;
+/* Enhanced focus states for accessibility */
+:deep(.v-btn:focus-visible) {
+  outline: 2px solid var(--v-theme-primary);
+  outline-offset: 2px;
 }
 
-.chart-grid {
-  padding: 12px;
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 5%);
-  inline-size: 100%;
-}
-
-.bar-segment {
-  border: 1px solid rgba(255, 255, 255, 20%);
-  transition: all 0.3s ease;
-}
-
-.bar-segment:hover {
-  filter: brightness(1.1);
-  opacity: 0.85;
-  transform: scaleX(1.02);
-}
-
-.day-info {
-  min-block-size: 50px;
-  padding-block: 8px;
-  padding-inline: 4px;
-}
-
-.main-category-section {
-  border-inline-start: 4px solid #e3f2fd;
-  padding-inline-start: 16px;
-}
-
-.category-section {
-  border-inline-start: 3px solid #e8f5e8;
-  padding-inline-start: 12px;
-}
-
-.task-section {
-  border-inline-start: 2px solid #f5f5f5;
-  padding-inline-start: 8px;
-}
-
-.entry-card {
-  background: #fafafa;
-  border-inline-start: 3px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.entry-card:hover {
-  background: #f0f0f0;
-  border-inline-start-color: #2196f3;
-  transform: translateX(4px);
-}
-
-.cursor-pointer {
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.cursor-pointer:hover {
-  background: rgba(0, 0, 0, 2%);
-}
-
-/* Chart container */
-.chart-container {
-  position: relative;
-  inline-size: 100%;
-  min-block-size: 300px;
+/* Ensure proper chip sizing */
+:deep(.v-chip) {
+  font-size: 0.75rem;
 }
 
 /* Progress styling */
@@ -1304,11 +706,6 @@ watchEffect(() => {
   font-weight: 600;
 }
 
-/* Table styling */
-:deep(.v-data-table) {
-  border-radius: 8px;
-}
-
 /* List styling */
 :deep(.v-list-item) {
   border-radius: 4px;
@@ -1317,31 +714,5 @@ watchEffect(() => {
 
 :deep(.v-list-item:hover) {
   background-color: rgba(var(--v-theme-primary), 0.04);
-}
-
-/* Ensure proper chip sizing */
-:deep(.v-chip) {
-  font-size: 0.75rem;
-}
-
-/* Enhanced focus states for accessibility */
-:deep(.v-btn:focus-visible) {
-  outline: 2px solid var(--v-theme-primary);
-  outline-offset: 2px;
-}
-
-.cursor-pointer:focus-visible {
-  border-radius: 4px;
-  outline: 2px solid var(--v-theme-primary);
-  outline-offset: 2px;
-}
-
-/* Chart bar hover effects */
-.chart-bar-container:hover .bar-segment {
-  filter: brightness(1.05);
-}
-
-.chart-bar-container:hover .day-info {
-  color: var(--v-theme-primary);
 }
 </style>

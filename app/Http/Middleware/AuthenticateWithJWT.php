@@ -13,6 +13,7 @@ class AuthenticateWithJWT
         'api/timedoctor/auth',
         'api/timedoctor/callback',
         'api/timedoctor/stream-worklog-sync',
+        'api/timedoctor-v2/stream-worklog-sync',
     ];
     public function handle(Request $request, Closure $next)
     {

@@ -15,6 +15,9 @@ use App\Http\Controllers\ReportCategoryController;
 use App\Http\Controllers\TimeDoctorAuthController;
 use App\Http\Controllers\TimeDoctorController;
 use App\Http\Controllers\TimeDoctorLongOperationController;
+use App\Http\Controllers\TimeDoctorV2AuthController;
+use App\Http\Controllers\TimeDoctorV2Controller;
+use App\Http\Controllers\TimeDoctorV2LongOperationController;
 use App\Http\Controllers\WorklogDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -83,7 +86,7 @@ Route::middleware('auth.jwt')->group(function () {
             Route::put('/{id}', [IvaUserController::class, 'update']);
 
             // User customizations
-            Route::post('/{id}/customizations', [IvaUserController::class, 'updateCustomizations']);
+            Route::put('/{id}/customizations/{customizationId}', [IvaUserController::class, 'updateCustomization']);
             Route::delete('/{id}/customizations/{customizationId}', [IvaUserController::class, 'removeCustomization']);
 
             // User managers
@@ -170,6 +173,33 @@ Route::middleware('auth.jwt')->group(function () {
 
         // Long operation routes
         Route::get('/stream-worklog-sync', [TimeDoctorLongOperationController::class, 'streamWorklogSync']);
+
+        Route::post('/refresh', [TimeDoctorAuthController::class, 'refreshToken']);
+    });
+
+    // TimeDoctor V2 Integration Routes (require manage_configuration permission)
+    Route::prefix('timedoctor-v2')->group(function () {
+        // Authentication routes
+        Route::post('/auth', [TimeDoctorV2AuthController::class, 'authenticate']);
+        Route::get('/status', [TimeDoctorV2AuthController::class, 'checkToken']);
+        Route::post('/refresh', [TimeDoctorV2AuthController::class, 'refreshToken']);
+        Route::get('/disconnect', [TimeDoctorV2AuthController::class, 'disconnect']);
+        Route::get('/company-info', [TimeDoctorV2AuthController::class, 'getCompanyInfo']);
+
+        // Sync routes
+        Route::post('/sync-users', [TimeDoctorV2Controller::class, 'syncUsers']);
+        Route::post('/sync-projects', [TimeDoctorV2Controller::class, 'syncProjects']);
+        Route::post('/sync-tasks', [TimeDoctorV2Controller::class, 'syncTasks']);
+        Route::post('/sync-worklogs', [TimeDoctorV2Controller::class, 'syncWorklogs']);
+
+        // Count routes
+        Route::get('/users/count', [TimeDoctorV2Controller::class, 'getUserCount']);
+        Route::get('/projects/count', [TimeDoctorV2Controller::class, 'getProjectCount']);
+        Route::get('/tasks/count', [TimeDoctorV2Controller::class, 'getTaskCount']);
+        Route::get('/worklogs/count', [TimeDoctorV2Controller::class, 'getWorklogCount']);
+
+        // Long operation routes
+        Route::get('/stream-worklog-sync', [TimeDoctorV2LongOperationController::class, 'streamWorklogSync']);
     });
 
     // Report Categories Management

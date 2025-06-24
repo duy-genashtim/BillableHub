@@ -140,6 +140,11 @@ class IvaUser extends Model
         return $this->end_date ? $this->end_date->format('Y-m-d') : null;
     }
 
+    public function timedoctorV2User(): HasOne
+    {
+        return $this->hasOne(TimedoctorV2User::class, 'iva_user_id');
+    }
+
     protected static function boot()
     {
         parent::boot();

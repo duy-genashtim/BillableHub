@@ -332,9 +332,9 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                     }
 
                     if (isset($worklog['task_id'])) {
-                        $task = Task::whereJsonContains('user_list', ['timedoctorId' => $worklog['task_id']])
-                            ->orWhere('user_list', 'like', '%"timedoctorId":"' . $worklog['task_id'] . '"%')
-                            ->orWhere('user_list', 'like', '%"timedoctorId":' . $worklog['task_id'] . '%')
+                        $task = Task::whereJsonContains('user_list', ['tId' => $worklog['task_id']])
+                            ->orWhere('user_list', 'like', '%"tId":"' . $worklog['task_id'] . '"%')
+                            ->orWhere('user_list', 'like', '%"tId":' . $worklog['task_id'] . '%')
                             ->first();
 
                         if ($task) {

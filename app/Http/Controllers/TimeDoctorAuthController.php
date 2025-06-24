@@ -127,18 +127,20 @@ class TimeDoctorAuthController extends Controller
 
         if (Carbon::parse($token->expires_at)->isPast()) {
             try {
-                $refreshed = $this->refreshToken($token);
+                $refreshed = $this->refreshToken();
 
                 if (! $refreshed) {
                     return response()->json([
-                        'connected' => false,
-                        'message'   => 'Token expired and refresh failed',
+                        'connected'  => false,
+                        'message'    => 'Token expired and refresh failed',
+                        'expires_at' => $token->expires_at,
                     ]);
                 }
 
                 return response()->json([
-                    'connected' => true,
-                    'message'   => 'Connected to TimeDoctor (token refreshed)',
+                    'connected'  => true,
+                    'message'    => 'Connected to TimeDoctor (token refreshed)',
+                    'expires_at' => $token->fresh()->expires_at,
                 ]);
             } catch (\Exception $e) {
                 Log::error('Token refresh failed', [
@@ -153,43 +155,73 @@ class TimeDoctorAuthController extends Controller
         }
 
         return response()->json([
-            'connected' => true,
-            'message'   => 'Connected to TimeDoctor',
+            'connected'  => true,
+            'message'    => 'Connected to TimeDoctor',
+            'expires_at' => $token->expires_at,
         ]);
     }
 
-    private function refreshToken(TimeDoctorToken $token)
+    public function refreshToken()
     {
-        $response = Http::post(self::TOKEN_URL, [
-            'client_id'     => config('services.timedoctor_v1.client_id'),
-            'client_secret' => config('services.timedoctor_v1.client_secret'),
-            'grant_type'    => 'refresh_token',
-            'refresh_token' => $token->refresh_token,
-        ]);
+        $token = TimeDoctorToken::where('version', self::API_VERSION)->first();
 
-        if (! $response->successful()) {
-            Log::error('Failed to refresh TimeDoctor token', [
-                'status'   => $response->status(),
-                'response' => $response->json(),
-            ]);
-
-            return false;
+        if (! $token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No TimeDoctor token found',
+            ], 404);
         }
 
-        $newTokenData = $response->json();
+        try {
+            $response = Http::post(self::TOKEN_URL, [
+                'client_id'     => config('services.timedoctor_v1.client_id'),
+                'client_secret' => config('services.timedoctor_v1.client_secret'),
+                'grant_type'    => 'refresh_token',
+                'refresh_token' => $token->refresh_token,
+            ]);
 
-        $token->update([
-            'access_token'  => $newTokenData['access_token'],
-            'refresh_token' => $newTokenData['refresh_token'],
-            'expires_at'    => Carbon::now()->addSeconds($newTokenData['expires_in']),
-        ]);
+            if (! $response->successful()) {
+                Log::error('Failed to refresh TimeDoctor token', [
+                    'status'   => $response->status(),
+                    'response' => $response->json(),
+                ]);
 
-        ActivityLogService::log('timedoctor_token_refresh', 'TimeDoctor token refreshed successfully', [
-            'module'  => 'timedoctor_integration',
-            'version' => self::API_VERSION,
-        ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to refresh TimeDoctor token',
+                ], 400);
+            }
 
-        return true;
+            $newTokenData = $response->json();
+
+            $token->update([
+                'access_token'  => $newTokenData['access_token'],
+                'refresh_token' => $newTokenData['refresh_token'],
+                'expires_at'    => Carbon::now()->addSeconds($newTokenData['expires_in']),
+            ]);
+
+            ActivityLogService::log('timedoctor_token_refresh', 'TimeDoctor token refreshed successfully', [
+                'module'  => 'timedoctor_integration',
+                'version' => self::API_VERSION,
+            ]);
+
+            return response()->json([
+                'success'    => true,
+                'message'    => 'TimeDoctor token refreshed successfully',
+                'expires_at' => $token->expires_at,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Exception during TimeDoctor token refresh', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Exception during token refresh: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function getAccessToken()
@@ -201,7 +233,7 @@ class TimeDoctorAuthController extends Controller
         }
 
         if (Carbon::parse($token->expires_at)->isPast()) {
-            $refreshed = $this->refreshToken($token);
+            $refreshed = $this->refreshToken();
 
             if (! $refreshed) {
                 return null;

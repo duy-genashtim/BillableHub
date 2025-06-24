@@ -167,7 +167,6 @@ function getTimeDoctorStatusColor(syncStatus) {
 
 function getTimeDoctorStatusText(syncStatus) {
   if (!syncStatus.is_linked) return 'Not Linked';
-  if (!syncStatus.can_sync) return 'V2 (Hold)';
   return 'Linked';
 }
 
