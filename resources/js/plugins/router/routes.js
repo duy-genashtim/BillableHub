@@ -166,6 +166,12 @@ export const routes = [
         component: () => import('@/pages/timedoctor/TimeDoctorIntegration.vue'),
         meta: { permission: 'manage_configuration' },
       },
+      {
+        path: 'admin/timedoctor-v2',
+        name: 'timedoctor-v2-integration',
+        component: () => import('@/pages/timedoctor/TimeDoctorV2Integration.vue'),
+        meta: { permission: 'manage_configuration' },
+      },
 
       // Task Categories Management routes
       {

@@ -1,19 +1,19 @@
 <template>
-  <div class="time-doctor-container pb-16">
-    <!-- Add Breadcrumbs -->
+  <div class="time-doctor-v2-container pb-16">
     <VBreadcrumbs :items="[
       { title: 'Home', to: '/' },
-      { title: 'TimeDoctor Classic Integration', disabled: true }
+      { title: 'TimeDoctor V2 Integration', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
     <!-- Header -->
     <VCard class="mb-6">
       <VCardTitle class="d-flex align-center">
-        <span>TimeDoctor Classic Integration</span>
+        <span>TimeDoctor V2 Integration</span>
         <VSpacer />
         <VChip :color="connected ? 'success' : 'error'" variant="outlined">
           {{ connected ? 'Connected' : 'Disconnected' }}
         </VChip>
       </VCardTitle>
+
       <VCardText>
         <VAlert v-if="error && showError" type="error" variant="tonal" closable @click:close="showError = false">
           {{ error }}
@@ -27,7 +27,6 @@
         <div v-else class="text-center">
           <div v-if="connected">
             <p class="mb-4">{{ message }}</p>
-            <!-- Add Token Info Display -->
             <div v-if="tokenInfo" class="mb-4">
               <VAlert type="info" variant="tonal" density="compact">
                 <div class="d-flex align-center">
@@ -39,7 +38,6 @@
                 </div>
               </VAlert>
             </div>
-            <!-- Add Refresh Token Button -->
             <div class="d-flex justify-center gap-3">
               <VBtn color="primary" variant="outlined" @click="refreshToken" :loading="refreshing">
                 <VIcon start>ri-refresh-line</VIcon>
@@ -47,19 +45,19 @@
               </VBtn>
               <VBtn color="error" variant="outlined" @click="disconnectTimeDoctor" :loading="loading">
                 <VIcon start>ri-logout-circle-r-line</VIcon>
-                Disconnect from TimeDoctor
+                Disconnect
               </VBtn>
             </div>
           </div>
           <div v-else>
             <p class="mb-4">{{ message }}</p>
-            <VBtn color="primary" @click="connectTimeDoctor" :loading="loading">
-              Connect to TimeDoctor
+            <VBtn color="primary" @click="connectTimeDoctor" :loading="connecting">
+              <VIcon start>ri-login-circle-line</VIcon>
+              Connect to TimeDoctor V2
             </VBtn>
           </div>
         </div>
       </VCardText>
-
     </VCard>
 
     <!-- Main Content (only shown when connected) -->
@@ -312,14 +310,16 @@
 </template>
 
 <script setup>
-import { formatDateTime } from '@/@core/utils/helpers';
-import axios from 'axios';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import axios from 'axios'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 // Connection state
 const loading = ref(true)
 const connected = ref(false)
+const connecting = ref(false)
+const refreshing = ref(false)
 const message = ref('')
+const tokenInfo = ref(null)
 
 // Action states
 const syncing = ref(false)
@@ -333,8 +333,6 @@ const userCount = ref(0)
 const projectCount = ref(0)
 const taskCount = ref(0)
 const worklogCount = ref(0)
-const refreshing = ref(false)
-const tokenInfo = ref(null)
 
 // Error tracking
 const error = ref(null)
@@ -412,6 +410,19 @@ const formatTimestamp = (date = null) => {
   return d.toLocaleTimeString('en-US', { hour12: false }) + '.' + d.getMilliseconds().toString().padStart(3, '0')
 }
 
+// Format date time
+const formatDateTime = (dateTime) => {
+  if (!dateTime) return 'N/A'
+  return new Date(dateTime).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
 // Add log entry with timestamp
 const addLog = (message, type = 'info') => {
   syncLogs.value.unshift({
@@ -443,40 +454,87 @@ const checkConnection = async () => {
   error.value = null
 
   try {
-    const res = await axios.get('/api/timedoctor/status')
+    const res = await axios.get('/api/timedoctor-v2/status')
     connected.value = res.data.connected
     message.value = res.data.message
-    // Add token info handling
-    if (res.data.expires_at) {
-      tokenInfo.value = {
-        expires_at: res.data.expires_at
-      }
+    tokenInfo.value = {
+      expires_at: res.data.expires_at
     }
 
     if (connected.value) {
       await fetchCounts()
     }
   } catch (e) {
-    console.error('Connection check error:', e)
-    setError('Failed to check TimeDoctor connection status')
+    console.error('V2 Connection check error:', e)
+    setError('Failed to check TimeDoctor V2 connection status')
   } finally {
     loading.value = false
   }
 }
+
+// Fetch entity counts
+const fetchCounts = async () => {
+  try {
+    const usersRes = await axios.get('/api/timedoctor-v2/users/count')
+    userCount.value = usersRes.data.count || 0
+
+    const projectsRes = await axios.get('/api/timedoctor-v2/projects/count')
+    projectCount.value = projectsRes.data.count || 0
+
+    const tasksRes = await axios.get('/api/timedoctor-v2/tasks/count')
+    taskCount.value = tasksRes.data.count || 0
+
+    const worklogsRes = await axios.get('/api/timedoctor-v2/worklogs/count')
+    worklogCount.value = worklogsRes.data.count || 0
+  } catch (e) {
+    console.error('Error fetching V2 counts:', e)
+  }
+}
+
+// Connect to TimeDoctor V2
+const connectTimeDoctor = async () => {
+  connecting.value = true
+  error.value = null
+
+  try {
+    addLog('Attempting to connect to TimeDoctor V2...')
+
+    const res = await axios.post('/api/timedoctor-v2/auth')
+
+    if (res.data.success) {
+      connected.value = true
+      message.value = res.data.message
+      tokenInfo.value = {
+        expires_at: res.data.expires_at
+      }
+      addLog('Successfully connected to TimeDoctor V2', 'success')
+      await fetchCounts()
+    } else {
+      setError('Failed to connect to TimeDoctor V2: ' + res.data.message)
+    }
+  } catch (e) {
+    console.error('Connect error:', e)
+    setError('Error connecting to TimeDoctor V2: ' + (e.response?.data?.message || e.message))
+  } finally {
+    connecting.value = false
+  }
+}
+
+// Refresh Token
 const refreshToken = async () => {
   refreshing.value = true
   error.value = null
 
   try {
-    addLog('Refreshing TimeDoctor token...')
+    addLog('Refreshing TimeDoctor V2 token...')
 
-    const res = await axios.post('/api/timedoctor/refresh')
+    const res = await axios.post('/api/timedoctor-v2/refresh')
 
     if (res.data.success) {
       tokenInfo.value = {
         expires_at: res.data.expires_at
       }
-      addLog('TimeDoctor token refreshed successfully', 'success')
+      addLog('TimeDoctor V2 token refreshed successfully', 'success')
     } else {
       setError('Failed to refresh token: ' + res.data.message)
     }
@@ -487,46 +545,24 @@ const refreshToken = async () => {
     refreshing.value = false
   }
 }
-// Fetch entity counts
-const fetchCounts = async () => {
-  try {
-    const usersRes = await axios.get('/api/timedoctor/users/count')
-    userCount.value = usersRes.data.count || 0
 
-    const projectsRes = await axios.get('/api/timedoctor/projects/count')
-    projectCount.value = projectsRes.data.count || 0
-
-    const tasksRes = await axios.get('/api/timedoctor/tasks/count')
-    taskCount.value = tasksRes.data.count || 0
-
-    const worklogsRes = await axios.get('/api/timedoctor/worklogs/count')
-    worklogCount.value = worklogsRes.data.count || 0
-  } catch (e) {
-    console.error('Error fetching counts:', e)
-  }
-}
-
-// Connect to TimeDoctor
-const connectTimeDoctor = () => {
-  window.location.href = '/api/timedoctor/auth'
-}
-
-// Disconnect from TimeDoctor
+// Disconnect from TimeDoctor V2
 const disconnectTimeDoctor = async () => {
   try {
     loading.value = true
-    const res = await axios.get('/api/timedoctor/disconnect')
+    const res = await axios.get('/api/timedoctor-v2/disconnect')
 
     if (res.data.success) {
       connected.value = false
       message.value = res.data.message
-      addLog('Disconnected from TimeDoctor')
+      tokenInfo.value = null
+      addLog('Disconnected from TimeDoctor V2')
     } else {
-      setError('Failed to disconnect from TimeDoctor')
+      setError('Failed to disconnect from TimeDoctor V2')
     }
   } catch (e) {
     console.error('Disconnect error:', e)
-    setError('Error disconnecting from TimeDoctor: ' + e.message)
+    setError('Error disconnecting from TimeDoctor V2: ' + e.message)
   } finally {
     loading.value = false
   }
@@ -542,21 +578,21 @@ const syncUsers = async () => {
   error.value = null
 
   try {
-    addLog('Starting TimeDoctor user sync...')
+    addLog('Starting TimeDoctor V2 user sync...')
 
-    const res = await axios.post('/api/timedoctor/sync-users')
+    const res = await axios.post('/api/timedoctor-v2/sync-users')
 
     if (res.data.success) {
-      addLog(`User sync complete: ${res.data.synced_count} users synced`, 'success')
+      addLog(`V2 User sync complete: ${res.data.synced_count} users synced`, 'success')
       userCount.value = res.data.synced_count || userCount.value
       userSyncStatus.value = 'completed'
     } else {
-      setError('User sync failed: ' + res.data.message)
+      setError('V2 User sync failed: ' + res.data.message)
       userSyncStatus.value = 'failed'
     }
   } catch (e) {
-    console.error('User sync error:', e)
-    setError('Error syncing users: ' + (e.response?.data?.message || e.message))
+    console.error('V2 User sync error:', e)
+    setError('Error syncing V2 users: ' + (e.response?.data?.message || e.message))
     userSyncStatus.value = 'failed'
   } finally {
     syncingUsers.value = false
@@ -573,21 +609,21 @@ const syncProjects = async () => {
   error.value = null
 
   try {
-    addLog('Starting TimeDoctor project sync...')
+    addLog('Starting TimeDoctor V2 project sync...')
 
-    const res = await axios.post('/api/timedoctor/sync-projects')
+    const res = await axios.post('/api/timedoctor-v2/sync-projects')
 
     if (res.data.success) {
-      addLog(`Project sync complete: ${res.data.synced_count} projects synced`, 'success')
+      addLog(`V2 Project sync complete: ${res.data.synced_count} projects synced`, 'success')
       projectCount.value = res.data.synced_count || projectCount.value
       projectSyncStatus.value = 'completed'
     } else {
-      setError('Project sync failed: ' + res.data.message)
+      setError('V2 Project sync failed: ' + res.data.message)
       projectSyncStatus.value = 'failed'
     }
   } catch (e) {
-    console.error('Project sync error:', e)
-    setError('Error syncing projects: ' + (e.response?.data?.message || e.message))
+    console.error('V2 Project sync error:', e)
+    setError('Error syncing V2 projects: ' + (e.response?.data?.message || e.message))
     projectSyncStatus.value = 'failed'
   } finally {
     syncingProjects.value = false
@@ -604,21 +640,21 @@ const syncTasks = async () => {
   error.value = null
 
   try {
-    addLog('Starting TimeDoctor task sync...')
+    addLog('Starting TimeDoctor V2 task sync...')
 
-    const res = await axios.post('/api/timedoctor/sync-tasks')
+    const res = await axios.post('/api/timedoctor-v2/sync-tasks')
 
     if (res.data.success) {
-      addLog(`Task sync complete: ${res.data.synced_count} tasks synced`, 'success')
+      addLog(`V2 Task sync complete: ${res.data.synced_count} tasks synced`, 'success')
       taskCount.value = res.data.synced_count || taskCount.value
       taskSyncStatus.value = 'completed'
     } else {
-      setError('Task sync failed: ' + res.data.message)
+      setError('V2 Task sync failed: ' + res.data.message)
       taskSyncStatus.value = 'failed'
     }
   } catch (e) {
-    console.error('Task sync error:', e)
-    setError('Error syncing tasks: ' + (e.response?.data?.message || e.message))
+    console.error('V2 Task sync error:', e)
+    setError('Error syncing V2 tasks: ' + (e.response?.data?.message || e.message))
     taskSyncStatus.value = 'failed'
   } finally {
     syncingTasks.value = false
@@ -644,28 +680,28 @@ const syncWorklogs = async () => {
     const startDate = worklogDateRange.value.start_date
     const endDate = worklogDateRange.value.end_date
 
-    addLog(`Starting TimeDoctor worklog sync for date range ${startDate} to ${endDate}...`)
+    addLog(`Starting TimeDoctor V2 worklog sync for date range ${startDate} to ${endDate}...`)
 
     if (worklogEventSource) {
       worklogEventSource.close()
       worklogEventSource = null
     }
 
-    const url = `/api/timedoctor/stream-worklog-sync?start_date=${startDate}&end_date=${endDate}`
-    console.log(`Opening EventSource to: ${url}`)
+    const url = `/api/timedoctor-v2/stream-worklog-sync?start_date=${startDate}&end_date=${endDate}`
+    console.log(`Opening V2 EventSource to: ${url}`)
     worklogEventSource = new EventSource(url)
 
     worklogEventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        console.log("EventSource message received:", data)
+        console.log("V2 EventSource message received:", data)
 
         streamMessages.value.push(data)
 
         if (data.progress !== undefined) {
           const progressValue = Number(data.progress)
           if (!isNaN(progressValue)) {
-            console.log(`Updating progress to ${progressValue}%`)
+            console.log(`Updating V2 progress to ${progressValue}%`)
             streamProgress.value = progressValue
             syncProgress.value.worklogs = progressValue
           }
@@ -674,7 +710,7 @@ const syncWorklogs = async () => {
         addLog(data.message, data.type)
 
         if (data.type === 'complete') {
-          console.log("Sync complete, cleaning up EventSource")
+          console.log("V2 Sync complete, cleaning up EventSource")
           if (worklogEventSource) {
             worklogEventSource.close()
             worklogEventSource = null
@@ -684,13 +720,13 @@ const syncWorklogs = async () => {
           worklogSyncStatus.value = 'completed'
           streamProgress.value = 100
           syncProgress.value.worklogs = 100
-          addLog('Worklog sync completed', 'success')
+          addLog('TimeDoctor V2 worklog sync completed', 'success')
 
           fetchCounts()
         }
 
         if (data.type === 'error') {
-          console.log("Sync error received:", data.message)
+          console.log("V2 Sync error received:", data.message)
           setError(data.message)
           worklogSyncStatus.value = 'failed'
           syncingWorklogs.value = false
@@ -700,7 +736,7 @@ const syncWorklogs = async () => {
           }
         }
       } catch (e) {
-        console.error('Error processing stream data:', e)
+        console.error('Error processing V2 stream data:', e)
         syncingWorklogs.value = false
         if (worklogEventSource) {
           worklogEventSource.close()
@@ -710,8 +746,8 @@ const syncWorklogs = async () => {
     }
 
     worklogEventSource.onerror = (error) => {
-      console.error('Stream error:', error)
-      setError('Error in worklog sync stream')
+      console.error('V2 Stream error:', error)
+      setError('Error in TimeDoctor V2 worklog sync stream')
       if (worklogEventSource) {
         worklogEventSource.close()
         worklogEventSource = null
@@ -722,8 +758,8 @@ const syncWorklogs = async () => {
     }
 
   } catch (e) {
-    console.error('Worklog sync error:', e)
-    setError('Error initiating worklog sync: ' + (e.response?.data?.message || e.message))
+    console.error('V2 Worklog sync error:', e)
+    setError('Error initiating V2 worklog sync: ' + (e.response?.data?.message || e.message))
     streamActive.value = false
     syncingWorklogs.value = false
     worklogSyncStatus.value = 'failed'
@@ -744,7 +780,7 @@ const cancelWorklogSync = () => {
   streamActive.value = false
   syncingWorklogs.value = false
   worklogSyncStatus.value = 'cancelled'
-  addLog('Worklog sync cancelled by user', 'warning')
+  addLog('TimeDoctor V2 worklog sync cancelled by user', 'warning')
 }
 
 // Sync all
@@ -755,7 +791,7 @@ const syncAll = async () => {
   error.value = null
 
   try {
-    addLog('Starting full TimeDoctor sync...')
+    addLog('Starting full TimeDoctor V2 sync...')
 
     await syncUsers()
     await syncProjects()
@@ -765,10 +801,10 @@ const syncAll = async () => {
       await syncWorklogs()
     }
 
-    addLog('Full sync completed', 'success')
+    addLog('Full V2 sync completed', 'success')
   } catch (e) {
-    console.error('Full sync error:', e)
-    setError('Error during full sync: ' + e.message)
+    console.error('Full V2 sync error:', e)
+    setError('Error during full V2 sync: ' + e.message)
   } finally {
     syncing.value = false
   }
@@ -845,7 +881,7 @@ const setThisMonth = () => {
 // Clear all logs
 const clearLogs = () => {
   syncLogs.value = []
-  addLog('Logs cleared')
+  addLog('V2 Logs cleared')
 }
 
 // Watch function to cleanup EventSource on component unmount
@@ -869,7 +905,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.time-doctor-container {
+.time-doctor-v2-container {
   margin-block: 0;
   margin-inline: auto;
   max-inline-size: 1200px;

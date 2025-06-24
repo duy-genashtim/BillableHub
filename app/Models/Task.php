@@ -206,9 +206,9 @@ class Task extends Model
     public function scopeForTimeDoctorUser($query, $timeDoctorId)
     {
         return $query->where(function ($q) use ($timeDoctorId) {
-            $q->whereJsonContains('user_list', ['timedoctorId' => $timeDoctorId])
-                ->orWhere('user_list', 'like', '%"timedoctorId":"' . $timeDoctorId . '"%')
-                ->orWhere('user_list', 'like', '%"timedoctorId":' . $timeDoctorId . '%');
+            $q->whereJsonContains('user_list', ['tId' => $timeDoctorId])
+                ->orWhere('user_list', 'like', '%"tId":"' . $timeDoctorId . '"%')
+                ->orWhere('user_list', 'like', '%"tId":' . $timeDoctorId . '%');
         });
     }
 

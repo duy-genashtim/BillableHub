@@ -18,7 +18,7 @@ class ConfigurationSettingsSeeder extends Seeder
         // Full-time work week hours
         $this->createSettings('fulltime_hours', [
             ['setting_value' => '35', 'order' => 1],
-            ['setting_value' => '40', 'order' => 2],
+            // ['setting_value' => '40', 'order' => 2],
         ]);
 
         // Part-time work week hours

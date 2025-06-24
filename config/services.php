@@ -40,5 +40,14 @@ return [
         'redirect_uri'  => env('TIMEDOCTOR_V1_REDIRECT_URI'),
         'base_url'      => env('TIMEDOCTOR_V1_BASE_URL', 'https://webapi.timedoctor.com/v1.1'),
     ],
+    'timedoctor_v2' => [
+        'username'   => env('TIMEDOCTOR_V2_USERNAME'),
+        'password'   => env('TIMEDOCTOR_V2_PASSWORD'),
+        'company_id' => env('TIMEDOCTOR_V2_COMPANY_ID'),
+        'base_url'   => 'https://api2.timedoctor.com/api/1.0',
+    ],
+    'nad'           => [
+        'url' => env('NAD_API_URL'),
+    ],
 
 ];

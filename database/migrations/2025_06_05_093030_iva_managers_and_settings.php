@@ -31,7 +31,7 @@ return new class extends Migration
             $table->foreignId('iva_user_id')->constrained('iva_user')->onDelete('cascade');
 
             // Link to configuration_settings table for field_changed types
-            $table->enum('field_changed', ['info', 'region', 'work_status', 'other']);
+            $table->enum('field_changed', ['info', 'region', 'cohort', 'work_status', 'other']);
 
             $table->text('old_value')->nullable();
             $table->text('new_value')->nullable();

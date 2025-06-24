@@ -16,6 +16,7 @@ return new class extends Migration
             $table->smallInteger('version'); // like '1', '2'
             $table->text('access_token');
             $table->text('refresh_token');
+            // $table->string('company_id')->nullable(); // The company ID from Time Doctor
             $table->timestamp('expires_at');
             $table->timestamps();
 

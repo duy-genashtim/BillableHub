@@ -1,5 +1,6 @@
 <script setup>
 import { useAuthStore } from '@/@core/stores/auth'
+import { getAvatarUrl } from '@/@core/utils/avatarHelper'
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 
@@ -30,6 +31,9 @@ const snackbar = ref({
   color: 'success',
 })
 
+// Avatar URLs cache
+const avatarUrls = ref({})
+
 // Form data
 const userRoleForm = ref({
   roles: [],
@@ -42,7 +46,7 @@ const filteredUsers = computed(() => {
   // Search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(user => 
+    filtered = filtered.filter(user =>
       user.name.toLowerCase().includes(query) ||
       user.email.toLowerCase().includes(query)
     )
@@ -50,7 +54,7 @@ const filteredUsers = computed(() => {
 
   // Role filter
   if (roleFilter.value) {
-    filtered = filtered.filter(user => 
+    filtered = filtered.filter(user =>
       user.roles.some(role => role.name === roleFilter.value)
     )
   }
@@ -87,6 +91,41 @@ const getUserRoleChipColor = (roleName) => {
   return colors[roleName] || 'default'
 }
 
+// Load avatar URLs for users
+const loadAvatarUrls = async () => {
+  const urls = {}
+  for (const user of users.value) {
+    if (user.email) {
+      urls[user.email] = await getAvatarUrl(user.email)
+    }
+  }
+  avatarUrls.value = urls
+}
+
+// Generate initials from name for fallback
+const getUserInitials = (name) => {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+// Generate a consistent color based on user name
+const getAvatarColor = (name) => {
+  if (!name) return 'primary'
+
+  const colors = ['primary', 'secondary', 'success', 'info', 'warning', 'error']
+  const hash = name.split('').reduce((a, b) => {
+    a = ((a << 5) - a) + b.charCodeAt(0)
+    return a & a
+  }, 0)
+
+  return colors[Math.abs(hash) % colors.length]
+}
+
 // Methods
 const fetchUsers = async (page = 1) => {
   try {
@@ -107,6 +146,9 @@ const fetchUsers = async (page = 1) => {
     const response = await axios.get('/api/admin/users', { params })
     users.value = response.data.users
     pagination.value = response.data.pagination
+
+    // Load avatar URLs after fetching users
+    await loadAvatarUrls()
   } catch (error) {
     console.error('Failed to fetch users:', error)
     showSnackbar('Failed to fetch users', 'error')
@@ -120,14 +162,14 @@ const fetchAvailableRoles = async () => {
     const response = await axios.get('/api/admin/available-roles')
     availableRoles.value = response.data.roles
     console.log('Available roles fetched:', availableRoles.value);
-    
+
   } catch (error) {
     console.error('Failed to fetch available roles:', error)
     showSnackbar('Failed to fetch available roles', 'error')
   }
 }
 
-const openRoleDialog = (user) => {
+const openRoleDialog = async (user) => {
   selectedUser.value = user
   userRoleForm.value = {
     roles: user.roles.map(role => role.name),
@@ -143,11 +185,11 @@ const closeRoleDialog = () => {
 const saveUserRoles = async () => {
   try {
     loading.value = true
-    
+
     await axios.put(`/api/admin/users/${selectedUser.value.id}/sync-roles`, {
       roles: userRoleForm.value.roles,
     })
-    
+
     showSnackbar('User roles updated successfully')
     await fetchUsers(pagination.value.current_page)
     closeRoleDialog()
@@ -190,10 +232,7 @@ onMounted(async () => {
             <h2 class="text-h4 mb-2">User Management</h2>
             <p class="text-body-1 ma-0">Manage user roles and permissions</p>
           </div>
-          <VChip
-            color="info"
-            variant="tonal"
-          >
+          <VChip color="info" variant="tonal">
             {{ pagination.total }} users
           </VChip>
         </div>
@@ -205,41 +244,23 @@ onMounted(async () => {
       <VCardText>
         <VRow>
           <VCol cols="12" md="6">
-            <VTextField
-              v-model="searchQuery"
-              prepend-inner-icon="ri-search-line"
-              placeholder="Search users by name or email..."
-              clearable
-              variant="outlined"
-              density="compact"
-              @input="onSearch"
-            />
+            <VTextField v-model="searchQuery" prepend-inner-icon="ri-search-line"
+              placeholder="Search users by name or email..." clearable variant="outlined" density="compact"
+              @input="onSearch" />
           </VCol>
           <VCol cols="12" md="4">
-            <VSelect
-              v-model="roleFilter"
-              :items="[
-                { title: 'All Roles', value: '' },
-                ...availableRoles.map(role => ({
-                  title: role.display_name,
-                  value: role.name
-                }))
-              ]"
-              label="Filter by Role"
-              variant="outlined"
-              density="compact"
-              clearable
-              @update:model-value="onRoleFilterChange"
-            />
+            <VSelect v-model="roleFilter" :items="[
+              { title: 'All Roles', value: '' },
+              ...availableRoles.map(role => ({
+                title: role.display_name,
+                value: role.name
+              }))
+            ]" label="Filter by Role" variant="outlined" density="compact" clearable
+              @update:model-value="onRoleFilterChange" />
           </VCol>
           <VCol cols="12" md="2">
-            <VBtn
-              block
-              variant="outlined"
-              prepend-icon="ri-refresh-line"
-              @click="fetchUsers(pagination.current_page)"
-              :loading="loading"
-            >
+            <VBtn block variant="outlined" prepend-icon="ri-refresh-line" @click="fetchUsers(pagination.current_page)"
+              :loading="loading">
               Refresh
             </VBtn>
           </VCol>
@@ -250,42 +271,21 @@ onMounted(async () => {
     <!-- Users Table -->
     <VCard>
       <VCardText>
-        <VProgressLinear
-          v-if="loading"
-          indeterminate
-          color="primary"
-          class="mb-4"
-        />
-        
-        <VDataTable
-          :headers="tableHeaders"
-          :items="filteredUsers"
-          :loading="loading"
-          item-key="id"
-          class="elevation-0"
-          :items-per-page="pagination.per_page"
-          hide-default-footer
-        >
+        <VProgressLinear v-if="loading" indeterminate color="primary" class="mb-4" />
+
+        <VDataTable :headers="tableHeaders" :items="filteredUsers" :loading="loading" item-key="id" class="elevation-0"
+          :items-per-page="pagination.per_page" hide-default-footer>
           <template #item.user_info="{ item }">
             <div class="d-flex align-center gap-3">
-              <VAvatar
-                :image="item.avatar"
-                :color="!item.avatar ? 'primary' : undefined"
-                size="40"
-              >
-                <span v-if="!item.avatar" class="text-white font-weight-bold">
-                  {{ item.name.charAt(0).toUpperCase() }}
+              <VAvatar :color="avatarUrls[item.email] ? undefined : getAvatarColor(item.name)" size="40">
+                <VImg v-if="avatarUrls[item.email]" :src="avatarUrls[item.email]" :alt="item.name" />
+                <span v-else class="text-white font-weight-bold">
+                  {{ getUserInitials(item.name) }}
                 </span>
               </VAvatar>
               <div>
                 <div class="font-weight-medium">{{ item.name }}</div>
-                <VChip
-                  v-if="item.is_super_admin"
-                  color="error"
-                  variant="tonal"
-                  size="x-small"
-                  class="mt-1"
-                >
+                <VChip v-if="item.is_super_admin" color="error" variant="tonal" size="x-small" class="mt-1">
                   Super Admin
                 </VChip>
               </div>
@@ -298,21 +298,11 @@ onMounted(async () => {
 
           <template #item.roles="{ item }">
             <div class="d-flex flex-wrap gap-1">
-              <VChip
-                v-for="role in item.roles"
-                :key="role.name"
-                :color="getUserRoleChipColor(role.name)"
-                variant="tonal"
-                size="small"
-              >
+              <VChip v-for="role in item.roles" :key="role.name" :color="getUserRoleChipColor(role.name)"
+                variant="tonal" size="small">
                 {{ role.display_name }}
               </VChip>
-              <VChip
-                v-if="item.roles.length === 0"
-                color="warning"
-                variant="outlined"
-                size="small"
-              >
+              <VChip v-if="item.roles.length === 0" color="warning" variant="outlined" size="small">
                 No roles
               </VChip>
             </div>
@@ -321,33 +311,18 @@ onMounted(async () => {
           <template #item.permissions_count="{ item }">
             <VTooltip location="top">
               <template #activator="{ props }">
-                <VChip
-                  v-bind="props"
-                  color="info"
-                  variant="outlined"
-                  size="small"
-                >
+                <VChip v-bind="props" color="info" variant="outlined" size="small">
                   {{ item.permissions?.length || 0 }} permissions
                 </VChip>
               </template>
-              <VCard
-                class="pa-3"
-                max-width="400"
-                elevation="8"
-              >
+              <VCard class="pa-3" max-width="400" elevation="8">
                 <div class="font-weight-bold mb-2 text-body-1">Permissions:</div>
                 <div v-if="item.permissions?.length" class="permission-list">
-                  <div
-                    v-for="permission in item.permissions.slice(0, 10)"
-                    :key="permission.name"
-                    class="text-body-2 mb-1"
-                  >
+                  <div v-for="permission in item.permissions.slice(0, 10)" :key="permission.name"
+                    class="text-body-2 mb-1">
                     • {{ permission.display_name }}
                   </div>
-                  <div
-                    v-if="item.permissions.length > 10"
-                    class="text-body-2 font-italic text-medium-emphasis"
-                  >
+                  <div v-if="item.permissions.length > 10" class="text-body-2 font-italic text-medium-emphasis">
                     ... and {{ item.permissions.length - 10 }} more
                   </div>
                 </div>
@@ -361,27 +336,15 @@ onMounted(async () => {
           <template #item.actions="{ item }">
             <VTooltip text="Manage Roles">
               <template #activator="{ props }">
-                <VBtn
-                  v-bind="props"
-                  icon="ri-user-settings-line"
-                  size="small"
-                  variant="text"
-                  color="primary"
-                  @click="openRoleDialog(item)"
-                  :disabled="item.is_super_admin && !authStore.isSuperAdmin"
-                />
+                <VBtn v-bind="props" icon="ri-user-settings-line" size="small" variant="text" color="primary"
+                  @click="openRoleDialog(item)" :disabled="item.is_super_admin && !authStore.isSuperAdmin" />
               </template>
             </VTooltip>
           </template>
 
           <template #no-data>
             <div class="text-center pa-8">
-              <VIcon
-                icon="ri-user-line"
-                size="48"
-                color="disabled"
-                class="mb-4"
-              />
+              <VIcon icon="ri-user-line" size="48" color="disabled" class="mb-4" />
               <div class="text-h6 mb-2">No users found</div>
               <div class="text-body-2">
                 {{ searchQuery || roleFilter ? 'Try adjusting your search or filters' : 'No users available' }}
@@ -392,32 +355,22 @@ onMounted(async () => {
 
         <!-- Pagination -->
         <div class="d-flex justify-center mt-6" v-if="pagination.last_page > 1">
-          <VPagination
-            v-model="pagination.current_page"
-            :length="pagination.last_page"
-            @update:model-value="onPageChange"
-            :disabled="loading"
-          />
+          <VPagination v-model="pagination.current_page" :length="pagination.last_page"
+            @update:model-value="onPageChange" :disabled="loading" />
         </div>
       </VCardText>
     </VCard>
 
     <!-- User Role Management Dialog -->
-    <VDialog
-      v-model="showRoleDialog"
-      max-width="600"
-      persistent
-    >
+    <VDialog v-model="showRoleDialog" max-width="600" persistent>
       <VCard v-if="selectedUser">
         <VCardTitle class="pa-6">
           <div class="d-flex align-center gap-3">
-            <VAvatar
-              :image="selectedUser.avatar"
-              :color="!selectedUser.avatar ? 'primary' : undefined"
-              size="40"
-            >
-              <span v-if="!selectedUser.avatar" class="text-white font-weight-bold">
-                {{ selectedUser.name.charAt(0).toUpperCase() }}
+            <VAvatar :color="avatarUrls[selectedUser.email] ? undefined : getAvatarColor(selectedUser.name)" size="40">
+              <VImg v-if="avatarUrls[selectedUser.email]" :src="avatarUrls[selectedUser.email]"
+                :alt="selectedUser.name" />
+              <span v-else class="text-white font-weight-bold">
+                {{ getUserInitials(selectedUser.name) }}
               </span>
             </VAvatar>
             <div>
@@ -435,41 +388,20 @@ onMounted(async () => {
             <p class="text-body-2 mb-4">
               Select the roles you want to assign to this user. Each role comes with its own set of permissions.
             </p>
-            
-            <VAlert
-              v-if="selectedUser.is_super_admin"
-              type="info"
-              variant="tonal"
-              class="mb-4"
-            >
+
+            <VAlert v-if="selectedUser.is_super_admin" type="info" variant="tonal" class="mb-4">
               This is a Super Admin user. Role changes are restricted.
             </VAlert>
           </div>
 
           <VRow>
-            <VCol
-              v-for="role in availableRoles"
-              :key="role.name"
-              cols="12"
-              md="6"
-            >
-              <VCheckbox
-                v-model="userRoleForm.roles"
-                :value="role.name"
-                :label="role.display_name"
-                :disabled="selectedUser.is_super_admin && !authStore.isSuperAdmin"
-                density="compact"
-                hide-details
-              >
+            <VCol v-for="role in availableRoles" :key="role.name" cols="12" md="6">
+              <VCheckbox v-model="userRoleForm.roles" :value="role.name" :label="role.display_name"
+                :disabled="selectedUser.is_super_admin && !authStore.isSuperAdmin" density="compact" hide-details>
                 <template #label>
                   <div>
                     <div class="font-weight-medium">{{ role.display_name }}</div>
-                    <VChip
-                      :color="getUserRoleChipColor(role.name)"
-                      variant="tonal"
-                      size="x-small"
-                      class="mt-1"
-                    >
+                    <VChip :color="getUserRoleChipColor(role.name)" variant="tonal" size="x-small" class="mt-1">
                       {{ role.name }}
                     </VChip>
                   </div>
@@ -478,21 +410,11 @@ onMounted(async () => {
             </VCol>
           </VRow>
 
-          <VAlert
-            v-if="userRoleForm.roles.length === 0"
-            type="warning"
-            variant="tonal"
-            class="mt-4"
-          >
+          <VAlert v-if="userRoleForm.roles.length === 0" type="warning" variant="tonal" class="mt-4">
             No roles selected. User will have no system access.
           </VAlert>
 
-          <VAlert
-            v-else
-            type="info"
-            variant="tonal"
-            class="mt-4"
-          >
+          <VAlert v-else type="info" variant="tonal" class="mt-4">
             {{ userRoleForm.roles.length }} role(s) selected
           </VAlert>
         </VCardText>
@@ -501,19 +423,11 @@ onMounted(async () => {
 
         <VCardActions class="pa-6">
           <VSpacer />
-          <VBtn
-            variant="outlined"
-            @click="closeRoleDialog"
-            :disabled="loading"
-          >
+          <VBtn variant="outlined" @click="closeRoleDialog" :disabled="loading">
             Cancel
           </VBtn>
-          <VBtn
-            color="primary"
-            @click="saveUserRoles"
-            :loading="loading"
-            :disabled="selectedUser.is_super_admin && !authStore.isSuperAdmin"
-          >
+          <VBtn color="primary" @click="saveUserRoles" :loading="loading"
+            :disabled="selectedUser.is_super_admin && !authStore.isSuperAdmin">
             Save Changes
           </VBtn>
         </VCardActions>
@@ -521,18 +435,11 @@ onMounted(async () => {
     </VDialog>
 
     <!-- Snackbar -->
-    <VSnackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
-      timeout="4000"
-    >
+    <VSnackbar v-model="snackbar.show" :color="snackbar.color" timeout="4000">
       {{ snackbar.message }}
-      
+
       <template #actions>
-        <VBtn
-          variant="text"
-          @click="snackbar.show = false"
-        >
+        <VBtn variant="text" @click="snackbar.show = false">
           Close
         </VBtn>
       </template>

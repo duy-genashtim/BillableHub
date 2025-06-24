@@ -79,11 +79,6 @@ console.log(authStore.user);
       icon: 'ri-user-settings-line',
       to: '/admin/iva-managers',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
-      title: 'TimeDoctor Integration',
-      icon: 'ri-time-line',
-      to: '/admin/timedoctor',
-    }" />
     <VerticalNavLink v-if="hasPermission('view_activity_logs')" :item="{
       title: 'Activity Logs',
       icon: 'ri-file-list-3-line',
@@ -101,7 +96,11 @@ console.log(authStore.user);
       icon: 'ri-progress-1-line',
       to: '/admin/timedoctor',
     }" />
-
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'TimeDoctor V2',
+      icon: 'ri-progress-2-line',
+      to: '/admin/timedoctor-v2',
+    }" />
   </VerticalNavGroup>
 
   <!-- 👉 Apps & Pages -->
