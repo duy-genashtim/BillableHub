@@ -47,7 +47,10 @@ return [
         'base_url'   => 'https://api2.timedoctor.com/api/1.0',
     ],
     'nad'           => [
-        'url' => env('NAD_API_URL'),
+        'url'           => env('NAD_API_URL'),
+        'secret_key'    => env('API_NAD_SECRET_KEY'),
+        'nad_hour_rate' => [
+            'rate' => env('NAD_HOUR_RATE', 8)],
     ],
 
 ];

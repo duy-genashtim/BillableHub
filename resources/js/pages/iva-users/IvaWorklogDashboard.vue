@@ -26,7 +26,6 @@ const selectedYear = ref(Math.max(WORKLOG_CONFIG.START_YEAR, new Date().getFullY
 const selectedWeekNumber = ref(getCurrentWeekNumber());
 const selectedWeekCount = ref(1);
 const selectedMonth = ref(new Date().getMonth() + 1);
-const bimonthlyPart = ref('first'); // 'first' or 'second'
 const bimonthlyDate = ref(15);
 const customDateFrom = ref('');
 const customDateTo = ref('');
@@ -41,16 +40,18 @@ const dateRangeText = computed(() => {
   if (!dashboardData.value) return '';
 
   if (dateMode.value === 'bimonthly' && dashboardData.value.bimonthly_data) {
-    const currentData = bimonthlyPart.value === 'first'
-      ? dashboardData.value.bimonthly_data.first_half
-      : dashboardData.value.bimonthly_data.second_half;
+    const firstHalf = dashboardData.value.bimonthly_data.first_half;
+    const secondHalf = dashboardData.value.bimonthly_data.second_half;
 
-    if (currentData && currentData.date_range) {
-      const start = new Date(currentData.date_range.start);
-      const end = new Date(currentData.date_range.end);
+    if (firstHalf && firstHalf.date_range && secondHalf && secondHalf.date_range) {
+      const start = new Date(firstHalf.date_range.start);
+      const end = new Date(secondHalf.date_range.end);
       return `${formatDate(start)} - ${formatDate(end)}`;
     }
   }
+
+  // Add null check for date_range
+  if (!dashboardData.value.date_range) return '';
 
   const start = new Date(dashboardData.value.date_range.start);
   const end = new Date(dashboardData.value.date_range.end);
@@ -111,11 +112,6 @@ const bimonthlyDateOptions = computed(() => {
   }
   return options;
 });
-
-const bimonthlyPartOptions = computed(() => [
-  { title: 'First Half', value: 'first' },
-  { title: 'Second Half', value: 'second' }
-]);
 
 const showPerformance = computed(() => {
   return dateMode.value === 'weeks';
@@ -249,16 +245,10 @@ function getDateParams() {
       params.year = year;
       params.month = month;
       params.bimonthly_date = split;
-      params.bimonthly_part = bimonthlyPart.value;
 
-      // Use UTC dates to avoid timezone issues
-      if (bimonthlyPart.value === 'first') {
-        params.start_date = new Date(Date.UTC(year, month - 1, 1)).toISOString().split('T')[0];
-        params.end_date = new Date(Date.UTC(year, month - 1, split)).toISOString().split('T')[0];
-      } else {
-        params.start_date = new Date(Date.UTC(year, month - 1, split + 1)).toISOString().split('T')[0];
-        params.end_date = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-      }
+      // Use UTC dates to avoid timezone issues - full month range
+      params.start_date = new Date(Date.UTC(year, month - 1, 1)).toISOString().split('T')[0];
+      params.end_date = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
       break;
     }
 
@@ -282,10 +272,6 @@ function onDateModeChange() {
 
     customDateFrom.value = monday.toISOString().split('T')[0];
     customDateTo.value = sunday.toISOString().split('T')[0];
-  }
-
-  if (dateMode.value === 'bimonthly') {
-    bimonthlyPart.value = 'first';
   }
 
   fetchDashboardData();
@@ -329,13 +315,13 @@ function viewTimeDoctorRecords() {
   const params = {};
 
   if (dateMode.value === 'bimonthly' && dashboardData.value?.bimonthly_data) {
-    const currentData = bimonthlyPart.value === 'first'
-      ? dashboardData.value.bimonthly_data.first_half
-      : dashboardData.value.bimonthly_data.second_half;
+    // For bimonthly, use the full date range from first half start to second half end
+    const firstHalf = dashboardData.value.bimonthly_data.first_half;
+    const secondHalf = dashboardData.value.bimonthly_data.second_half;
 
-    if (currentData && currentData.date_range) {
-      params.start_date = currentData.date_range.start;
-      params.end_date = currentData.date_range.end;
+    if (firstHalf && firstHalf.date_range && secondHalf && secondHalf.date_range) {
+      params.start_date = firstHalf.date_range.start;
+      params.end_date = secondHalf.date_range.end;
     }
   } else if (dateMode.value === 'custom') {
     params.start_date = customDateFrom.value;
@@ -394,13 +380,6 @@ watch(bimonthlyDate, () => {
   }
 });
 
-watch(bimonthlyPart, () => {
-  if (dateMode.value === 'bimonthly') {
-    // For bimonthly, we don't need to refetch data, just switch display
-    // but we need to ensure the date range text updates
-  }
-});
-
 watch(customDateFrom, () => {
   if (dateMode.value === 'custom' && customDateFrom.value && customDateTo.value) {
     fetchDashboardData();
@@ -413,6 +392,7 @@ watch(customDateTo, () => {
   }
 });
 </script>
+
 <template>
   <div>
     <!-- Breadcrumbs -->
@@ -443,7 +423,7 @@ watch(customDateTo, () => {
                 <VChip v-if="user?.region?.name" color="info" size="small">
                   {{ user.region.name }}
                 </VChip>
-                <VChip color="primary" size="small" prepend-icon="ri-calendar-line">
+                <VChip v-if="dateRangeText" color="primary" size="small" prepend-icon="ri-calendar-line">
                   {{ dateRangeText }}
                 </VChip>
               </div>
@@ -485,10 +465,11 @@ watch(customDateTo, () => {
           <VRow>
             <VCol cols="12" md="3">
               <VSelect v-model="dateMode" :items="[
-                { title: 'Select by Weeks', value: 'weeks' },
-                { title: 'Select by Month', value: 'monthly' },
-                { title: 'Select by Bimonthly', value: 'bimonthly' },
-                { title: 'Custom Date Range', value: 'custom' }
+                { title: 'Week (Daily View)', value: 'weeks' },
+                { title: 'Week (Summary View)', value: 'weekly_summary' },
+                { title: 'Month', value: 'monthly' },
+                { title: 'Bimonthly', value: 'bimonthly' },
+                { title: 'Custom Range', value: 'custom' }
               ]" label="Date Selection Mode" density="comfortable" variant="outlined"
                 @update:model-value="onDateModeChange" aria-label="Date selection mode" />
             </VCol>
@@ -544,15 +525,10 @@ watch(customDateTo, () => {
                   variant="outlined" aria-label="Select month" />
               </VCol>
 
-              <VCol cols="12" md="2">
+              <VCol cols="12" md="3">
                 <VSelect v-model="bimonthlyDate" :items="bimonthlyDateOptions" label="Split Date" density="comfortable"
                   variant="outlined" aria-label="Select split date"
                   hint="Date that separates first and second half of the month" persistent-hint />
-              </VCol>
-
-              <VCol cols="12" md="2">
-                <VSelect v-model="bimonthlyPart" :items="bimonthlyPartOptions" label="Part" density="comfortable"
-                  variant="outlined" aria-label="Select part of month" />
               </VCol>
             </template>
 
@@ -654,6 +630,7 @@ watch(customDateTo, () => {
     </VSnackbar>
   </div>
 </template>
+
 <style scoped>
 @media (max-width: 767px) {
 
