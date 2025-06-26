@@ -21,7 +21,6 @@ class WorklogDashboardController extends Controller
             'week_count'     => 'nullable|integer|min:1|max:12',
             'month'          => 'nullable|integer|min:1|max:12',
             'bimonthly_date' => 'nullable|integer|min:1|max:28',
-            'bimonthly_part' => 'nullable|string|in:first,second',
             'start_date'     => 'required|date',
             'end_date'       => 'required|date|after_or_equal:start_date',
         ]);
@@ -170,36 +169,13 @@ class WorklogDashboardController extends Controller
     }
 
     /**
-     * Get date range based on request parameters.
-     */
-    private function getDateRange(Request $request)
-    {
-        $mode = $this->getDateMode($request);
-
-        switch ($mode) {
-            case 'weeks':
-                return $this->getWeeklyDateRange($request);
-
-            case 'monthly':
-                return $this->getMonthlyDateRange($request);
-
-            case 'bimonthly':
-                return $this->getBimonthlyDateRange($request);
-
-            case 'custom':
-            default:
-                return $this->getCustomDateRange($request);
-        }
-    }
-
-    /**
      * Get date mode from request.
      */
     private function getDateMode(Request $request)
     {
         if ($request->has('year') && $request->has('week_number')) {
             return 'weeks';
-        } elseif ($request->has('year') && $request->has('month') && ($request->has('bimonthly_date') || $request->has('bimonthly_part'))) {
+        } elseif ($request->has('year') && $request->has('month') && $request->has('bimonthly_date')) {
             return 'bimonthly';
         } elseif ($request->has('year') && $request->has('month')) {
             return 'monthly';
@@ -260,41 +236,6 @@ class WorklogDashboardController extends Controller
             'end'   => $endOfMonth->toDateString(),
         ];
     }
-
-    /**
-     * Get bimonthly date range for the selected part.
-     */
-    private function getBimonthlyDateRange(Request $request)
-    {
-        // Use start_date and end_date from request if available
-        if ($request->has('start_date') && $request->has('end_date')) {
-            return [
-                'start' => $request->input('start_date'),
-                'end'   => $request->input('end_date'),
-            ];
-        }
-
-        $year          = $request->input('year');
-        $month         = $request->input('month');
-        $bimonthlyDate = $request->input('bimonthly_date', 15);
-        $bimonthlyPart = $request->input('bimonthly_part', 'first');
-
-        if ($bimonthlyPart === 'first') {
-            // First half: 1st to splitDate
-            $startDate = Carbon::create($year, $month, 1)->startOfDay();
-            $endDate   = Carbon::create($year, $month, $bimonthlyDate)->endOfDay();
-        } else {
-            // Second half: (splitDate + 1) to end of month
-            $startDate = Carbon::create($year, $month, $bimonthlyDate + 1)->startOfDay();
-            $endDate   = Carbon::create($year, $month)->endOfMonth();
-        }
-
-        return [
-            'start' => $startDate->toDateString(),
-            'end'   => $endDate->toDateString(),
-        ];
-    }
-
     /**
      * Get custom date range.
      */
