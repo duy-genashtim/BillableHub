@@ -1067,3 +1067,770 @@ if (! function_exists('getTimeDoctorDateRange')) {
         ];
     }
 }
+
+// Add these functions to the existing helpers.php file
+
+if (! function_exists('calculateWeeklySummaryData')) {
+    /**
+     * Calculate weekly summary data with NAD hours and performance metrics.
+     */
+    function calculateWeeklySummaryData($user, $worklogs, $startDate, $endDate, $year, $startWeekNumber, $weekCount, $workStatusChanges)
+    {
+        $nadHourRate = config('services.nad.nad_hour_rate.rate', 8);
+        $timezone    = config('app.timezone', 'Asia/Singapore');
+        // Generate week ranges for the requested period
+        // $startWeekNumber = $startWeekNumber > 52 ? 1 : $startWeekNumber;
+        $selectedWeeks = getWeekRangeForDates($startDate, $endDate, $startWeekNumber);
+
+        $weeklyBreakdown       = [];
+        $totalBillableHours    = 0;
+        $totalNonBillableHours = 0;
+        $totalNadHours         = 0;
+        $totalNadCount         = 0;
+        foreach ($selectedWeeks as $weekData) {
+            $weekStart = Carbon::parse($weekData['start_date'], $timezone)->startOfDay();
+            $weekEnd   = Carbon::parse($weekData['end_date'], $timezone)->endOfDay();
+
+            // Get worklogs for this week
+            $weekWorklogs = $worklogs->filter(function ($worklog) use ($weekStart, $weekEnd, $timezone) {
+                $worklogDate = Carbon::parse($worklog->start_time)->setTimezone($timezone);
+                return $worklogDate->between($weekStart, $weekEnd);
+            });
+
+            // Calculate basic metrics for the week
+            $weekMetrics = calculateBasicMetrics($weekWorklogs);
+
+            // Get NAD data for this week
+            $nadData = [
+                'start_date' => $weekData['start_date'],
+                'end_date'   => $weekData['end_date'],
+                'blab_only'  => 1,
+                'email_list' => [$user->email],
+            ];
+
+            $nadResponse  = callNADApi('get_nad_by_date_range', $nadData);
+            $weekNadData  = [];
+            $weekNadCount = 0;
+            $weekNadHours = 0;
+
+            if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
+                $weekNadData  = collect($nadResponse['data'])->firstWhere('email', $user->email) ?? [];
+                $weekNadCount = $weekNadData['nad_count'] ?? 0;
+                $weekNadHours = $weekNadCount * $nadHourRate;
+            }
+
+            // Calculate performance for this week
+            $weekPerformance = calculateWeeklyPerformance(
+                $user,
+                $weekWorklogs,
+                $weekData['start_date'],
+                $weekData['end_date'],
+                $workStatusChanges
+            );
+
+            $weeklyBreakdown[] = [
+                'week_number'        => $weekData['week_number'],
+                'start_date'         => $weekData['start_date'],
+                'end_date'           => $weekData['end_date'],
+                'label'              => $weekData['label'],
+                'billable_hours'     => $weekMetrics['billable_hours'],
+                'non_billable_hours' => $weekMetrics['non_billable_hours'],
+                'total_hours'        => $weekMetrics['total_hours'],
+                'nad_count'          => $weekNadCount,
+                'nad_hours'          => round($weekNadHours, 2),
+                'nad_data'           => $weekNadData,
+                'performance'        => $weekPerformance,
+                'entries_count'      => $weekMetrics['total_entries'],
+            ];
+
+            // Add to totals
+            $totalBillableHours += $weekMetrics['billable_hours'];
+            $totalNonBillableHours += $weekMetrics['non_billable_hours'];
+            $totalNadHours += $weekNadHours;
+            $totalNadCount += $weekNadCount;
+        }
+
+        // Calculate overall category breakdown (simplified for weekly summary)
+        $categoryBreakdown = calculateWeeklyCategoryBreakdown($worklogs);
+
+        return [
+            'summary'            => [
+                'total_weeks'              => count($selectedWeeks),
+                'total_billable_hours'     => round($totalBillableHours, 2),
+                'total_non_billable_hours' => round($totalNonBillableHours, 2),
+                'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
+                'total_nad_count'          => $totalNadCount,
+                'total_nad_hours'          => round($totalNadHours, 2),
+                'nad_hour_rate'            => $nadHourRate,
+            ],
+            'weekly_breakdown'   => $weeklyBreakdown,
+            'category_breakdown' => $categoryBreakdown,
+            'date_range'         => [
+                'start' => $selectedWeeks[0]['start_date'] ?? $startDate,
+                'end'   => end($selectedWeeks)['end_date'] ?? $endDate,
+                'mode'  => 'weekly_summary',
+            ],
+        ];
+    }
+}
+
+if (! function_exists('calculateWeeklyPerformance')) {
+    /**
+     * Calculate performance metrics for a specific week.
+     */
+    function calculateWeeklyPerformance($user, $weekWorklogs, $startDate, $endDate, $workStatusChanges)
+    {
+        // Get work status periods for this week
+        $workStatusPeriods = calculateWorkStatusPeriods($user, $startDate, $endDate, $workStatusChanges);
+
+        // Calculate billable hours for the week
+        $billableHours = $weekWorklogs->filter(function ($worklog) {
+            return isTaskBillable($worklog->task);
+        })->sum('duration') / 3600;
+
+        // Determine setting combinations for the week
+        $settingCombinations = determineSettingCombinations($user, $workStatusPeriods);
+
+        $performances = [];
+        foreach ($settingCombinations as $combination) {
+            $targetTotalHours  = 0;
+            $totalPeriodWeeks  = 0;
+            $workStatusDisplay = [];
+
+            // Calculate target hours for this week
+            foreach ($workStatusPeriods as $periodIndex => $period) {
+                $workStatus  = $period['work_status'] ?: 'full-time';
+                $periodDays  = $period['days'];
+                $periodWeeks = $periodDays / 7;
+                $periodStart = $period['start_date'];
+                $periodEnd   = $period['end_date'];
+
+                $settingForPeriod     = getSettingForPeriod($user, $workStatus, $periodStart, $periodEnd, $combination, $periodIndex);
+                $targetHoursForPeriod = $settingForPeriod['hours'] * $periodWeeks;
+                $targetTotalHours += $targetHoursForPeriod;
+                $totalPeriodWeeks += $periodWeeks;
+
+                $statusDisplay = ucwords(str_replace('-', ' ', $workStatus));
+                if (! in_array($statusDisplay, $workStatusDisplay)) {
+                    $workStatusDisplay[] = $statusDisplay;
+                }
+            }
+
+            $percentage = $targetTotalHours > 0 ? ($billableHours / $targetTotalHours) * 100 : 0;
+
+            $status = 'POOR';
+            if ($percentage >= 100) {
+                $status = 'EXCELLENT';
+            } elseif ($percentage >= 90) {
+                $status = 'WARNING';
+            }
+
+            $performances[] = [
+                'target_id'             => $combination['id'],
+                'work_status'           => implode(' + ', $workStatusDisplay),
+                'target_hours_per_week' => $combination['display_hours'],
+                'target_total_hours'    => round($targetTotalHours, 2),
+                'actual_hours'          => round($billableHours, 2),
+                'percentage'            => round($percentage, 1),
+                'status'                => $status,
+                'actual_vs_target'      => round($billableHours - $targetTotalHours, 2),
+                'period_weeks'          => round($totalPeriodWeeks, 1),
+                'combination_details'   => $combination['details'],
+            ];
+        }
+
+        return $performances;
+    }
+}
+
+if (! function_exists('calculateWeeklyCategoryBreakdown')) {
+    /**
+     * Calculate category breakdown for weekly summary (simplified version).
+     */
+    function calculateWeeklyCategoryBreakdown($worklogs)
+    {
+        $categoryBreakdown = [];
+
+        // Get unique task IDs from worklogs
+        $taskIds = $worklogs->pluck('task_id')->unique()->filter();
+
+        // Get all task-category mappings for the tasks in our worklogs
+        $taskCategoryMappings = [];
+        if ($taskIds->isNotEmpty()) {
+            $taskCategoryMappings = \App\Models\TaskReportCategory::with(['task', 'category.categoryType'])
+                ->whereIn('task_id', $taskIds)
+                ->get()
+                ->groupBy('task_id');
+        }
+
+        // Group worklogs by billable/non-billable based on category
+        $billableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoryMappings) {
+            return isTaskBillableByMapping($worklog->task_id, $taskCategoryMappings);
+        });
+
+        $nonBillableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoryMappings) {
+            return isTaskNonBillableByMapping($worklog->task_id, $taskCategoryMappings);
+        });
+
+        if ($billableWorklogs->count() > 0) {
+            $categoryBreakdown[] = processWeeklyCategoryGroup($billableWorklogs, $taskCategoryMappings, 'Billable');
+        }
+
+        if ($nonBillableWorklogs->count() > 0) {
+            $categoryBreakdown[] = processWeeklyCategoryGroup($nonBillableWorklogs, $taskCategoryMappings, 'Non-Billable');
+        }
+
+        return array_filter($categoryBreakdown, function ($group) {
+            return $group['total_hours'] > 0;
+        });
+    }
+}
+
+if (! function_exists('processWeeklyCategoryGroup')) {
+    /**
+     * Process category group for weekly summary (without task details).
+     */
+    function processWeeklyCategoryGroup($worklogs, $taskCategoryMappings, $type)
+    {
+        $categories = [];
+        $totalHours = 0;
+
+        // Group worklogs by category
+        $worklogsByCategory = [];
+
+        foreach ($worklogs as $worklog) {
+            $categoryName = 'Uncategorized';
+
+            if (isset($taskCategoryMappings[$worklog->task_id]) && $taskCategoryMappings[$worklog->task_id]->isNotEmpty()) {
+                $mapping = $taskCategoryMappings[$worklog->task_id]->first();
+                if ($mapping && $mapping->category) {
+                    $categoryName = $mapping->category->cat_name;
+                }
+            }
+
+            if (! isset($worklogsByCategory[$categoryName])) {
+                $worklogsByCategory[$categoryName] = [];
+            }
+            $worklogsByCategory[$categoryName][] = $worklog;
+        }
+
+        // Process each category (simplified - no task breakdown)
+        foreach ($worklogsByCategory as $categoryName => $categoryWorklogs) {
+            if ($categoryName === 'Uncategorized') {
+                continue; // Skip uncategorized for main summary
+            }
+
+            $categoryHours = collect($categoryWorklogs)->sum('duration') / 3600;
+            $totalHours += $categoryHours;
+
+            $categories[] = [
+                'category_name' => $categoryName,
+                'total_hours'   => round($categoryHours, 2),
+                'entries_count' => count($categoryWorklogs),
+            ];
+        }
+
+        // Sort categories by total hours descending
+        usort($categories, function ($a, $b) {
+            return $b['total_hours'] <=> $a['total_hours'];
+        });
+
+        return [
+            'type'        => $type,
+            'total_hours' => round($totalHours, 2),
+            'categories'  => $categories,
+        ];
+    }
+}
+
+if (! function_exists('getWeekRangeForDates')) {
+    /**
+     * Generate week ranges between two dates.
+     *
+     * @param string $startDate Start date (must be a Monday)
+     * @param string $endDate End date (must be a Sunday)
+     * @param int $weekNumber Starting week number
+     * @return array
+     * @throws \Exception
+     */
+    function getWeekRangeForDates($startDate, $endDate, $weekNumber = 1)
+    {
+        $timezone = config('app.timezone', 'Asia/Singapore');
+
+        // Create Carbon instances
+        $start = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
+        $end   = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
+
+        // Validation
+        if (! $start->isMonday()) {
+            throw new \Exception("Start date must be a Monday.");
+        }
+
+        if (! $end->isSunday()) {
+            throw new \Exception("End date must be a Sunday.");
+        }
+
+        if ($start->gt($end)) {
+            throw new \Exception("Start date must be before end date.");
+        }
+
+        $weeks = [];
+
+        $current = $start->copy();
+
+        while ($current->lte($end)) {
+            $weekStart = $current->copy();
+            $weekEnd   = $current->copy()->addDays(6);
+
+            $weeks[] = [
+                'week_number' => $weekNumber,
+                'start_date'  => $weekStart->format('Y-m-d'),
+                'end_date'    => $weekEnd->format('Y-m-d'),
+                'label'       => sprintf(
+                    'Week %d (%s - %s)',
+                    $weekNumber,
+                    $weekStart->format('M d'),
+                    $weekEnd->format('M d')
+                ),
+            ];
+
+            $current->addWeek();
+            $weekNumber++;
+            $weekNumber = $weekNumber > 52 ? 1 : $weekNumber; // Reset week number after 52
+        }
+
+        return $weeks;
+    }
+}
+
+// Add these functions to the existing helpers.php file
+
+if (! function_exists('calculateMonthlySummaryData')) {
+    /**
+     * Calculate monthly summary data with NAD hours and performance metrics.
+     */
+    function calculateMonthlySummaryData($user, $worklogs, $startDate, $endDate, $year, $startMonth, $monthCount, $workStatusChanges)
+    {
+        $nadHourRate = config('services.nad.nad_hour_rate.rate', 8);
+        $timezone    = config('app.timezone', 'Asia/Singapore');
+
+        // Generate month ranges for the requested period
+        $selectedMonths        = getMonthRangeForDates($startDate, $endDate, $monthCount);
+        $monthlyBreakdown      = [];
+        $totalBillableHours    = 0;
+        $totalNonBillableHours = 0;
+        $totalNadHours         = 0;
+        $totalNadCount         = 0;
+        foreach ($selectedMonths as $monthData) {
+            $monthStart = Carbon::parse($monthData['start_date'], $timezone)->startOfDay();
+            $monthEnd   = Carbon::parse($monthData['end_date'], $timezone)->endOfDay();
+
+            // Get worklogs for this month
+            $monthWorklogs = $worklogs->filter(function ($worklog) use ($monthStart, $monthEnd, $timezone) {
+                $worklogDate = Carbon::parse($worklog->start_time)->setTimezone($timezone);
+                return $worklogDate->between($monthStart, $monthEnd);
+            });
+
+            // Calculate basic metrics for the month
+            $monthMetrics = calculateBasicMetrics($monthWorklogs);
+
+            // Get NAD data for this month
+            $nadData = [
+                'start_date' => $monthData['start_date'],
+                'end_date'   => $monthData['end_date'],
+                'blab_only'  => 1,
+                'email_list' => [$user->email],
+            ];
+
+            $nadResponse   = callNADApi('get_nad_by_date_range', $nadData);
+            $monthNadData  = [];
+            $monthNadCount = 0;
+            $monthNadHours = 0;
+
+            if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
+                $monthNadData  = collect($nadResponse['data'])->firstWhere('email', $user->email) ?? [];
+                $monthNadCount = $monthNadData['nad_count'] ?? 0;
+                $monthNadHours = $monthNadCount * $nadHourRate;
+            }
+
+            // Calculate weekly breakdown for this month
+            $weeklyBreakdown = calculateWeeklyBreakdownForMonth(
+                $user,
+                $monthWorklogs,
+                $monthData['start_date'],
+                $monthData['end_date'],
+                $workStatusChanges
+            );
+
+            // Calculate performance for this month
+            $monthPerformance = calculateMonthlyPerformance(
+                $user,
+                $monthWorklogs,
+                $monthData['start_date'],
+                $monthData['end_date'],
+                $workStatusChanges
+            );
+
+            $monthlyBreakdown[] = [
+                'month_number'       => $monthData['month_number'],
+                // 'year'               => $monthData['year'],
+                'start_date'         => $monthData['start_date'],
+                'end_date'           => $monthData['end_date'],
+                'label'              => $monthData['label'],
+                'billable_hours'     => $monthMetrics['billable_hours'],
+                'non_billable_hours' => $monthMetrics['non_billable_hours'],
+                'total_hours'        => $monthMetrics['total_hours'],
+                'nad_count'          => $monthNadCount,
+                'nad_hours'          => round($monthNadHours, 2),
+                'nad_data'           => $monthNadData,
+                'performance'        => $monthPerformance,
+                'entries_count'      => $monthMetrics['total_entries'],
+                'weekly_breakdown'   => $weeklyBreakdown,
+            ];
+
+            // Add to totals
+            $totalBillableHours += $monthMetrics['billable_hours'];
+            $totalNonBillableHours += $monthMetrics['non_billable_hours'];
+            $totalNadHours += $monthNadHours;
+            $totalNadCount += $monthNadCount;
+        }
+
+        // Calculate overall category breakdown (simplified for monthly summary)
+        $categoryBreakdown = calculateMonthlyCategoryBreakdown($worklogs);
+
+        return [
+            'summary'            => [
+                'total_months'             => count($selectedMonths),
+                'total_billable_hours'     => round($totalBillableHours, 2),
+                'total_non_billable_hours' => round($totalNonBillableHours, 2),
+                'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
+                'total_nad_count'          => $totalNadCount,
+                'total_nad_hours'          => round($totalNadHours, 2),
+                'nad_hour_rate'            => $nadHourRate,
+            ],
+            'monthly_breakdown'  => $monthlyBreakdown,
+            'category_breakdown' => $categoryBreakdown,
+            'date_range'         => [
+                'start' => $selectedMonths[0]['start_date'] ?? $startDate,
+                'end'   => end($selectedMonths)['end_date'] ?? $endDate,
+                'mode'  => 'month_summary',
+            ],
+        ];
+    }
+}
+
+if (! function_exists('getMonthRangeForDates')) {
+    /**
+     * Generate simplified month-like ranges (each consisting of 4 weeks) between two dates.
+     * Each "month" will always be 28 days (4 weeks), starting from the given start date.
+     *
+     * @param string $startDate   Must be a Monday (Y-m-d format)
+     * @param string $endDate     Must be a Sunday (Y-m-d format)
+     * @param int    $monthCount  Number of month-like ranges to generate
+     * @return array
+     * @throws \Exception
+     */
+    function getMonthRangeForDates($startDate, $endDate, $monthCount = 1)
+    {
+        $timezone = config('app.timezone', 'Asia/Singapore');
+
+        // Create Carbon instances
+        $start = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
+        $end   = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
+
+        // Validation
+        if (! $start->isMonday()) {
+            throw new \Exception("Start date must be a Monday.");
+        }
+
+        if (! $end->isSunday()) {
+            throw new \Exception("End date must be a Sunday.");
+        }
+
+        if ($start->gt($end)) {
+            throw new \Exception("Start date must be before end date.");
+        }
+
+        $months  = [];
+        $current = $start->copy();
+
+        for ($i = 0; $i < $monthCount; $i++) {
+            $monthStart = $current->copy();
+            $monthEnd   = $current->copy()->addDays(27); // 4 weeks = 28 days
+
+            // Ensure we don’t exceed the end date
+            if ($monthEnd->gt($end)) {
+                break;
+            }
+
+            $months[] = [
+                'month_number' => $i + 1,
+                'start_date'   => $monthStart->format('Y-m-d'),
+                'end_date'     => $monthEnd->format('Y-m-d'),
+                'label'        => $monthStart->format('F'), // Month name only
+            ];
+
+            $current->addDays(28);
+        }
+
+        return $months;
+    }
+}
+
+if (! function_exists('calculateWeeklyBreakdownForMonth')) {
+    /**
+     * Calculate weekly breakdown within a month.
+     */
+    function calculateWeeklyBreakdownForMonth($user, $monthWorklogs, $startDate, $endDate, $workStatusChanges)
+    {
+        $timezone    = config('app.timezone', 'Asia/Singapore');
+        $nadHourRate = config('services.nad.nad_hour_rate.rate', 8);
+
+        // Get all weeks that fall within this month
+        $monthStart = Carbon::parse($startDate, $timezone);
+        $monthEnd   = Carbon::parse($endDate, $timezone);
+
+        // Find the Monday of the first week and Sunday of the last week
+        $firstMonday = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
+        $lastSunday  = $monthEnd->copy()->endOfWeek(Carbon::SUNDAY);
+
+        $weeks       = [];
+        $currentWeek = $firstMonday->copy();
+        $weekNumber  = 1;
+
+        while ($currentWeek->lte($lastSunday)) {
+            $weekStart = $currentWeek->copy();
+            $weekEnd   = $currentWeek->copy()->endOfWeek(Carbon::SUNDAY);
+
+            // Only include weeks that overlap with the month
+            if ($weekEnd->gte($monthStart) && $weekStart->lte($monthEnd)) {
+                // Adjust week boundaries to month boundaries if needed
+                $adjustedStart = $weekStart->lt($monthStart) ? $monthStart : $weekStart;
+                $adjustedEnd   = $weekEnd->gt($monthEnd) ? $monthEnd : $weekEnd;
+
+                // Get worklogs for this week
+                $weekWorklogs = $monthWorklogs->filter(function ($worklog) use ($adjustedStart, $adjustedEnd, $timezone) {
+                    $worklogDate = Carbon::parse($worklog->start_time)->setTimezone($timezone);
+                    return $worklogDate->between($adjustedStart, $adjustedEnd);
+                });
+
+                // Calculate basic metrics for the week
+                $weekMetrics = calculateBasicMetrics($weekWorklogs);
+
+                // Get NAD data for this week
+                $nadData = [
+                    'start_date' => $adjustedStart->format('Y-m-d'),
+                    'end_date'   => $adjustedEnd->format('Y-m-d'),
+                    'blab_only'  => 1,
+                    'email_list' => [$user->email],
+                ];
+
+                $nadResponse  = callNADApi('get_nad_by_date_range', $nadData);
+                $weekNadData  = [];
+                $weekNadCount = 0;
+                $weekNadHours = 0;
+
+                if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
+                    $weekNadData  = collect($nadResponse['data'])->firstWhere('email', $user->email) ?? [];
+                    $weekNadCount = $weekNadData['nad_count'] ?? 0;
+                    $weekNadHours = $weekNadCount * $nadHourRate;
+                }
+
+                $weeks[] = [
+                    'week_number'        => $weekNumber,
+                    'start_date'         => $adjustedStart->format('Y-m-d'),
+                    'end_date'           => $adjustedEnd->format('Y-m-d'),
+                    'label'              => sprintf(
+                        'Week %d (%s - %s)',
+                        $weekNumber,
+                        $adjustedStart->format('M d'),
+                        $adjustedEnd->format('M d')
+                    ),
+                    'billable_hours'     => $weekMetrics['billable_hours'],
+                    'non_billable_hours' => $weekMetrics['non_billable_hours'],
+                    'total_hours'        => $weekMetrics['total_hours'],
+                    'nad_count'          => $weekNadCount,
+                    'nad_hours'          => round($weekNadHours, 2),
+                    'nad_data'           => $weekNadData,
+                    'entries_count'      => $weekMetrics['total_entries'],
+                ];
+
+                $weekNumber++;
+            }
+
+            $currentWeek->addWeek();
+        }
+
+        return $weeks;
+    }
+}
+
+if (! function_exists('calculateMonthlyPerformance')) {
+    /**
+     * Calculate performance metrics for a specific month.
+     */
+    function calculateMonthlyPerformance($user, $monthWorklogs, $startDate, $endDate, $workStatusChanges)
+    {
+        // Get work status periods for this month
+        $workStatusPeriods = calculateWorkStatusPeriods($user, $startDate, $endDate, $workStatusChanges);
+
+        // Calculate billable hours for the month
+        $billableHours = $monthWorklogs->filter(function ($worklog) {
+            return isTaskBillable($worklog->task);
+        })->sum('duration') / 3600;
+
+        // Determine setting combinations for the month
+        $settingCombinations = determineSettingCombinations($user, $workStatusPeriods);
+
+        $performances = [];
+        foreach ($settingCombinations as $combination) {
+            $targetTotalHours  = 0;
+            $totalPeriodWeeks  = 0;
+            $workStatusDisplay = [];
+
+            // Calculate target hours for this month
+            foreach ($workStatusPeriods as $periodIndex => $period) {
+                $workStatus  = $period['work_status'] ?: 'full-time';
+                $periodDays  = $period['days'];
+                $periodWeeks = $periodDays / 7;
+                $periodStart = $period['start_date'];
+                $periodEnd   = $period['end_date'];
+
+                $settingForPeriod     = getSettingForPeriod($user, $workStatus, $periodStart, $periodEnd, $combination, $periodIndex);
+                $targetHoursForPeriod = $settingForPeriod['hours'] * $periodWeeks;
+                $targetTotalHours += $targetHoursForPeriod;
+                $totalPeriodWeeks += $periodWeeks;
+
+                $statusDisplay = ucwords(str_replace('-', ' ', $workStatus));
+                if (! in_array($statusDisplay, $workStatusDisplay)) {
+                    $workStatusDisplay[] = $statusDisplay;
+                }
+            }
+            // dd($startDate, $endDate, $targetTotalHours, $billableHours, $workStatusDisplay, $combination, $workStatusPeriods);
+
+            $percentage = $targetTotalHours > 0 ? ($billableHours / $targetTotalHours) * 100 : 0;
+
+            $status = 'POOR';
+            if ($percentage >= 100) {
+                $status = 'EXCELLENT';
+            } elseif ($percentage >= 90) {
+                $status = 'WARNING';
+            }
+
+            $performances[] = [
+                'target_id'             => $combination['id'],
+                'work_status'           => implode(' + ', $workStatusDisplay),
+                'target_hours_per_week' => $combination['display_hours'],
+                'target_total_hours'    => round($targetTotalHours, 2),
+                'actual_hours'          => round($billableHours, 2),
+                'percentage'            => round($percentage, 1),
+                'status'                => $status,
+                'actual_vs_target'      => round($billableHours - $targetTotalHours, 2),
+                'period_weeks'          => round($totalPeriodWeeks, 1),
+                'combination_details'   => $combination['details'],
+            ];
+        }
+
+        return $performances;
+    }
+}
+
+if (! function_exists('calculateMonthlyCategoryBreakdown')) {
+    /**
+     * Calculate category breakdown for monthly summary (simplified version).
+     */
+    function calculateMonthlyCategoryBreakdown($worklogs)
+    {
+        $categoryBreakdown = [];
+
+        // Get unique task IDs from worklogs
+        $taskIds = $worklogs->pluck('task_id')->unique()->filter();
+
+        // Get all task-category mappings for the tasks in our worklogs
+        $taskCategoryMappings = [];
+        if ($taskIds->isNotEmpty()) {
+            $taskCategoryMappings = \App\Models\TaskReportCategory::with(['task', 'category.categoryType'])
+                ->whereIn('task_id', $taskIds)
+                ->get()
+                ->groupBy('task_id');
+        }
+
+        // Group worklogs by billable/non-billable based on category
+        $billableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoryMappings) {
+            return isTaskBillableByMapping($worklog->task_id, $taskCategoryMappings);
+        });
+
+        $nonBillableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoryMappings) {
+            return isTaskNonBillableByMapping($worklog->task_id, $taskCategoryMappings);
+        });
+
+        if ($billableWorklogs->count() > 0) {
+            $categoryBreakdown[] = processMonthlyCategoryGroup($billableWorklogs, $taskCategoryMappings, 'Billable');
+        }
+
+        if ($nonBillableWorklogs->count() > 0) {
+            $categoryBreakdown[] = processMonthlyCategoryGroup($nonBillableWorklogs, $taskCategoryMappings, 'Non-Billable');
+        }
+
+        return array_filter($categoryBreakdown, function ($group) {
+            return $group['total_hours'] > 0;
+        });
+    }
+}
+
+if (! function_exists('processMonthlyCategoryGroup')) {
+    /**
+     * Process category group for monthly summary (without task details).
+     */
+    function processMonthlyCategoryGroup($worklogs, $taskCategoryMappings, $type)
+    {
+        $categories = [];
+        $totalHours = 0;
+
+        // Group worklogs by category
+        $worklogsByCategory = [];
+
+        foreach ($worklogs as $worklog) {
+            $categoryName = 'Uncategorized';
+
+            if (isset($taskCategoryMappings[$worklog->task_id]) && $taskCategoryMappings[$worklog->task_id]->isNotEmpty()) {
+                $mapping = $taskCategoryMappings[$worklog->task_id]->first();
+                if ($mapping && $mapping->category) {
+                    $categoryName = $mapping->category->cat_name;
+                }
+            }
+
+            if (! isset($worklogsByCategory[$categoryName])) {
+                $worklogsByCategory[$categoryName] = [];
+            }
+            $worklogsByCategory[$categoryName][] = $worklog;
+        }
+
+        // Process each category (simplified - no task breakdown)
+        foreach ($worklogsByCategory as $categoryName => $categoryWorklogs) {
+            if ($categoryName === 'Uncategorized') {
+                continue; // Skip uncategorized for main summary
+            }
+
+            $categoryHours = collect($categoryWorklogs)->sum('duration') / 3600;
+            $totalHours += $categoryHours;
+
+            $categories[] = [
+                'category_name' => $categoryName,
+                'total_hours'   => round($categoryHours, 2),
+                'entries_count' => count($categoryWorklogs),
+            ];
+        }
+
+        // Sort categories by total hours descending
+        usort($categories, function ($a, $b) {
+            return $b['total_hours'] <=> $a['total_hours'];
+        });
+
+        return [
+            'type'        => $type,
+            'total_hours' => round($totalHours, 2),
+            'categories'  => $categories,
+        ];
+    }
+}

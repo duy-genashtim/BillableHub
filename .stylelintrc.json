@@ -32,6 +32,7 @@
         ]
       }
     ],
+    "rule-empty-line-before": null,
     "@stylistic/max-line-length": [
       220,
       {

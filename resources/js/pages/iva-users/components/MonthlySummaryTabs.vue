@@ -1,10 +1,12 @@
 <script setup>
-import { enableChartDragScrolling, formatDate, formatDateTime, formatHours, getResponsiveChartSettings, smoothScrollChart } from '@/@core/utils/worklogHelpers';
+import { enableChartDragScrolling, formatDateTime, formatHours, getPerformanceColor, getResponsiveChartSettings, smoothScrollChart } from '@/@core/utils/worklogHelpers';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import MonthlySummaryBreakdown from './MonthlySummaryBreakdown.vue';
+import MonthlySummaryCategoryBreakdown from './MonthlySummaryCategoryBreakdown.vue';
 
 const props = defineProps({
-  dashboardData: {
+  summaryData: {
     type: Object,
     required: true
   },
@@ -19,10 +21,6 @@ const props = defineProps({
   isMobile: {
     type: Boolean,
     default: false
-  },
-  dateMode: {
-    type: String,
-    default: 'weeks'
   }
 });
 
@@ -30,8 +28,6 @@ const emit = defineEmits(['show-snackbar']);
 
 // UI state
 const activeTab = ref('overview');
-const expandedCategories = ref({});
-const expandedTasks = ref({});
 
 // Chart refs and scrolling
 const chartContainer = ref(null);
@@ -68,36 +64,60 @@ const logTypes = ref([
 
 const tabs = computed(() => [
   { key: 'overview', title: 'Overview', icon: 'ri-dashboard-line' },
-  { key: 'daily', title: 'Daily Breakdown', icon: 'ri-calendar-line' },
+  { key: 'monthly', title: 'Monthly Breakdown', icon: 'ri-calendar-month-line' },
   { key: 'categories', title: 'Categories', icon: 'ri-folder-line' },
   { key: 'logs', title: 'User Logs', icon: 'ri-file-text-line' }
 ]);
 
+// Chart data for overview
 const chartData = computed(() => {
-  const data = props.dashboardData;
-  if (!data?.daily_breakdown) return [];
-
-  return data.daily_breakdown.map(day => ({
-    date: day.date,
-    day_name: day.day_name,
-    day_short: day.day_name.substring(0, 3),
-    day_number: new Date(day.date).getDate(),
-    billable: day.billable_hours,
-    nonBillable: day.non_billable_hours,
-    total: day.total_hours,
-    entries_count: day.entries_count,
+  const monthlyBreakdown = props.summaryData?.monthly_breakdown || [];
+  return monthlyBreakdown.map(month => ({
+    month_number: month.month_number,
+    year: month.year,
+    label: getMonthAbbreviation(month.month_number),
+    full_label: month.label,
+    date_range: `${formatShortDate(month.start_date)} - ${formatShortDate(month.end_date)}`,
+    billable: month.billable_hours,
+    nonBillable: month.non_billable_hours,
+    nad: month.nad_hours,
+    total: month.billable_hours + month.non_billable_hours,
+    nad_count: month.nad_count,
+    performance: month.performance?.[0] || null,
+    entries_count: month.entries_count,
+    weeks_count: month.weekly_breakdown?.length || 0
   }));
 });
 
-const maxDailyHours = computed(() => {
-  if (!chartData.value.length) return 8;
-  return Math.max(8, Math.ceil(Math.max(...chartData.value.map(d => d.total))));
+const maxHours = computed(() => {
+  if (!chartData.value.length) return 50;
+  const maxTotal = Math.max(...chartData.value.map(d => d.total + d.nad));
+  return Math.max(50, Math.ceil(maxTotal / 10) * 10);
 });
 
 // Chart settings with responsive design
 const chartSettings = computed(() => {
   return getResponsiveChartSettings(props.isMobile, chartData.value.length);
 });
+
+function formatShortDate(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  });
+}
+
+function getMonthAbbreviation(monthNumber) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return months[monthNumber - 1] || monthNumber.toString();
+}
+
+function getMonthName(monthNumber) {
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return months[monthNumber - 1] || monthNumber.toString();
+}
 
 // Setup chart drag scrolling
 onMounted(() => {
@@ -250,7 +270,6 @@ function clearLogsFilters() {
   fetchLogs();
 }
 
-
 function getLogTypeColor(logType) {
   switch (logType) {
     case 'note': return 'primary';
@@ -263,15 +282,6 @@ function getLogTypeColor(logType) {
 function getLogTypeDisplay(logType) {
   const type = logTypes.value.find(t => t.value === logType);
   return type ? type.label : logType.charAt(0).toUpperCase() + logType.slice(1);
-}
-
-function toggleCategory(categoryName) {
-  expandedCategories.value[categoryName] = !expandedCategories.value[categoryName];
-}
-
-function toggleTask(categoryName, taskKey) {
-  const key = `${categoryName}-${taskKey}`;
-  expandedTasks.value[key] = !expandedTasks.value[key];
 }
 
 // Watch for logs filters changes
@@ -308,7 +318,7 @@ watch(() => activeTab.value, (newTab) => {
         <VCard>
           <VCardText>
             <div class="d-flex justify-space-between align-center mb-4">
-              <h3 class="text-h6 font-weight-medium">Daily Hours Chart</h3>
+              <h3 class="text-h6 font-weight-medium">Monthly Hours Chart</h3>
 
               <!-- Chart Navigation Controls -->
               <div v-if="chartSettings.needsHorizontalScroll" class="d-flex gap-2">
@@ -321,25 +331,25 @@ watch(() => activeTab.value, (newTab) => {
 
             <div v-if="chartData.length > 0" class="enhanced-chart-container">
               <div ref="chartContainer" class="chart-wrapper" :style="{
-                height: `${chartSettings.chartHeight + 80}px`,
+                height: `${chartSettings.chartHeight + 140}px`,
                 overflowX: chartSettings.needsHorizontalScroll ? 'auto' : 'hidden',
                 overflowY: 'hidden',
                 cursor: chartSettings.needsHorizontalScroll ? 'grab' : 'default'
               }">
                 <div class="chart-grid" :style="{
-                  height: `${chartSettings.chartHeight}px`,
-                  width: `${chartSettings.chartWidth}px`,
+                  height: `${chartSettings.chartHeight + 60}px`,
+                  width: `${Math.max(800, chartData.length * (chartSettings.barWidth + 20) + chartSettings.padding * 2)}px`,
                   position: 'relative',
                   minWidth: '100%'
                 }">
-                  <!-- Y-axis hour lines -->
-                  <div v-for="hour in [...Array(maxDailyHours + 1).keys()]" :key="hour" class="hour-line" :style="{
+                  <!-- Y-axis hour lines starting from 0 -->
+                  <div v-for="hour in Math.ceil(maxHours / 10) + 1" :key="(hour - 1) * 10" class="hour-line" :style="{
                     position: 'absolute',
-                    top: `${((maxDailyHours - hour) / maxDailyHours) * (chartSettings.chartHeight - 60) + 30}px`,
+                    top: `${((maxHours - ((hour - 1) * 10)) / maxHours) * (chartSettings.chartHeight - 60) + 30}px`,
                     left: `${chartSettings.padding - 10}px`,
                     right: '20px',
                     height: '1px',
-                    backgroundColor: hour % 2 === 0 ? '#e0e0e0' : '#f5f5f5',
+                    backgroundColor: (hour - 1) % 2 === 0 ? '#e0e0e0' : '#f5f5f5',
                     zIndex: 1
                   }">
                     <span class="hour-label" :style="{
@@ -348,29 +358,29 @@ watch(() => activeTab.value, (newTab) => {
                       top: '-8px',
                       fontSize: `${chartSettings.fontSize}px`,
                       color: '#666',
-                      fontWeight: hour % 4 === 0 ? '600' : '400',
+                      fontWeight: (hour - 1) % 2 === 0 ? '600' : '400',
                       whiteSpace: 'nowrap'
                     }">
-                      {{ hour }}h
+                      {{ (hour - 1) * 10 }}h
                     </span>
                   </div>
 
-
                   <!-- Chart bars -->
-                  <div class="d-flex justify-space-between align-end chart-bars" :style="{
+                  <div class="d-flex align-end chart-bars" :style="{
                     height: `${chartSettings.chartHeight - 60}px`,
-                    marginTop: '76px',
+                    marginTop: '19px',
                     marginLeft: `${chartSettings.padding}px`,
                     marginRight: '20px',
                     position: 'relative',
                     zIndex: 2,
-                    gap: '15px'
+                    gap: '20px'
                   }">
-                    <div v-for="day in chartData" :key="day.date" class="chart-bar-container" :style="{
-                      width: `${chartSettings.barWidth}px`,
-                      position: 'relative',
-                      flexShrink: 0
-                    }">
+                    <div v-for="month in chartData" :key="`${month.year}-${month.month_number}`"
+                      class="chart-bar-container" :style="{
+                        width: `${chartSettings.barWidth}px`,
+                        position: 'relative',
+                        flexShrink: 0
+                      }">
                       <!-- Bar Stack -->
                       <div class="bar-stack" :style="{
                         height: `${chartSettings.chartHeight - 60}px`,
@@ -378,10 +388,10 @@ watch(() => activeTab.value, (newTab) => {
                         flexDirection: 'column-reverse',
                         cursor: 'pointer'
                       }"
-                        :title="`${day.day_name} ${day.day_number}: ${formatHours(day.total)} total (${formatHours(day.billable)} billable, ${formatHours(day.nonBillable)} non-billable)`">
+                        :title="`${month.full_label}: ${formatHours(month.total)} work hours + ${formatHours(month.nad)} NAD hours (${month.nad_count} NADs) - ${month.weeks_count} weeks`">
                         <!-- Billable Hours Bar -->
-                        <div v-if="day.billable > 0" class="bar-segment billable-bar" :style="{
-                          height: `${(day.billable / maxDailyHours) * (chartSettings.chartHeight - 60)}px`,
+                        <div v-if="month.billable > 0" class="bar-segment billable-bar" :style="{
+                          height: `${(month.billable / maxHours) * (chartSettings.chartHeight - 60)}px`,
                           backgroundColor: '#4CAF50',
                           borderRadius: '0 0 6px 6px',
                           marginBottom: '1px',
@@ -390,22 +400,60 @@ watch(() => activeTab.value, (newTab) => {
                         }" />
 
                         <!-- Non-Billable Hours Bar -->
-                        <div v-if="day.nonBillable > 0" class="bar-segment non-billable-bar" :style="{
-                          height: `${(day.nonBillable / maxDailyHours) * (chartSettings.chartHeight - 60)}px`,
+                        <div v-if="month.nonBillable > 0" class="bar-segment non-billable-bar" :style="{
+                          height: `${(month.nonBillable / maxHours) * (chartSettings.chartHeight - 60)}px`,
                           backgroundColor: '#2196F3',
+                          transition: 'all 0.3s ease',
+                          boxShadow: '0 2px 4px rgba(33, 150, 243, 0.3)',
+                          marginBottom: '1px'
+                        }" />
+
+                        <!-- NAD Hours Bar -->
+                        <div v-if="month.nad > 0" class="bar-segment nad-bar" :style="{
+                          height: `${(month.nad / maxHours) * (chartSettings.chartHeight - 60)}px`,
+                          backgroundColor: '#FF9800',
                           borderRadius: '6px 6px 0 0',
                           transition: 'all 0.3s ease',
-                          boxShadow: '0 2px 4px rgba(33, 150, 243, 0.3)'
+                          boxShadow: '0 2px 4px rgba(255, 152, 0, 0.3)'
                         }" />
                       </div>
 
-                      <!-- Day Label -->
-                      <div class="day-info text-center ">
+                      <!-- Performance Indicator -->
+                      <div v-if="month.performance" class="performance-indicator" :style="{
+                        position: 'absolute',
+                        top: '-25px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        fontSize: '10px',
+                        fontWeight: '600',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        whiteSpace: 'nowrap'
+                      }" :class="`bg-${getPerformanceColor(month.performance.status)} text-white`">
+                        {{ month.performance.percentage }}%
+                      </div>
+
+                      <!-- Month Label -->
+                      <div class="month-info text-center" :style="{
+                        position: 'absolute',
+                        top: `${chartSettings.chartHeight - 30}px`,
+                        left: '0',
+                        right: '0',
+                        height: '60px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        padding: '8px 4px'
+                      }">
                         <div class="text-subtitle-2 font-weight-bold text-primary">
-                          {{ day.day_short }}
+                          {{ month.label }}
                         </div>
                         <div class="text-caption text-medium-emphasis">
-                          {{ day.day_number }}
+                          {{ month.year }}
+                        </div>
+                        <div class="text-caption text-medium-emphasis">
+                          {{ month.weeks_count }}w
                         </div>
                       </div>
                     </div>
@@ -414,7 +462,7 @@ watch(() => activeTab.value, (newTab) => {
               </div>
 
               <!-- Legend -->
-              <div class="d-flex justify-center gap-6 mt-6 pt-4 border-t">
+              <div class="d-flex justify-center gap-6 mt-6 pt-4 border-t flex-wrap">
                 <div class="d-flex align-center">
                   <div class="legend-color mr-2" style="
                       border-radius: 4px;
@@ -435,6 +483,16 @@ watch(() => activeTab.value, (newTab) => {
 "></div>
                   <span class="text-body-2 font-weight-medium">Non-Billable Hours</span>
                 </div>
+                <div class="d-flex align-center">
+                  <div class="legend-color mr-2" style="
+                      border-radius: 4px;
+                      background-color: #ff9800;
+                      block-size: 16px;
+                      box-shadow: 0 2px 4px rgba(255, 152, 0, 30%);
+                      inline-size: 16px;
+"></div>
+                  <span class="text-body-2 font-weight-medium">NAD Hours</span>
+                </div>
               </div>
 
               <!-- Scroll Hint -->
@@ -444,211 +502,24 @@ watch(() => activeTab.value, (newTab) => {
                 </VChip>
               </div>
             </div>
+
             <div v-else class="text-center py-8">
               <VIcon size="48" color="secondary" icon="ri-line-chart-line" class="mb-4" />
-              <p class="text-secondary">No data available for the selected period</p>
+              <p class="text-secondary">No data available for the selected months</p>
             </div>
           </VCardText>
         </VCard>
       </VWindowItem>
 
-      <!-- Daily Breakdown Tab -->
-      <VWindowItem value="daily">
-        <VCard>
-          <VCardText>
-            <h3 class="text-h6 font-weight-medium mb-4">Daily Hours Breakdown</h3>
-
-            <VDataTable :headers="[
-              { title: 'Date', key: 'date' },
-              { title: 'Day', key: 'day_name' },
-              { title: 'Billable Hours', key: 'billable_hours' },
-              { title: 'Non-Billable Hours', key: 'non_billable_hours' },
-              { title: 'Entries', key: 'entries_count' }
-            ]" :items="dashboardData?.daily_breakdown || []" density="comfortable" class="elevation-1">
-              <template #[`item.date`]="{ item }">
-                <span>{{ formatDate(new Date(item.date)) }}</span>
-              </template>
-
-              <template #[`item.billable_hours`]="{ item }">
-                <VChip size="small" color="success" variant="outlined">
-                  {{ formatHours(item.billable_hours) }}
-                </VChip>
-              </template>
-
-              <template #[`item.non_billable_hours`]="{ item }">
-                <VChip size="small" color="info" variant="outlined">
-                  {{ formatHours(item.non_billable_hours) }}
-                </VChip>
-              </template>
-            </VDataTable>
-          </VCardText>
-        </VCard>
+      <!-- Monthly Breakdown Tab -->
+      <VWindowItem value="monthly">
+        <MonthlySummaryBreakdown :monthly-breakdown="summaryData?.monthly_breakdown || []" :is-mobile="isMobile" />
       </VWindowItem>
 
       <!-- Categories Tab -->
       <VWindowItem value="categories">
-        <VCard>
-          <VCardText>
-            <h2 class="text-h6 font-weight-medium mb-4">Work Category Breakdown</h2>
-
-            <div v-if="!dashboardData?.category_breakdown?.length" class="text-center py-8">
-              <VIcon size="48" icon="ri-folder-open-line" color="grey-lighten-1" class="mb-2" />
-              <p class="text-body-2">No work entries found for the selected period</p>
-            </div>
-
-            <div v-else class="category-breakdown">
-              <!-- Main Category Level (Billable/Non-Billable) -->
-              <div v-for="mainCategory in dashboardData.category_breakdown" :key="mainCategory.type"
-                class="main-category-section mb-6">
-                <!-- Main Category Header -->
-                <VCard variant="elevated" class="mb-3"
-                  :color="mainCategory.type.includes('Billable') ? 'success-light' : 'info'">
-                  <VCardItem class="cursor-pointer " @click="toggleCategory(mainCategory.type)">
-                    <template v-slot:prepend>
-                      <VAvatar :color="mainCategory.type.includes('Billable') ? 'success' : 'info'" variant="flat"
-                        size="32">
-                        <VIcon
-                          :icon="mainCategory.type.includes('Billable') ? 'ri-money-dollar-circle-line' : 'ri-time-line'"
-                          size="18" />
-                      </VAvatar>
-                    </template>
-
-                    <VCardTitle class="d-flex align-center">
-                      <span class="mr-3">{{ mainCategory.type }}</span>
-                      <VChip size="small" :text-color="mainCategory.type.includes('Billable') ? 'success' : 'info'">
-                        {{ formatHours(mainCategory.total_hours) }}
-                      </VChip>
-                      <VChip size="small" variant="outlined" class="ml-2"
-                        :text-color="mainCategory.type.includes('Billable') ? 'success' : 'info'">
-                        {{ mainCategory.categories.length }} {{ mainCategory.categories.length === 1 ? 'category' :
-                          'categories' }}
-                      </VChip>
-                    </VCardTitle>
-
-                    <template v-slot:append>
-                      <VIcon
-                        :icon="expandedCategories[mainCategory.type] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"
-                        color="white" />
-                    </template>
-                  </VCardItem>
-                </VCard>
-
-                <!-- Categories within Main Category -->
-                <VExpandTransition>
-                  <div v-show="expandedCategories[mainCategory.type]" class="ml-4">
-                    <div v-for="category in mainCategory.categories" :key="category.category_name"
-                      class="category-section mb-4">
-                      <!-- Category Header -->
-                      <VCard variant="outlined" class="mb-2">
-                        <VCardItem class="cursor-pointer"
-                          @click="toggleCategory(mainCategory.type + '-' + category.category_name)">
-                          <template v-slot:prepend>
-                            <VAvatar color="primary" variant="tonal" size="24">
-                              <VIcon icon="ri-folder-line" size="12" />
-                            </VAvatar>
-                          </template>
-
-                          <VCardTitle class="d-flex align-center">
-                            <span class="mr-3">{{ category.category_name }}</span>
-                            <VChip color="primary" size="small">
-                              {{ formatHours(category.total_hours) }}
-                            </VChip>
-                            <VChip color="info" size="small" variant="outlined" class="ml-2">
-                              {{ category.tasks.length }} {{ category.tasks.length === 1 ? 'task' : 'tasks' }}
-                            </VChip>
-                          </VCardTitle>
-
-                          <template v-slot:append>
-                            <VIcon
-                              :icon="expandedCategories[mainCategory.type + '-' + category.category_name] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" />
-                          </template>
-                        </VCardItem>
-                      </VCard>
-
-                      <!-- Tasks in Category -->
-                      <VExpandTransition>
-                        <div v-show="expandedCategories[mainCategory.type + '-' + category.category_name]" class="ml-4">
-                          <div v-for="task in category.tasks" :key="task.task_name" class="task-section mb-3">
-                            <!-- Task Header -->
-                            <VCard variant="tonal" color="grey-lighten-4" class="mb-2">
-                              <VCardItem class="cursor-pointer"
-                                @click="toggleTask(mainCategory.type + '-' + category.category_name, task.task_name)">
-                                <template v-slot:prepend>
-                                  <VAvatar color="secondary" variant="tonal" size="20">
-                                    <VIcon icon="ri-task-line" size="10" />
-                                  </VAvatar>
-                                </template>
-
-                                <VCardTitle class="text-body-1">
-                                  <div class="font-weight-medium">{{ task.task_name }}</div>
-                                </VCardTitle>
-
-                                <template v-slot:append>
-                                  <div class="d-flex align-center gap-2">
-                                    <VChip color="secondary" size="small">
-                                      {{ formatHours(task.total_hours) }}
-                                    </VChip>
-                                    <VChip color="info" size="small" variant="outlined">
-                                      {{ task.entries.length }} {{ task.entries.length === 1 ? 'entry' : 'entries'
-                                      }}
-                                    </VChip>
-                                    <VIcon
-                                      :icon="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_name] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"
-                                      size="14" />
-                                  </div>
-                                </template>
-                              </VCardItem>
-                            </VCard>
-
-                            <!-- Task Entries -->
-                            <VExpandTransition>
-                              <div
-                                v-show="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_name]"
-                                class="ml-4">
-                                <div class="entries-list">
-                                  <VCard v-for="entry in task.entries" :key="entry.id" variant="outlined"
-                                    class="mb-2 entry-card">
-                                    <VCardText class="pa-3">
-                                      <div class="d-flex justify-space-between align-start">
-                                        <div class="entry-details flex-grow-1">
-                                          <div class="d-flex align-center mb-2">
-                                            <VIcon icon="ri-time-line" size="12" class="mr-2" />
-                                            <span class="text-body-2 font-weight-medium">
-                                              {{ formatDateTime(entry.start_time) }}
-                                            </span>
-                                            <VIcon icon="ri-arrow-right-line" size="10" class="mx-2" />
-                                            <span class="text-body-2 font-weight-medium">
-                                              {{ formatDateTime(entry.end_time) }}
-                                            </span>
-                                          </div>
-
-                                          <div v-if="entry.comment" class="text-caption text-medium-emphasis">
-                                            <VIcon icon="ri-chat-3-line" size="10" class="mr-1" />
-                                            {{ entry.comment }}
-                                          </div>
-                                        </div>
-
-                                        <div class="entry-duration text-right">
-                                          <VChip color="accent" size="small" variant="tonal">
-                                            {{ formatHours(entry.duration_hours) }}
-                                          </VChip>
-                                        </div>
-                                      </div>
-                                    </VCardText>
-                                  </VCard>
-                                </div>
-                              </div>
-                            </VExpandTransition>
-                          </div>
-                        </div>
-                      </VExpandTransition>
-                    </div>
-                  </div>
-                </VExpandTransition>
-              </div>
-            </div>
-          </VCardText>
-        </VCard>
+        <MonthlySummaryCategoryBreakdown :category-breakdown="summaryData?.category_breakdown || []"
+          :is-mobile="isMobile" />
       </VWindowItem>
 
       <!-- User Logs Tab -->
@@ -844,10 +715,6 @@ watch(() => activeTab.value, (newTab) => {
 
 .chart-grid {
   padding: 12px;
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 5%);
-  inline-size: 100%;
 }
 
 .bar-segment {
@@ -861,46 +728,22 @@ watch(() => activeTab.value, (newTab) => {
   transform: scaleX(1.02);
 }
 
-.day-info {
-  min-block-size: 50px;
+.month-info {
+  margin: 0;
   padding-block: 8px;
   padding-inline: 4px;
 }
 
-.main-category-section {
-  border-inline-start: 4px solid #e3f2fd;
-  padding-inline-start: 16px;
+.chart-bar-container:hover .bar-segment {
+  filter: brightness(1.05);
 }
 
-.category-section {
-  border-inline-start: 3px solid #e8f5e8;
-  padding-inline-start: 12px;
+.chart-bar-container:hover .month-info {
+  color: var(--v-theme-primary);
 }
 
-.task-section {
-  border-inline-start: 2px solid #f5f5f5;
-  padding-inline-start: 8px;
-}
-
-.entry-card {
-  background: #fafafa;
-  border-inline-start: 3px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.entry-card:hover {
-  background: #f0f0f0;
-  border-inline-start-color: #2196f3;
-  transform: translateX(4px);
-}
-
-.cursor-pointer {
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.cursor-pointer:hover {
-  background: rgba(0, 0, 0, 2%);
+.performance-indicator {
+  font-size: 10px !important;
 }
 
 /* Scrollbar styling for chart */
@@ -922,52 +765,20 @@ watch(() => activeTab.value, (newTab) => {
   background: #a8a8a8;
 }
 
-/* Enhanced focus states for accessibility */
-.cursor-pointer:focus-visible {
-  border-radius: 4px;
-  outline: 2px solid var(--v-theme-primary);
-  outline-offset: 2px;
-}
-
-/* Chart bar hover effects */
-.chart-bar-container:hover .bar-segment {
-  filter: brightness(1.05);
-}
-
-.chart-bar-container:hover .day-info {
-  color: var(--v-theme-primary);
-}
-
 /* Chart navigation */
 .chart-wrapper[style*="cursor: grab"]:active {
   cursor: grabbing !important;
 }
 
-/* Table styling */
-:deep(.v-data-table) {
-  border-radius: 8px;
+/* Enhanced focus states for accessibility */
+:deep(.v-btn:focus-visible) {
+  outline: 2px solid var(--v-theme-primary);
+  outline-offset: 2px;
 }
 
 @media (max-width: 767px) {
   .enhanced-chart-container {
     padding: 16px;
-  }
-
-  .chart-grid {
-    block-size: 280px !important;
-  }
-
-  .category-section,
-  .task-section {
-    padding-inline-start: 8px;
-  }
-
-  .entry-card {
-    margin-block-end: 8px !important;
-  }
-
-  .ml-4 {
-    margin-inline-start: 8px !important;
   }
 
   .legend-color {
@@ -977,6 +788,16 @@ watch(() => activeTab.value, (newTab) => {
 
   .text-body-2 {
     font-size: 0.75rem;
+  }
+
+  .performance-indicator {
+    font-size: 8px !important;
+    padding-block: 1px !important;
+    padding-inline: 4px !important;
+  }
+
+  :deep(.v-card-text) {
+    padding: 16px;
   }
 }
 </style>

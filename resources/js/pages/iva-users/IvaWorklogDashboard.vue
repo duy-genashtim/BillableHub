@@ -4,6 +4,10 @@ import { formatDate, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import MonthlySummaryMetricsCards from './components/MonthlySummaryMetricsCards.vue';
+import MonthlySummaryTabs from './components/MonthlySummaryTabs.vue';
+import WeeklySummaryMetricsCards from './components/WeeklySummaryMetricsCards.vue';
+import WeeklySummaryTabs from './components/WeeklySummaryTabs.vue';
 import WorklogMetricsCards from './components/WorklogMetricsCards.vue';
 import WorklogTabs from './components/WorklogTabs.vue';
 
@@ -26,6 +30,7 @@ const selectedYear = ref(Math.max(WORKLOG_CONFIG.START_YEAR, new Date().getFullY
 const selectedWeekNumber = ref(getCurrentWeekNumber());
 const selectedWeekCount = ref(1);
 const selectedMonth = ref(new Date().getMonth() + 1);
+const selectedMonthCount = ref(1);
 const bimonthlyDate = ref(15);
 const customDateFrom = ref('');
 const customDateTo = ref('');
@@ -46,6 +51,24 @@ const dateRangeText = computed(() => {
     if (firstHalf && firstHalf.date_range && secondHalf && secondHalf.date_range) {
       const start = new Date(firstHalf.date_range.start);
       const end = new Date(secondHalf.date_range.end);
+      return `${formatDate(start)} - ${formatDate(end)}`;
+    }
+  }
+
+  if (dateMode.value === 'weekly_summary' && dashboardData.value.weekly_summary_data) {
+    const dateRange = dashboardData.value.weekly_summary_data.date_range;
+    if (dateRange) {
+      const start = new Date(dateRange.start);
+      const end = new Date(dateRange.end);
+      return `${formatDate(start)} - ${formatDate(end)}`;
+    }
+  }
+
+  if (dateMode.value === 'month_summary' && dashboardData.value.monthly_summary_data) {
+    const dateRange = dashboardData.value.monthly_summary_data.date_range;
+    if (dateRange) {
+      const start = new Date(dateRange.start);
+      const end = new Date(dateRange.end);
       return `${formatDate(start)} - ${formatDate(end)}`;
     }
   }
@@ -78,6 +101,33 @@ const weekCountOptions = computed(() => {
   return options;
 });
 
+const monthOptions = computed(() => {
+  if (dateMode.value === 'month_summary') {
+    return getMonthOptionsForSummary();
+  }
+
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return months.map((month, index) => ({
+    title: month,
+    value: index + 1
+  }));
+});
+
+const monthCountOptions = computed(() => {
+  const options = [];
+  for (let i = 1; i <= 12; i++) {
+    options.push({
+      title: `${i} Month${i > 1 ? 's' : ''}`,
+      value: i
+    });
+  }
+  return options;
+});
+
 const yearOptions = computed(() => {
   const currentYear = new Date().getFullYear();
   const startYear = WORKLOG_CONFIG.START_YEAR;
@@ -88,18 +138,6 @@ const yearOptions = computed(() => {
     options.push(year);
   }
   return options;
-});
-
-const monthOptions = computed(() => {
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  return months.map((month, index) => ({
-    title: month,
-    value: index + 1
-  }));
 });
 
 const bimonthlyDateOptions = computed(() => {
@@ -114,7 +152,15 @@ const bimonthlyDateOptions = computed(() => {
 });
 
 const showPerformance = computed(() => {
-  return dateMode.value === 'weeks';
+  return dateMode.value === 'weeks' || dateMode.value === 'weekly_summary' || dateMode.value === 'month_summary';
+});
+
+const isWeeklySummaryMode = computed(() => {
+  return dateMode.value === 'weekly_summary';
+});
+
+const isMonthlySummaryMode = computed(() => {
+  return dateMode.value === 'month_summary';
 });
 
 function getCurrentWeekNumber() {
@@ -143,6 +189,56 @@ function getOrdinalSuffix(day) {
     case 3: return 'rd';
     default: return 'th';
   }
+}
+
+function getMonthOptionsForSummary() {
+  const weeks = getWeekRangeForYear(selectedYear.value);
+  const monthGroups = [];
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  // Group weeks into 4-week cycles (months)
+  for (let i = 0; i < weeks.length; i += 4) {
+    const monthWeeks = weeks.slice(i, i + 4);
+    if (monthWeeks.length === 4) {
+      const firstWeek = monthWeeks[0];
+      const lastWeek = monthWeeks[3];
+
+      // Determine month name based on first week's start date
+      const firstWeekStartDate = new Date(firstWeek.start_date);
+      const monthIndex = firstWeekStartDate.getMonth();
+      const monthName = monthNames[monthIndex];
+      const year = firstWeekStartDate.getFullYear();
+
+      // Create readable date range
+      const startDate = new Date(firstWeek.start_date);
+      const endDate = new Date(lastWeek.end_date);
+
+      const startStr = startDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC'
+      });
+      const endStr = endDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC'
+      });
+
+      monthGroups.push({
+        title: `${monthName} ${year} (${startStr} - ${endStr})`,
+        value: monthIndex + 1, // 1-based month number
+        subtitle: `Weeks ${firstWeek.week_number}-${lastWeek.week_number}`,
+        weeks: monthWeeks,
+        start_date: firstWeek.start_date,
+        end_date: lastWeek.end_date
+      });
+    }
+  }
+
+  return monthGroups;
 }
 
 onMounted(() => {
@@ -203,7 +299,8 @@ function getDateParams() {
   const params = {};
 
   switch (dateMode.value) {
-    case 'weeks': {
+    case 'weeks':
+    case 'weekly_summary': {
       const weeks = getWeekRangeForYear(selectedYear.value);
       const startWeek = selectedWeekNumber.value;
       const endWeek = selectedWeekNumber.value + selectedWeekCount.value - 1;
@@ -219,6 +316,28 @@ function getDateParams() {
       params.year = selectedYear.value;
       params.week_number = selectedWeekNumber.value;
       params.week_count = selectedWeekCount.value;
+
+      // Add mode parameter to differentiate between weeks and weekly_summary
+      if (dateMode.value === 'weekly_summary') {
+        params.mode = 'weekly_summary';
+      }
+      break;
+    }
+
+    case 'month_summary': {
+      const monthOptions = getMonthOptionsForSummary();
+      const startMonthIndex = selectedMonth.value - 1; // Convert to 0-based
+      const endMonthIndex = startMonthIndex + selectedMonthCount.value - 1;
+
+      if (monthOptions[startMonthIndex] && monthOptions[endMonthIndex]) {
+        params.start_date = monthOptions[startMonthIndex].start_date;
+        params.end_date = monthOptions[endMonthIndex].end_date;
+      }
+
+      params.year = selectedYear.value;
+      params.month = selectedMonth.value;
+      params.month_count = selectedMonthCount.value;
+      params.mode = 'month_summary';
       break;
     }
 
@@ -323,6 +442,20 @@ function viewTimeDoctorRecords() {
       params.start_date = firstHalf.date_range.start;
       params.end_date = secondHalf.date_range.end;
     }
+  } else if (dateMode.value === 'weekly_summary' && dashboardData.value?.weekly_summary_data) {
+    // For weekly summary, use the date range from summary data
+    const dateRange = dashboardData.value.weekly_summary_data.date_range;
+    if (dateRange) {
+      params.start_date = dateRange.start;
+      params.end_date = dateRange.end;
+    }
+  } else if (dateMode.value === 'month_summary' && dashboardData.value?.monthly_summary_data) {
+    // For monthly summary, use the date range from summary data
+    const dateRange = dashboardData.value.monthly_summary_data.date_range;
+    if (dateRange) {
+      params.start_date = dateRange.start;
+      params.end_date = dateRange.end;
+    }
   } else if (dateMode.value === 'custom') {
     params.start_date = customDateFrom.value;
     params.end_date = customDateTo.value;
@@ -350,26 +483,32 @@ function showSnackbar(message, color = 'success') {
 
 // Watch for changes in date selection
 watch(selectedYear, () => {
-  if (dateMode.value === 'weeks') {
+  if (dateMode.value === 'weeks' || dateMode.value === 'weekly_summary') {
     fetchAvailableWeeks();
   }
   fetchDashboardData();
 });
 
 watch(selectedWeekNumber, () => {
-  if (dateMode.value === 'weeks') {
+  if (dateMode.value === 'weeks' || dateMode.value === 'weekly_summary') {
     fetchDashboardData();
   }
 });
 
 watch(selectedWeekCount, () => {
-  if (dateMode.value === 'weeks') {
+  if (dateMode.value === 'weeks' || dateMode.value === 'weekly_summary') {
     fetchDashboardData();
   }
 });
 
 watch(selectedMonth, () => {
-  if (dateMode.value === 'monthly' || dateMode.value === 'bimonthly') {
+  if (dateMode.value === 'monthly' || dateMode.value === 'bimonthly' || dateMode.value === 'month_summary') {
+    fetchDashboardData();
+  }
+});
+
+watch(selectedMonthCount, () => {
+  if (dateMode.value === 'month_summary') {
     fetchDashboardData();
   }
 });
@@ -426,6 +565,12 @@ watch(customDateTo, () => {
                 <VChip v-if="dateRangeText" color="primary" size="small" prepend-icon="ri-calendar-line">
                   {{ dateRangeText }}
                 </VChip>
+                <VChip v-if="isWeeklySummaryMode" color="warning" size="small" prepend-icon="ri-calendar-week-line">
+                  Weekly Summary
+                </VChip>
+                <VChip v-if="isMonthlySummaryMode" color="info" size="small" prepend-icon="ri-calendar-month-line">
+                  Monthly Summary
+                </VChip>
               </div>
             </div>
 
@@ -467,6 +612,7 @@ watch(customDateTo, () => {
               <VSelect v-model="dateMode" :items="[
                 { title: 'Week (Daily View)', value: 'weeks' },
                 { title: 'Week (Summary View)', value: 'weekly_summary' },
+                { title: 'Month (Summary View)', value: 'month_summary' },
                 { title: 'Month', value: 'monthly' },
                 { title: 'Bimonthly', value: 'bimonthly' },
                 { title: 'Custom Range', value: 'custom' }
@@ -475,7 +621,7 @@ watch(customDateTo, () => {
             </VCol>
 
             <!-- Week Selection -->
-            <template v-if="dateMode === 'weeks'">
+            <template v-if="dateMode === 'weeks' || dateMode === 'weekly_summary'">
               <VCol cols="12" md="2">
                 <VSelect v-model="selectedYear" :items="yearOptions" label="Year" density="comfortable"
                   variant="outlined" aria-label="Select year" />
@@ -497,6 +643,32 @@ watch(customDateTo, () => {
               <VCol cols="12" md="3">
                 <VSelect v-model="selectedWeekCount" :items="weekCountOptions" label="Number of Weeks"
                   density="comfortable" variant="outlined" aria-label="Number of weeks" />
+              </VCol>
+            </template>
+
+            <!-- Month Summary Selection -->
+            <template v-else-if="dateMode === 'month_summary'">
+              <VCol cols="12" md="2">
+                <VSelect v-model="selectedYear" :items="yearOptions" label="Year" density="comfortable"
+                  variant="outlined" aria-label="Select year" />
+              </VCol>
+
+              <VCol cols="12" md="4">
+                <VSelect v-model="selectedMonth" :items="monthOptions" label="Starting Month" density="comfortable"
+                  variant="outlined" aria-label="Select starting month">
+                  <template v-slot:item="{ item, props }">
+                    <VListItem v-bind="props" :title="item.raw.title" :subtitle="item.raw.subtitle">
+                      <template v-slot:prepend>
+                        <VIcon color="primary" size="small">ri-calendar-month-line</VIcon>
+                      </template>
+                    </VListItem>
+                  </template>
+                </VSelect>
+              </VCol>
+
+              <VCol cols="12" md="3">
+                <VSelect v-model="selectedMonthCount" :items="monthCountOptions" label="Number of Months"
+                  density="comfortable" variant="outlined" aria-label="Number of months" />
               </VCol>
             </template>
 
@@ -555,8 +727,26 @@ watch(customDateTo, () => {
 
       <!-- Dashboard Content -->
       <div v-else-if="dashboardData">
+        <!-- Monthly Summary Layout -->
+        <div v-if="isMonthlySummaryMode && dashboardData.monthly_summary_data">
+          <MonthlySummaryMetricsCards :summary-data="dashboardData.monthly_summary_data" :is-mobile="isMobile"
+            class="mb-6" />
+
+          <MonthlySummaryTabs :summary-data="dashboardData.monthly_summary_data" :user="user" :user-id="userId"
+            :is-mobile="isMobile" @show-snackbar="showSnackbar" />
+        </div>
+
+        <!-- Weekly Summary Layout -->
+        <div v-else-if="isWeeklySummaryMode && dashboardData.weekly_summary_data">
+          <WeeklySummaryMetricsCards :summary-data="dashboardData.weekly_summary_data" :is-mobile="isMobile"
+            class="mb-6" />
+
+          <WeeklySummaryTabs :summary-data="dashboardData.weekly_summary_data" :user="user" :user-id="userId"
+            :is-mobile="isMobile" @show-snackbar="showSnackbar" />
+        </div>
+
         <!-- Bimonthly Layout -->
-        <div v-if="dateMode === 'bimonthly' && dashboardData.bimonthly_data">
+        <div v-else-if="dateMode === 'bimonthly' && dashboardData.bimonthly_data">
           <!-- First Half -->
           <div class="mb-8">
             <VCard class="mb-4" color="primary" variant="tonal">
