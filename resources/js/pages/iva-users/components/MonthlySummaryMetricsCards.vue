@@ -3,17 +3,9 @@ import { formatHours } from '@/@core/utils/worklogHelpers';
 import { computed } from 'vue';
 
 const props = defineProps({
-  dashboardData: {
+  summaryData: {
     type: Object,
     required: true
-  },
-  showPerformance: {
-    type: Boolean,
-    default: false
-  },
-  performanceData: {
-    type: Array,
-    default: () => []
   },
   isMobile: {
     type: Boolean,
@@ -21,19 +13,12 @@ const props = defineProps({
   }
 });
 
-const basicMetrics = computed(() => props.dashboardData?.basic_metrics || {});
-const nadData = computed(() => props.dashboardData?.nad_data || {});
+const summary = computed(() => props.summaryData?.summary || {});
 
 function getProgressColor(percentage) {
   if (percentage >= 100) return 'success';
   if (percentage >= 90) return 'warning';
   return 'error';
-}
-
-function getPerformanceStatus(percentage) {
-  if (percentage >= 100) return 'EXCELLENT';
-  if (percentage >= 90) return 'WARNING';
-  return 'POOR';
 }
 
 function getPerformanceColor(status) {
@@ -53,11 +38,19 @@ function getPerformanceIcon(status) {
     default: return 'ri-time-line';
   }
 }
+
+// Show performance data (matching WorklogMetricsCards logic)
+const showPerformance = computed(() => true);
+
+// Get performance data from target_performances
+const performanceData = computed(() => {
+  return props.summaryData?.target_performances || [];
+});
 </script>
 
 <template>
   <div>
-    <!-- Basic Metrics Summary -->
+    <!-- Basic Metrics Summary (matching WorklogMetricsCards layout) -->
     <VRow class="mb-6">
       <VCol cols="12" md="3">
         <VCard color="success" variant="tonal" class="h-100">
@@ -68,7 +61,7 @@ function getPerformanceIcon(status) {
 
             <div class="flex-grow-1">
               <div class="text-h4 font-weight-bold mb-1">
-                {{ formatHours(basicMetrics?.billable_hours || 0) }}
+                {{ formatHours(summary?.total_billable_hours || 0) }}
               </div>
               <div class="text-body-2 font-weight-medium">
                 Billable Hours
@@ -87,7 +80,7 @@ function getPerformanceIcon(status) {
 
             <div class="flex-grow-1">
               <div class="text-h4 font-weight-bold mb-1">
-                {{ formatHours(basicMetrics?.non_billable_hours || 0) }}
+                {{ formatHours(summary?.total_non_billable_hours || 0) }}
               </div>
               <div class="text-body-2 font-weight-medium">
                 Non-Billable Hours
@@ -106,7 +99,7 @@ function getPerformanceIcon(status) {
 
             <div class="flex-grow-1">
               <div class="text-h4 font-weight-bold mb-1">
-                {{ formatHours((basicMetrics?.billable_hours || 0) + (basicMetrics?.non_billable_hours || 0)) }}
+                {{ formatHours((summary?.total_billable_hours || 0) + (summary?.total_non_billable_hours || 0)) }}
               </div>
               <div class="text-body-2 font-weight-medium">
                 Total Hours
@@ -125,10 +118,13 @@ function getPerformanceIcon(status) {
 
             <div class="flex-grow-1">
               <div class="text-h4 font-weight-bold mb-1">
-                {{ nadData?.nad_count || 0 }}
+                {{ summary?.total_nad_count || 0 }}
               </div>
               <div class="text-body-2 font-weight-medium">
                 Total NAD
+              </div>
+              <div class="text-caption text-warning-darken-1">
+                {{ formatHours(summary?.total_nad_hours || 0) }} NAD hours
               </div>
             </div>
           </VCardText>
@@ -136,7 +132,7 @@ function getPerformanceIcon(status) {
       </VCol>
     </VRow>
 
-    <!-- Performance Overview for Weeks Only -->
+    <!-- Performance Overview for Months (matching WorklogMetricsCards logic) -->
     <VCard v-if="showPerformance && performanceData?.length" class="mb-6">
       <VCardText>
         <h2 class="text-h6 font-weight-medium mb-4">Performance Overview</h2>
@@ -171,7 +167,7 @@ function getPerformanceIcon(status) {
                 <div class="d-flex justify-space-between text-body-2 mb-3">
                   <span>0h</span>
                   <span class="font-weight-medium">
-                    {{ formatHours(basicMetrics.billable_hours) }} / {{
+                    {{ formatHours(target.actual_hours || summary.total_billable_hours || 0) }} / {{
                       formatHours(target.target_total_hours) }}
                   </span>
                   <span>{{ formatHours(target.target_total_hours) }}</span>

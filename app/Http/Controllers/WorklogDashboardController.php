@@ -16,10 +16,11 @@ class WorklogDashboardController extends Controller
     public function getDashboardData(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'year'           => 'nullable|integer|min:2024|max:2030',
+            'year'           => 'nullable|integer|min:2024',
             'week_number'    => 'nullable|integer|min:1|max:52',
             'week_count'     => 'nullable|integer|min:1|max:12',
             'month'          => 'nullable|integer|min:1|max:12',
+            'month_count'    => 'nullable|integer|min:1|max:12',
             'bimonthly_date' => 'nullable|integer|min:1|max:28',
             'start_date'     => 'required|date',
             'end_date'       => 'required|date|after_or_equal:start_date',
@@ -38,14 +39,6 @@ class WorklogDashboardController extends Controller
         // Get date range from request
         $originalStartDate = $request->input('start_date');
         $endDate           = $request->input('end_date');
-
-        // get NAD Data
-        $data = [
-            'start_date' => $originalStartDate,
-            'end_date'   => $endDate,
-            'blab_only'  => 1,
-            'email_list' => [$user->email], // Use user's email for NAD API
-        ];
 
         // Apply start date adjustment logic
         $dateAdjustment = ivaAdjustStartDate($user, $originalStartDate, $endDate);
@@ -67,6 +60,7 @@ class WorklogDashboardController extends Controller
             ->with(['project', 'task'])
             ->orderBy('start_time')
             ->get();
+
         // Get work status changes during the period to handle performance calculations
         $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
 
@@ -79,27 +73,24 @@ class WorklogDashboardController extends Controller
                 'region'             => $user->region ? $user->region->name : null,
                 'timedoctor_version' => $user->timedoctor_version,
             ],
-            // 'nad_data'           => $NADData,
-            // 'date_range'         => [
-            //     'start'               => $startDate,
-            //     'end'                 => $endDate,
-            //     'original_start'      => $originalStartDate,
-            //     'start_date_adjusted' => $dateAdjustment['hire_date_used'],
-            //     'days_count'          => $daysDiff + 1,
-            //     'mode'                => $this->getDateMode($request),
-            // ],
-            // 'basic_metrics'      => calculateBasicMetrics($worklogs),
-            // 'daily_breakdown'    => calculateDailyBreakdown($worklogs, $startDate, $endDate),
-            // 'category_breakdown' => calculateCategoryBreakdown($worklogs),
         ];
 
-        // Add performance data only for weekly reports
-        if ($this->getDateMode($request) === 'weeks') {
-            // Check if we have at least 1 week of data for performance calculation
+        $dateMode = $this->getDateMode($request);
+
+        // Add bimonthly data if needed
+        if ($dateMode === 'bimonthly') {
+            $dashboardData['bimonthly_data'] = calculateBimonthlyData(
+                $user,
+                $request->input('year'),
+                $request->input('month'),
+                $request->input('bimonthly_date', 15)
+            );
+        } elseif ($dateMode === 'weekly_summary') {
+            // Handle weekly summary mode
             if (! $dateAdjustment['is_valid_week_range']) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Insufficient date range for weekly performance calculation. At least 1 week is required.',
+                    'message' => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
                     'details' => [
                         'days_available'   => $dateAdjustment['days_difference'],
                         'minimum_required' => 7,
@@ -107,30 +98,58 @@ class WorklogDashboardController extends Controller
                 ], 422);
             }
 
-            $dashboardData['target_performances'] = calculateTargetPerformancesForUser(
+            $dashboardData['weekly_summary_data'] = calculateWeeklySummaryData(
+                $user,
+                $worklogs,
+                $startDate,
+                $endDate,
+                $request->input('year'),
+                $request->input('week_number'),
+                $request->input('week_count', 1),
+                $workStatusChanges
+            );
+            $dashboardData['weekly_summary_data']['target_performances'] = calculateTargetPerformancesForUser(
                 $user,
                 $worklogs,
                 $startDate,
                 $endDate,
                 $workStatusChanges
             );
-        }
-
-        // Add bimonthly data if needed
-        if ($this->getDateMode($request) === 'bimonthly') {
-            $dashboardData['bimonthly_data'] = calculateBimonthlyData(
+        } elseif ($dateMode === 'month_summary') {
+            // Handle monthly summary mode
+            $dashboardData['monthly_summary_data'] = calculateMonthlySummaryData(
                 $user,
+                $worklogs,
+                $startDate,
+                $endDate,
                 $request->input('year'),
                 $request->input('month'),
-                $request->input('bimonthly_date', 15)
+                $request->input('month_count', 1),
+                $workStatusChanges
+            );
+            $dashboardData['monthly_summary_data']['target_performances'] = calculateTargetPerformancesForUser(
+                $user,
+                $worklogs,
+                $startDate,
+                $endDate,
+                $workStatusChanges
             );
         } else {
+            // Regular mode (weeks, monthly, custom)
+            $data = [
+                'start_date' => $originalStartDate,
+                'end_date'   => $endDate,
+                'blab_only'  => 1,
+                'email_list' => [$user->email], // Use user's email for NAD API
+            ];
+
             $responseNAD = callNADApi('get_nad_by_date_range', $data);
             $NADData     = [];
 
             if (! empty($responseNAD['status']) && $responseNAD['status'] === true && ! empty($responseNAD['data']) && count($responseNAD['data']) > 0) {
                 $NADData = collect($responseNAD['data'])->firstWhere('email', $user->email) ?? [];
             }
+
             $dashboardData['basic_metrics'] = calculateBasicMetrics($worklogs);
             $dashboardData['nad_data']      = $NADData;
             $dashboardData['date_range']    = [
@@ -139,10 +158,32 @@ class WorklogDashboardController extends Controller
                 'original_start'      => $originalStartDate,
                 'start_date_adjusted' => $dateAdjustment['hire_date_used'],
                 'days_count'          => $daysDiff + 1,
-                'mode'                => $this->getDateMode($request),
+                'mode'                => $dateMode,
             ];
             $dashboardData['daily_breakdown']    = calculateDailyBreakdown($worklogs, $startDate, $endDate);
             $dashboardData['category_breakdown'] = calculateCategoryBreakdown($worklogs);
+
+            // Add performance data for weeks mode
+            if ($dateMode === 'weeks') {
+                if (! $dateAdjustment['is_valid_week_range']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Insufficient date range for weekly performance calculation. At least 1 week is required.',
+                        'details' => [
+                            'days_available'   => $dateAdjustment['days_difference'],
+                            'minimum_required' => 7,
+                        ],
+                    ], 422);
+                }
+
+                $dashboardData['target_performances'] = calculateTargetPerformancesForUser(
+                    $user,
+                    $worklogs,
+                    $startDate,
+                    $endDate,
+                    $workStatusChanges
+                );
+            }
         }
 
         // Log the activity
@@ -155,9 +196,8 @@ class WorklogDashboardController extends Controller
                 'original_start_date' => $originalStartDate,
                 'end_date'            => $endDate,
                 'start_date_adjusted' => $dateAdjustment['hire_date_used'],
-                'total_hours'         => $this->getDateMode($request) != 'bimonthly' ? $dashboardData['basic_metrics']['billable_hours'] : $dashboardData['bimonthly_data']['first_half']['basic_metrics']['billable_hours'] +
-                $dashboardData['bimonthly_data']['second_half']['basic_metrics']['billable_hours'],
-                'date_mode'           => $this->getDateMode($request),
+                'total_hours'         => $this->getTotalHoursForLogging($dashboardData, $dateMode),
+                'date_mode'           => $dateMode,
                 'days_span'           => $daysDiff + 1,
             ]
         );
@@ -169,15 +209,40 @@ class WorklogDashboardController extends Controller
     }
 
     /**
+     * Get total hours for logging based on mode.
+     */
+    private function getTotalHoursForLogging($dashboardData, $dateMode)
+    {
+        if ($dateMode === 'bimonthly' && isset($dashboardData['bimonthly_data'])) {
+            return $dashboardData['bimonthly_data']['first_half']['basic_metrics']['billable_hours'] +
+                $dashboardData['bimonthly_data']['second_half']['basic_metrics']['billable_hours'];
+        } elseif ($dateMode === 'weekly_summary' && isset($dashboardData['weekly_summary_data'])) {
+            return $dashboardData['weekly_summary_data']['summary']['total_billable_hours'];
+        } elseif ($dateMode === 'month_summary' && isset($dashboardData['monthly_summary_data'])) {
+            return $dashboardData['monthly_summary_data']['summary']['total_billable_hours'];
+        } else {
+            return $dashboardData['basic_metrics']['billable_hours'] ?? 0;
+        }
+    }
+
+    /**
      * Get date mode from request.
      */
     private function getDateMode(Request $request)
     {
         if ($request->has('year') && $request->has('week_number')) {
+            // Check if it's weekly_summary based on a parameter or pattern
+            if ($request->input('mode') === 'weekly_summary') {
+                return 'weekly_summary';
+            }
             return 'weeks';
-        } elseif ($request->has('year') && $request->has('month') && $request->has('bimonthly_date')) {
-            return 'bimonthly';
         } elseif ($request->has('year') && $request->has('month')) {
+            // Check if it's month_summary based on a parameter
+            if ($request->input('mode') === 'month_summary') {
+                return 'month_summary';
+            } elseif ($request->has('bimonthly_date')) {
+                return 'bimonthly';
+            }
             return 'monthly';
         } else {
             return 'custom';
