@@ -83,6 +83,7 @@ const performanceData = computed(() => {
 
 <template>
   <div>
+
     <!-- Basic Metrics Summary (matching WorklogMetricsCards layout) -->
     <VRow class="mb-6">
       <VCol cols="12" md="3">

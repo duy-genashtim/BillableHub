@@ -729,6 +729,20 @@ watch(customDateTo, () => {
       <div v-else-if="dashboardData">
         <!-- Monthly Summary Layout -->
         <div v-if="isMonthlySummaryMode && dashboardData.monthly_summary_data">
+          <!-- Add adjusted start date notification card for monthly summary -->
+          <VCard v-if="dashboardData?.adjusted_start_date?.is_adjusted" class="mb-6" color="info" variant="tonal">
+            <VCardText>
+              <div class="d-flex align-center">
+                <VIcon icon="ri-information-line" color="info" class="mr-3" />
+                <div>
+                  <h3 class="text-subtitle-1 font-weight-medium mb-1">Date Range Adjusted</h3>
+                  <p class="text-body-2 mb-0">
+                    {{ dashboardData.adjusted_start_date.message }}
+                  </p>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
           <MonthlySummaryMetricsCards :summary-data="dashboardData.monthly_summary_data" :is-mobile="isMobile"
             class="mb-6" />
 
@@ -738,6 +752,20 @@ watch(customDateTo, () => {
 
         <!-- Weekly Summary Layout -->
         <div v-else-if="isWeeklySummaryMode && dashboardData.weekly_summary_data">
+          <!-- Add adjusted start date notification card for weekly summary -->
+          <VCard v-if="dashboardData?.adjusted_start_date?.is_adjusted" class="mb-6" color="info" variant="tonal">
+            <VCardText>
+              <div class="d-flex align-center">
+                <VIcon icon="ri-information-line" color="info" class="mr-3" />
+                <div>
+                  <h3 class="text-subtitle-1 font-weight-medium mb-1">Date Range Adjusted</h3>
+                  <p class="text-body-2 mb-0">
+                    {{ dashboardData.adjusted_start_date.message }}
+                  </p>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
           <WeeklySummaryMetricsCards :summary-data="dashboardData.weekly_summary_data" :is-mobile="isMobile"
             class="mb-6" />
 

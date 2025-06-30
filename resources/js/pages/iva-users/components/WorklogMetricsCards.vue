@@ -57,6 +57,20 @@ function getPerformanceIcon(status) {
 
 <template>
   <div>
+    <!-- Add adjusted start date notification card -->
+    <VCard v-if="dashboardData?.adjusted_start_date?.is_adjusted" class="mb-6" color="info" variant="tonal">
+      <VCardText>
+        <div class="d-flex align-center">
+          <VIcon icon="ri-information-line" color="info" class="mr-3" />
+          <div>
+            <h3 class="text-subtitle-1 font-weight-medium mb-1">Date Range Adjusted</h3>
+            <p class="text-body-2 mb-0">
+              {{ dashboardData.adjusted_start_date.message }}
+            </p>
+          </div>
+        </div>
+      </VCardText>
+    </VCard>
     <!-- Basic Metrics Summary -->
     <VRow class="mb-6">
       <VCol cols="12" md="3">

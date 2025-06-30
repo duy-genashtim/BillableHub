@@ -41,9 +41,12 @@ class WorklogDashboardController extends Controller
         $endDate           = $request->input('end_date');
 
         // Apply start date adjustment logic
-        $dateAdjustment = ivaAdjustStartDate($user, $originalStartDate, $endDate);
-        $startDate      = $dateAdjustment['adjusted_start_date'];
 
+        // $dateAdjustment = ivaAdjustStartDate($user, $originalStartDate, $endDate);
+        $isSetMonday    = in_array($this->getDateMode($request), ['weeks', 'weekly_summary', 'month_summary']);
+        $dateAdjustment = ivaAdjustStartDate($user, $originalStartDate, $endDate, $isSetMonday);
+        $startDate      = $dateAdjustment['adjusted_start_date'];
+        // dd($request->all(), $originalStartDate, $endDate, $dateAdjustment);
         // Validate date range (max 13 months)
         $daysDiff = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate));
         if ($daysDiff > 395) {
@@ -57,10 +60,11 @@ class WorklogDashboardController extends Controller
         $worklogs = WorklogsData::where('iva_id', $id)
             ->where('is_active', true)
             ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-            ->with(['project', 'task'])
+                         // ->with(['project', 'task'])
+            ->with(['task']) // Only include task as project is not needed
             ->orderBy('start_time')
             ->get();
-
+        // dd($worklogs->toArray());
         // Get work status changes during the period to handle performance calculations
         $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
 
@@ -74,6 +78,15 @@ class WorklogDashboardController extends Controller
                 'timedoctor_version' => $user->timedoctor_version,
             ],
         ];
+
+        if ($isSetMonday && $dateAdjustment['changed_start_date']) {
+            $dashboardData['adjusted_start_date'] = [
+                'is_adjusted'   => true,
+                'original_date' => $dateAdjustment['original_start_date'],
+                'adjusted_date' => $dateAdjustment['adjusted_start_date'],
+                'message'       => $dateAdjustment['adjustment_message'],
+            ];
+        }
 
         $dateMode = $this->getDateMode($request);
 
@@ -89,12 +102,13 @@ class WorklogDashboardController extends Controller
             // Handle weekly summary mode
             if (! $dateAdjustment['is_valid_week_range']) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
-                    'details' => [
+                    'success'             => false,
+                    'message'             => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
+                    'details'             => [
                         'days_available'   => $dateAdjustment['days_difference'],
                         'minimum_required' => 7,
                     ],
+                    'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
                 ], 422);
             }
 
@@ -116,11 +130,23 @@ class WorklogDashboardController extends Controller
                 $workStatusChanges
             );
         } elseif ($dateMode === 'month_summary') {
+            // Handle weekly summary mode
+            if (! $dateAdjustment['is_valid_week_range']) {
+                return response()->json([
+                    'success'             => false,
+                    'message'             => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
+                    'details'             => [
+                        'days_available'   => $dateAdjustment['days_difference'],
+                        'minimum_required' => 7,
+                    ],
+                    'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
+                ], 422);
+            }
             // Handle monthly summary mode
             $dashboardData['monthly_summary_data'] = calculateMonthlySummaryData(
                 $user,
                 $worklogs,
-                $startDate,
+                $dateAdjustment['original_start_date'],
                 $endDate,
                 $request->input('year'),
                 $request->input('month'),
@@ -136,27 +162,28 @@ class WorklogDashboardController extends Controller
             );
         } else {
             // Regular mode (weeks, monthly, custom)
-            $data = [
-                'start_date' => $originalStartDate,
-                'end_date'   => $endDate,
-                'blab_only'  => 1,
-                'email_list' => [$user->email], // Use user's email for NAD API
-            ];
+            // $data = [
+            //     'start_date' => $originalStartDate,
+            //     'end_date'   => $endDate,
+            //     'blab_only'  => 1,
+            //     'email_list' => [$user->email], // Use user's email for NAD API
+            // ];
 
-            $responseNAD = callNADApi('get_nad_by_date_range', $data);
-            $NADData     = [];
+            // $responseNAD = callNADApi('get_nad_by_date_range', $data);
+            // $NADData     = [];
 
-            if (! empty($responseNAD['status']) && $responseNAD['status'] === true && ! empty($responseNAD['data']) && count($responseNAD['data']) > 0) {
-                $NADData = collect($responseNAD['data'])->firstWhere('email', $user->email) ?? [];
-            }
+            // if (! empty($responseNAD['status']) && $responseNAD['status'] === true && ! empty($responseNAD['data']) && count($responseNAD['data']) > 0) {
+            //     $NADData = collect($responseNAD['data'])->firstWhere('email', $user->email) ?? [];
+            // }
+            $nadDataResult = fetchNADDataForPeriod($user, $startDate, $endDate);
 
             $dashboardData['basic_metrics'] = calculateBasicMetrics($worklogs);
-            $dashboardData['nad_data']      = $NADData;
+            $dashboardData['nad_data']      = $nadDataResult['nad_data'];
             $dashboardData['date_range']    = [
                 'start'               => $startDate,
                 'end'                 => $endDate,
                 'original_start'      => $originalStartDate,
-                'start_date_adjusted' => $dateAdjustment['hire_date_used'],
+                'start_date_adjusted' => $dateAdjustment['changed_start_date'],
                 'days_count'          => $daysDiff + 1,
                 'mode'                => $dateMode,
             ];
@@ -167,12 +194,13 @@ class WorklogDashboardController extends Controller
             if ($dateMode === 'weeks') {
                 if (! $dateAdjustment['is_valid_week_range']) {
                     return response()->json([
-                        'success' => false,
-                        'message' => 'Insufficient date range for weekly performance calculation. At least 1 week is required.',
-                        'details' => [
+                        'success'             => false,
+                        'message'             => 'Insufficient date range for weekly performance calculation. At least 1 week is required.',
+                        'details'             => [
                             'days_available'   => $dateAdjustment['days_difference'],
                             'minimum_required' => 7,
                         ],
+                        'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
                     ], 422);
                 }
 
@@ -195,7 +223,7 @@ class WorklogDashboardController extends Controller
                 'start_date'          => $startDate,
                 'original_start_date' => $originalStartDate,
                 'end_date'            => $endDate,
-                'start_date_adjusted' => $dateAdjustment['hire_date_used'],
+                'start_date_adjusted' => $dateAdjustment['changed_start_date'],
                 'total_hours'         => $this->getTotalHoursForLogging($dashboardData, $dateMode),
                 'date_mode'           => $dateMode,
                 'days_span'           => $daysDiff + 1,
