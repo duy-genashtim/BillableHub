@@ -23,6 +23,8 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: false,
     isLoading: false,
     msalInstance: null,
+    // Add interaction tracking
+    isInteractionInProgress: false,
   }),
 
   getters: {
@@ -71,11 +73,24 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async loginWithMicrosoft() {
+      // Prevent multiple simultaneous login attempts
+      if (this.isInteractionInProgress) {
+        console.warn('Authentication already in progress')
+        return
+      }
+
       try {
+        this.isInteractionInProgress = true
         this.isLoading = true
         
         if (!this.msalInstance) {
           throw new Error('MSAL not initialized')
+        }
+
+        // Check if there's already an ongoing interaction
+        const inProgress = this.msalInstance.getActiveAccount() && this.msalInstance.getConfiguration().auth.navigateToLoginRequestUrl
+        if (inProgress) {
+          throw new Error('Another authentication is already in progress')
         }
 
         const loginRequest = {
@@ -87,25 +102,35 @@ export const useAuthStore = defineStore('auth', {
         try {
           accounts = this.msalInstance.getAllAccounts() || []
         } catch (accountError) {
+          console.warn('Failed to get accounts:', accountError)
           accounts = []
         }
         
         let response = null
 
         if (accounts.length > 0) {
+          // Try silent token acquisition first
           try {
             response = await this.msalInstance.acquireTokenSilent({
               ...loginRequest,
               account: accounts[0],
             })
           } catch (silentError) {
-            try {
-              response = await this.msalInstance.loginPopup(loginRequest)
-            } catch (popupError) {
-              throw popupError
+            console.warn('Silent token acquisition failed:', silentError)
+            
+            // Only proceed with popup if it's not an interaction_required error during an ongoing interaction
+            if (silentError.errorCode !== 'interaction_in_progress') {
+              try {
+                response = await this.msalInstance.loginPopup(loginRequest)
+              } catch (popupError) {
+                throw popupError
+              }
+            } else {
+              throw silentError
             }
           }
         } else {
+          // No accounts, use popup login
           try {
             response = await this.msalInstance.loginPopup(loginRequest)
           } catch (popupError) {
@@ -124,6 +149,8 @@ export const useAuthStore = defineStore('auth', {
         
         if (error.errorCode === 'user_cancelled') {
           errorMessage = 'Login was cancelled'
+        } else if (error.errorCode === 'interaction_in_progress') {
+          errorMessage = 'Another login is already in progress. Please wait and try again.'
         } else if (error.errorCode === 'popup_window_error' || error.message?.includes('popup')) {
           errorMessage = 'Popup was blocked. Please allow popups for this site.'
         } else if (error.message?.includes('network')) {
@@ -135,10 +162,19 @@ export const useAuthStore = defineStore('auth', {
         throw new Error(errorMessage)
       } finally {
         this.isLoading = false
+        this.isInteractionInProgress = false
       }
     },
+
     async handleRedirectCallback() {
+      // Prevent multiple callback handling
+      if (this.isInteractionInProgress) {
+        console.warn('Redirect callback already in progress')
+        return false
+      }
+
       try {
+        this.isInteractionInProgress = true
         this.isLoading = true
         
         if (!this.msalInstance) {
@@ -156,6 +192,7 @@ export const useAuthStore = defineStore('auth', {
         try {
           accounts = this.msalInstance.getAllAccounts() || []
         } catch (accountError) {
+          console.warn('Failed to get accounts in callback:', accountError)
           return false
         }
 
@@ -171,7 +208,7 @@ export const useAuthStore = defineStore('auth', {
               return true
             }
           } catch (silentError) {
-            console.error('Silent token acquisition failed:', silentError)
+            console.error('Silent token acquisition failed in callback:', silentError)
           }
         }
         
@@ -181,6 +218,7 @@ export const useAuthStore = defineStore('auth', {
         throw error
       } finally {
         this.isLoading = false
+        this.isInteractionInProgress = false
       }
     },
 
@@ -205,7 +243,6 @@ export const useAuthStore = defineStore('auth', {
           this.setAuthHeader(this.token)
           
           // Fetch user details with roles and permissions
-          // await this.fetchUserDetails()
           await this.fetchUser()
         } else {
           throw new Error('Invalid response from backend')
@@ -241,9 +278,6 @@ export const useAuthStore = defineStore('auth', {
             is_super_admin: response.data.user.is_super_admin || false,
           }
           this.isAuthenticated = true
-          
-          // Fetch user details with roles and permissions
-          // await this.fetchUserDetails()
         } else {
           throw new Error('Invalid user data')
         }
@@ -293,6 +327,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = null
         this.token = null
         this.isAuthenticated = false
+        this.isInteractionInProgress = false // Reset interaction flag
         
         localStorage.removeItem('auth_token')
         delete axios.defaults.headers.common['Authorization']

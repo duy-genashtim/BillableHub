@@ -55,6 +55,10 @@ class ConfigurationSettingsSeeder extends Seeder
             ['setting_value' => 'nad', 'description' => 'NAD'],
             ['setting_value' => 'performance', 'description' => 'Performance'],
         ]);
+        // ToCert COO
+        $this->createSettings('tocert_coo_email', [
+            ['setting_value' => 'eleni@genashtim.com', 'description' => 'Eleni Papadopoulou'],
+        ]);
     }
 
     /**

@@ -106,7 +106,7 @@ export const routes = [
         component: () => import('@/pages/cohorts/CohortDetail.vue'),
         meta: { permission: 'manage_configuration' },
       },
-      
+
       // Configuration Management routes
       {
         path: 'admin/configuration',
@@ -159,7 +159,7 @@ export const routes = [
         meta: { permission: 'manage_configuration' },
       },
 
-       // TimeDoctor Integration routes
+      // TimeDoctor Integration routes
       {
         path: 'admin/timedoctor',
         name: 'timedoctor-integration',
@@ -200,91 +200,105 @@ export const routes = [
       },
 
       // IVA User Management routes
-     // IVA Users Management Routes
-{
-  path: '/admin/iva-users',
-  name: 'iva-users-list',
-  component: () => import('@/pages/iva-users/IvaUsersList.vue'),
-  meta: {
-    requiresAuth: true,
-    layout: 'admin',
-    breadcrumb: [
-      { title: 'Home', url: '/' },
-      { title: 'IVA Users', active: true },
-    ],
-  },
-},
-{
-  path: '/admin/iva-users/create',
-  name: 'iva-user-create',
-  component: () => import('@/pages/iva-users/IvaUserCreate.vue'),
-  meta: {
-    requiresAuth: true,
-    layout: 'admin',
-    breadcrumb: [
-      { title: 'Home', url: '/' },
-      { title: 'IVA Users', url: '/admin/iva-users' },
-      { title: 'Create', active: true },
-    ],
-  },
-},
-{
-  path: '/admin/iva-users/:id',
-  name: 'iva-user-detail',
-  component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
-  meta: {
-    requiresAuth: true,
-    layout: 'admin',
-    breadcrumb: [
-      { title: 'Home', url: '/' },
-      { title: 'IVA Users', url: '/admin/iva-users' },
-      { title: 'User Details', active: true },
-    ],
-  },
-},
-{
-  path: '/admin/iva-users/:id/edit',
-  name: 'iva-user-edit',
-  component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
-  props: { isEditMode: true },
-  meta: {
-    requiresAuth: true,
-    layout: 'admin',
-    breadcrumb: [
-      { title: 'Home', url: '/' },
-      { title: 'IVA Users', url: '/admin/iva-users' },
-      { title: 'Edit User', active: true },
-    ],
-  },
-},
-{
-  path: '/admin/iva-users/:id/worklog-dashboard',
-  name: 'iva-user-worklog-dashboard',
-  component: () => import('@/pages/iva-users/IvaWorklogDashboard.vue'),
-  meta: {
-    requiresAuth: true,
-    layout: 'admin',
-    breadcrumb: [
-      { title: 'Home', url: '/' },
-      { title: 'IVA Users', url: '/admin/iva-users' },
-      { title: 'Working Hours Dashboard', active: true },
-    ],
-  },
-},
-{
-  path: '/admin/iva-users/:id/timedoctor-records',
-  name: 'iva-user-timedoctor-records',
-  component: () => import('@/pages/iva-users/IvaUserTimeDoctorRecords.vue'),
-  meta: {
-    requiresAuth: true,
-    layout: 'admin',
-    breadcrumb: [
-      { title: 'Home', url: '/' },
-      { title: 'IVA Users', url: '/admin/iva-users' },
-      { title: 'Time Doctor Records', active: true },
-    ],
-  },
-},
+      // IVA Users Management Routes
+      {
+        path: '/admin/iva-users',
+        name: 'iva-users-list',
+        component: () => import('@/pages/iva-users/IvaUsersList.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', active: true },
+          ],
+        },
+      },
+      {
+        path: '/admin/iva-users/sync',
+        name: 'iva-user-sync',
+        component: () => import('@/pages/iva-users/IvaUserSync.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'Sync Users', active: true },
+          ],
+        },
+      },
+      {
+        path: '/admin/iva-users/create',
+        name: 'iva-user-create',
+        component: () => import('@/pages/iva-users/IvaUserCreate.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'Create', active: true },
+          ],
+        },
+      },
+      {
+        path: '/admin/iva-users/:id',
+        name: 'iva-user-detail',
+        component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'User Details', active: true },
+          ],
+        },
+      },
+      {
+        path: '/admin/iva-users/:id/edit',
+        name: 'iva-user-edit',
+        component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
+        props: { isEditMode: true },
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'Edit User', active: true },
+          ],
+        },
+      },
+      {
+        path: '/admin/iva-users/:id/worklog-dashboard',
+        name: 'iva-user-worklog-dashboard',
+        component: () => import('@/pages/iva-users/IvaWorklogDashboard.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'Working Hours Dashboard', active: true },
+          ],
+        },
+      },
+      {
+        path: '/admin/iva-users/:id/timedoctor-records',
+        name: 'iva-user-timedoctor-records',
+        component: () => import('@/pages/iva-users/IvaUserTimeDoctorRecords.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'Time Doctor Records', active: true },
+          ],
+        },
+      },
 
       // IVA Manager Management routes
       {
@@ -304,6 +318,31 @@ export const routes = [
         name: 'iva-manager-detail',
         component: () => import('@/pages/iva-managers/IvaManagerDetail.vue'),
         meta: { permission: 'manage_configuration' },
+      },
+      // IVA Reports routes
+      {
+        path: 'admin/reports/daily-performance',
+        name: 'daily-performance-report',
+        component: () => import('@/pages/iva-reports/DailyPerformanceReport.vue'),
+        meta: { permission: 'view_reports' },
+      },
+      {
+        path: 'admin/reports/weekly-performance',
+        name: 'weekly-performance-report',
+        component: () => import('@/pages/iva-reports/WeeklyPerformanceReport.vue'),
+        meta: { permission: 'view_reports' },
+      },
+      {
+        path: 'admin/reports/region-performance',
+        name: 'region-performance-report',
+        component: () => import('@/pages/iva-reports/RegionPerformanceReport.vue'),
+        meta: { permission: 'view_reports' },
+      },
+      {
+        path: 'admin/reports/overall-performance',
+        name: 'overall-performance-report',
+        component: () => import('@/pages/iva-reports/OverallPerformanceReport.vue'),
+        meta: { permission: 'view_reports' },
       },
     ],
   },

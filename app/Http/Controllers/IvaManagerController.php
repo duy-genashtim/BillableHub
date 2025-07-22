@@ -115,11 +115,11 @@ class IvaManagerController extends Controller
             ->get();
 
         // Log the activity
-        ActivityLogService::log(
-            'view_iva_managers_list',
-            'Viewed IVA managers list',
-            ['total_managers' => $managers->total()]
-        );
+        // ActivityLogService::log(
+        //     'view_iva_managers_list',
+        //     'Viewed IVA managers list',
+        //     ['total_managers' => $managers->total()]
+        // );
 
         return response()->json([
             'managers'     => $managers,

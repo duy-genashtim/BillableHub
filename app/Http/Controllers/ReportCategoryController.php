@@ -26,14 +26,14 @@ class ReportCategoryController extends Controller
             $query->where('setting_category', 'report-cat');
         })->where('is_active', true)->get();
 
-        ActivityLogService::log(
-            'view_categories_list',
-            'Viewed report categories list',
-            [
-                'total_categories' => $categories->count(),
-                'module'           => 'task_categories',
-            ]
-        );
+        // ActivityLogService::log(
+        //     'view_categories_list',
+        //     'Viewed report categories list',
+        //     [
+        //         'total_categories' => $categories->count(),
+        //         'module'           => 'task_categories',
+        //     ]
+        // );
 
         return response()->json([
             'categories'    => $categories,

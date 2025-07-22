@@ -1,6 +1,7 @@
 <script setup>
+import { getOrdinalSuffix } from '@/@core/utils/helpers';
 import { WORKLOG_CONFIG } from '@/@core/utils/worklogConfig';
-import { formatDate, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
+import { formatDate, getCurrentWeekNumber, getCustomMonthOptionsForSummary, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -163,82 +164,57 @@ const isMonthlySummaryMode = computed(() => {
   return dateMode.value === 'month_summary';
 });
 
-function getCurrentWeekNumber() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const weekRanges = getWeekRangeForYear(year);
-
-  for (let i = 0; i < weekRanges.length; i++) {
-    const weekRange = weekRanges[i];
-    const start = new Date(weekRange.start_date);
-    const end = new Date(weekRange.end_date);
-
-    if (now >= start && now <= end) {
-      return weekRange.week_number;
-    }
-  }
-
-  return 1; // Default to week 1 if not found
-}
-
-function getOrdinalSuffix(day) {
-  if (day > 3 && day < 21) return 'th';
-  switch (day % 10) {
-    case 1: return 'st';
-    case 2: return 'nd';
-    case 3: return 'rd';
-    default: return 'th';
-  }
-}
 
 function getMonthOptionsForSummary() {
-  const weeks = getWeekRangeForYear(selectedYear.value);
-  const monthGroups = [];
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+  return getCustomMonthOptionsForSummary(selectedYear.value)
+  // const weeks = getWeekRangeForYear(selectedYear.value);
+  // const monthGroups = [];
+  // const monthNames = [
+  //   'January', 'February', 'March', 'April', 'May', 'June',
+  //   'July', 'August', 'September', 'October', 'November', 'December'
+  // ];
 
-  // Group weeks into 4-week cycles (months)
-  for (let i = 0; i < weeks.length; i += 4) {
-    const monthWeeks = weeks.slice(i, i + 4);
-    if (monthWeeks.length === 4) {
-      const firstWeek = monthWeeks[0];
-      const lastWeek = monthWeeks[3];
+  // // Group weeks into 4-week cycles (months)
+  // for (let i = 0; i < weeks.length; i += 4) {
+  //   const monthWeeks = weeks.slice(i, i + 4);
+  //   if (monthWeeks.length === 4) {
+  //     const firstWeek = monthWeeks[0];
+  //     const lastWeek = monthWeeks[3];
 
-      // Determine month name based on first week's start date
-      const firstWeekStartDate = new Date(firstWeek.start_date);
-      const monthIndex = firstWeekStartDate.getMonth();
-      const monthName = monthNames[monthIndex];
-      const year = firstWeekStartDate.getFullYear();
+  //     // Determine month name based on first week's start date
+  //     const firstWeekStartDate = new Date(firstWeek.start_date);
+  //     const monthIndex = firstWeekStartDate.getMonth();
+  //     const monthName = monthNames[monthIndex];
+  //     const year = firstWeekStartDate.getFullYear();
 
-      // Create readable date range
-      const startDate = new Date(firstWeek.start_date);
-      const endDate = new Date(lastWeek.end_date);
+  //     // Create readable date range
+  //     const startDate = new Date(firstWeek.start_date);
+  //     const endDate = new Date(lastWeek.end_date);
 
-      const startStr = startDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC'
-      });
-      const endStr = endDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC'
-      });
+  //     const startStr = startDate.toLocaleDateString('en-US', {
+  //       month: 'short',
+  //       day: 'numeric',
+  //       timeZone: 'UTC'
+  //     });
+  //     const endStr = endDate.toLocaleDateString('en-US', {
+  //       month: 'short',
+  //       day: 'numeric',
+  //       timeZone: 'UTC'
+  //     });
 
-      monthGroups.push({
-        title: `${monthName} ${year} (${startStr} - ${endStr})`,
-        value: monthIndex + 1, // 1-based month number
-        subtitle: `Weeks ${firstWeek.week_number}-${lastWeek.week_number}`,
-        weeks: monthWeeks,
-        start_date: firstWeek.start_date,
-        end_date: lastWeek.end_date
-      });
-    }
-  }
+  //     monthGroups.push({
+  //       title: `${monthName} ${year} (${startStr} - ${endStr})`,
+  //       value: monthIndex + 1, // 1-based month number
+  //       subtitle: `Weeks ${firstWeek.week_number}-${lastWeek.week_number}`,
+  //       weeks: monthWeeks,
+  //       start_date: firstWeek.start_date,
+  //       end_date: lastWeek.end_date
+  //     });
+  //   }
+  // }
+  // console.log('Month groups:', monthGroups);
 
-  return monthGroups;
+  // return monthGroups;
 }
 
 onMounted(() => {

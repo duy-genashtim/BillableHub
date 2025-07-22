@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateRange, getPerformanceColor, getPerformanceIcon } from '@/@core/utils/helpers';
 import { formatHours } from '@/@core/utils/worklogHelpers';
 import { computed } from 'vue';
 
@@ -30,46 +31,6 @@ const mobileHeaders = computed(() => [
   { title: 'Performance', key: 'performance', sortable: false }
 ]);
 
-function getPerformanceColor(status) {
-  switch (status) {
-    case 'EXCELLENT': return 'success';
-    case 'WARNING': return 'warning';
-    case 'POOR': return 'error';
-    default: return 'grey';
-  }
-}
-
-function getPerformanceIcon(status) {
-  switch (status) {
-    case 'EXCELLENT': return 'ri-checkbox-circle-line';
-    case 'WARNING': return 'ri-error-warning-line';
-    case 'POOR': return 'ri-close-circle-line';
-    default: return 'ri-time-line';
-  }
-}
-
-function formatDateRange(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const startStr = start.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-  const endStr = end.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC'
-  });
-
-  if (start.getMonth() === end.getMonth()) {
-    return `${start.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`;
-  } else {
-    return `${startStr} - ${endStr}`;
-  }
-}
 
 function getMonthAbbreviation(monthNumber) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

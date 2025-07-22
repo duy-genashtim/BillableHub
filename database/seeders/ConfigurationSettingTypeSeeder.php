@@ -43,6 +43,16 @@ class ConfigurationSettingTypeSeeder extends Seeder
                 'allow_create'       => true,
             ],
             [
+                'key'                => 'tocert_coo_email',
+                'name'               => 'ToCert COO Email',
+                'description'        => 'Chief Operating Officer for ToCert',
+                'setting_category'   => 'user',
+                'for_user_customize' => false,
+                'allow_edit'         => true,
+                'allow_delete'       => false,
+                'allow_create'       => false,
+            ],
+            [
                 'key'                => 'work_status',
                 'name'               => 'Work Status',
                 'description'        => 'Types of work status for IVAs',

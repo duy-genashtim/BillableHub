@@ -15,6 +15,7 @@ class IvaUser extends Model
 
     protected $fillable = [
         'full_name',
+        'job_title',
         'email',
         'hire_date',
         'end_date',

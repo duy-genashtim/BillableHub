@@ -2,9 +2,8 @@
 
 // 👉 IsEmpty
 export const isEmpty = value => {
-  if (value === null || value === undefined || value === '')
-    return true
-  
+  if (value === null || value === undefined || value === '') return true
+
   return !!(Array.isArray(value) && value.length === 0)
 }
 
@@ -21,19 +20,18 @@ export const isEmptyArray = arr => {
 // 👉 IsObject
 export const isObject = obj => obj !== null && !!obj && typeof obj === 'object' && !Array.isArray(obj)
 
-
 // 👉 Format Date for Input (yyyy-MM-dd)
 export const formatDateForInput = dateString => {
   if (!dateString) return ''
-  
+
   try {
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return ''
-    
+
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
-    
+
     return `${year}-${month}-${day}`
   } catch (error) {
     console.warn('Invalid date format:', dateString)
@@ -44,16 +42,16 @@ export const formatDateForInput = dateString => {
 // 👉 Format Date for Display
 export const formatDate = dateString => {
   if (!dateString) return 'N/A'
-  
+
   try {
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return 'N/A'
-    
+
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     })
   } catch (error) {
     console.warn('Invalid date format:', dateString)
@@ -64,18 +62,18 @@ export const formatDate = dateString => {
 // 👉 Format DateTime for Display
 export const formatDateTime = dateTimeString => {
   if (!dateTimeString) return 'N/A'
-  
+
   try {
     const date = new Date(dateTimeString)
     if (isNaN(date.getTime())) return 'N/A'
-    
+
     return date.toLocaleString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
     })
   } catch (error) {
     console.warn('Invalid datetime format:', dateTimeString)
@@ -120,7 +118,7 @@ export const formatPercentage = percentage => {
 // 👉 Parse JSON safely
 export const safeJsonParse = (jsonString, fallback = null) => {
   if (!jsonString) return fallback
-  
+
   try {
     return JSON.parse(jsonString)
   } catch (error) {
@@ -136,38 +134,84 @@ export const formatNumber = num => {
 
 // 👉 Get performance status based on percentage
 export const getPerformanceStatus = percentage => {
-  if (percentage >= 100) return 'EXCELLENT'
-  if (percentage >= 90) return 'WARNING'
-  return 'POOR'
+  if (percentage >= 101) return 'EXCEEDED'
+  if (percentage >= 99) return 'MEET'
+  return 'BELOW'
+}
+export function getProgressColor(percentage) {
+  if (percentage >= 101) return 'success'
+  if (percentage >= 99) return 'warning'
+  return 'error'
 }
 
 // 👉 Get performance color based on status
 export const getPerformanceColor = status => {
   switch (status) {
-    case 'EXCELLENT': return 'success'
-    case 'WARNING': return 'warning'
-    case 'POOR': return 'error'
-    default: return 'grey'
+    case 'EXCEEDED':
+      return 'success'
+    case 'MEET':
+      return 'warning'
+    case 'BELOW':
+      return 'error'
+    default:
+      return 'grey'
   }
 }
 
 // 👉 Get performance icon based on status
 export const getPerformanceIcon = status => {
   switch (status) {
-    case 'EXCELLENT': return 'ri-checkbox-circle-line'
-    case 'WARNING': return 'ri-error-warning-line'
-    case 'POOR': return 'ri-close-circle-line'
-    default: return 'ri-time-line'
+    case 'EXCEEDED':
+      return 'ri-checkbox-circle-line'
+    case 'MEET':
+      return 'ri-error-warning-line'
+    case 'BELOW':
+      return 'ri-close-circle-line'
+    default:
+      return 'ri-time-line'
   }
 }
 
-
 // 👉 Format date for short display (e.g., "Jan 15")
 export const formatShortDate = date => {
-  return date.toLocaleDateString('en-US', {
+  if (!date) return 'N/A'
+
+  const d = typeof date === 'string' ? new Date(date) : date
+
+  if (!(d instanceof Date) || isNaN(d.getTime())) return 'N/A'
+
+  return d.toLocaleDateString('en-US', {
     month: 'short',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'UTC',
   })
+}
+
+export function formatDateRange(startDate, endDate) {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  const startStr = start.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+  const endStr = end.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+
+  if (start.getMonth() === end.getMonth()) {
+    return `${start.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC',
+    })} - ${end.toLocaleDateString('en-US', { day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+  } else {
+    return `${startStr} - ${endStr}`
+  }
 }
 
 // 👉 Check if a value is a valid date
@@ -189,10 +233,43 @@ export const minutesToHours = minutes => {
 export const getOrdinalSuffix = day => {
   if (day > 3 && day < 21) return 'th'
   switch (day % 10) {
-    case 1: return 'st'
-    case 2: return 'nd'
-    case 3: return 'rd'
-    default: return 'th'
+    case 1:
+      return 'st'
+    case 2:
+      return 'nd'
+    case 3:
+      return 'rd'
+    default:
+      return 'th'
   }
 }
 
+// 👉 Format time ago from a given timestamp
+export const formatTimeAgo = timestamp => {
+  if (!timestamp) return 'Unknown time'
+
+  const now = new Date()
+  const past = new Date(timestamp)
+
+  if (isNaN(past.getTime())) return 'Unknown time'
+
+  const seconds = Math.floor((now - past) / 1000)
+
+  const intervals = [
+    { label: 'year', seconds: 31536000 },
+    { label: 'month', seconds: 2592000 },
+    { label: 'day', seconds: 86400 },
+    { label: 'hour', seconds: 3600 },
+    { label: 'minute', seconds: 60 },
+    { label: 'second', seconds: 1 },
+  ]
+
+  for (const interval of intervals) {
+    const count = Math.floor(seconds / interval.seconds)
+    if (count > 0) {
+      return `${count} ${interval.label}${count !== 1 ? 's' : ''} ago`
+    }
+  }
+
+  return 'Just now'
+}

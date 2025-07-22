@@ -4,9 +4,10 @@ import { registerPlugins } from '@core/utils/plugins'
 import axios from 'axios'
 import { createApp } from 'vue'
 // Styles
+import '@core-scss/template/fonts/fonts.css'
 import '@core-scss/template/index.scss'
 import '@layouts/styles/index.scss'
-
+// import VueApexCharts from 'vue3-apexcharts'
 // Create vue app
 const app = createApp(App)
 
@@ -17,8 +18,8 @@ axios.defaults.headers.common['Accept'] = 'application/json'
 
 // Add axios interceptors for better error handling
 axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  response => response,
+  error => {
     if (error.response?.status === 401) {
       // Token expired or invalid
       const authStore = useAuthStore()
@@ -29,12 +30,12 @@ axios.interceptors.response.use(
       console.warn('Access denied:', error.response.data?.error || 'Insufficient permissions')
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 // Register plugins
 registerPlugins(app)
-
+// app.use(VueApexCharts)
 // Mount vue app
 app.mount('#app')
 

@@ -32,7 +32,50 @@ console.log(authStore.user);
     icon: 'ri-home-smile-line',
     to: '/dashboard',
   }" />
+  <!-- <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    title: 'Daily Performance',
+    icon: 'ri-line-chart-line',
+    to: '/admin/reports/daily-performance',
+  }" />
 
+  <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    title: 'Weekly Performance',
+    icon: 'ri-bar-chart-grouped-line',
+    to: '/admin/reports/weekly-performance',
+  }" /> -->
+  <VerticalNavGroup v-if="hasPermission('manage_configuration')" :item="{
+    title: 'Performance',
+    icon: 'ri-speed-line',
+  }">
+    <VerticalNavLink :item="{
+      title: 'Daily',
+      icon: 'ri-line-chart-line',
+      to: '/admin/reports/daily-performance',
+    }" />
+
+    <VerticalNavLink :item="{
+      title: 'Weekly',
+      icon: 'ri-bar-chart-grouped-line',
+      to: '/admin/reports/weekly-performance',
+    }" />
+  </VerticalNavGroup>
+  <VerticalNavGroup v-if="hasPermission('manage_configuration')" :item="{
+    title: 'Reports',
+    icon: 'ri-bar-chart-line',
+  }">
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'Region',
+      icon: 'ri-map-pin-line',
+      to: '/admin/reports/region-performance',
+    }" />
+
+    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+      title: 'Overall',
+      icon: 'ri-global-line',
+      to: '/admin/reports/overall-performance',
+    }" />
+
+  </VerticalNavGroup>
   <!-- 👉 Admin Section -->
   <template v-if="hasAnyAdminPermission()">
     <VerticalNavSectionTitle :item="{

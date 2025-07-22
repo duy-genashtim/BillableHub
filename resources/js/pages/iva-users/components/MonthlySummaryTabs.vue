@@ -1,5 +1,6 @@
 <script setup>
-import { enableChartDragScrolling, formatDateTime, formatHours, getPerformanceColor, getResponsiveChartSettings, smoothScrollChart } from '@/@core/utils/worklogHelpers';
+import { formatShortDate, getPerformanceColor } from '@/@core/utils/helpers';
+import { enableChartDragScrolling, formatDateTime, formatHours, getResponsiveChartSettings, smoothScrollChart } from '@/@core/utils/worklogHelpers';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MonthlySummaryBreakdown from './MonthlySummaryBreakdown.vue';
@@ -99,15 +100,6 @@ const maxHours = computed(() => {
 const chartSettings = computed(() => {
   return getResponsiveChartSettings(props.isMobile, chartData.value.length);
 });
-
-function formatShortDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-}
 
 function getMonthAbbreviation(monthNumber) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

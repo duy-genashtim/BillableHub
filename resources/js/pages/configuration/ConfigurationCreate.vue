@@ -1,4 +1,7 @@
 <script setup>
+import {
+  SETTING_CATEGORIES
+} from '@/@core/utils/siteConsts';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -6,15 +9,7 @@ import { useRoute, useRouter } from 'vue-router';
 const router = useRouter();
 const route = useRoute();
 const types = ref([]);
-const categories = ref({
-  site: 'Site Settings',
-  user: 'User Settings',
-  report: 'Report Settings',
-  'report-time': 'Report Time Settings',
-  'report-cat': 'Report Category Settings',
-  system: 'System Settings',
-  other: 'Other Settings'
-});
+const categories = ref(SETTING_CATEGORIES);
 const currentCategory = ref(null);
 
 const form = ref({
@@ -76,20 +71,20 @@ function filterTypesByCategory(category) {
 
 const filteredTypes = computed(() => {
   if (!currentCategory.value) return types.value;
-  
+
   return types.value.filter(type => type.setting_category === currentCategory.value);
 });
 
 async function submitForm() {
   submitting.value = true;
   errors.value = {};
-  
+
   try {
     const response = await axios.post('/api/configuration', form.value);
     snackbarText.value = 'Setting created successfully';
     snackbarColor.value = 'success';
     snackbar.value = true;
-    
+
     // Navigate to the settings list after a short delay
     setTimeout(() => {
       router.push({ name: 'configuration-list' });
@@ -119,7 +114,7 @@ function cancel() {
     { title: 'Configuration Settings', to: { name: 'configuration-list' } },
     { title: 'Create Setting', disabled: true }
   ]" class="mb-6" />
-  
+
   <VCard>
     <VCardText>
       <VForm @submit.prevent="submitForm">
@@ -128,132 +123,71 @@ function cancel() {
             Create New Setting
           </h1>
         </div>
-        
+
         <VRow v-if="loading">
           <VCol cols="12" class="d-flex justify-center">
-            <VProgressCircular
-              indeterminate
-              color="primary"
-              :size="50"
-              :width="5"
-            />
+            <VProgressCircular indeterminate color="primary" :size="50" :width="5" />
           </VCol>
         </VRow>
-        
+
         <VRow v-else>
           <VCol cols="12" md="6">
-            <VSelect
-              v-model="currentCategory"
-              label="Setting Category"
-              :items="Object.entries(categories).map(([value, title]) => ({ title, value }))"
-              item-title="title"
-              item-value="value"
-              clearable
-              density="comfortable"
-              variant="outlined"
-              prepend-inner-icon="ri-folder-line"
-              @update:model-value="filterTypesByCategory"
-            />
+            <VSelect v-model="currentCategory" label="Setting Category"
+              :items="Object.entries(categories).map(([value, title]) => ({ title, value }))" item-title="title"
+              item-value="value" clearable density="comfortable" variant="outlined" prepend-inner-icon="ri-folder-line"
+              @update:model-value="filterTypesByCategory" />
           </VCol>
-          
+
           <VCol cols="12" md="6">
-            <VSelect
-              v-model="form.setting_type_id"
-              label="Setting Type"
-              :items="filteredTypes.map(type => ({ title: type.name, value: type.id }))"
-              item-title="title"
-              item-value="value"
-              :error-messages="errors.setting_type_id"
-              required
-              density="comfortable"
-              variant="outlined"
-              prepend-inner-icon="ri-list-settings-line"
-            />
+            <VSelect v-model="form.setting_type_id" label="Setting Type"
+              :items="filteredTypes.map(type => ({ title: type.name, value: type.id }))" item-title="title"
+              item-value="value" :error-messages="errors.setting_type_id" required density="comfortable"
+              variant="outlined" prepend-inner-icon="ri-list-settings-line" />
           </VCol>
-          
+
           <VCol cols="12" md="6">
-            <VTextField
-              v-model.number="form.order"
-              label="Display Order"
-              placeholder="Enter display order (lower numbers appear first)"
-              :error-messages="errors.order"
-              type="number"
-              min="0"
-              density="comfortable"
-              variant="outlined"
-              prepend-inner-icon="ri-sort-asc"
-            />
+            <VTextField v-model.number="form.order" label="Display Order"
+              placeholder="Enter display order (lower numbers appear first)" :error-messages="errors.order"
+              type="number" min="0" density="comfortable" variant="outlined" prepend-inner-icon="ri-sort-asc" />
           </VCol>
-          
+
           <VCol cols="12" md="6">
-            <VTextField
-              v-model="form.setting_value"
-              label="Value"
-              placeholder="Enter setting value"
-              :error-messages="errors.setting_value"
-              required
-              density="comfortable"
-              variant="outlined"
-              prepend-inner-icon="ri-input-method-line"
-            />
+            <VTextField v-model="form.setting_value" label="Value" placeholder="Enter setting value"
+              :error-messages="errors.setting_value" required density="comfortable" variant="outlined"
+              prepend-inner-icon="ri-input-method-line" />
           </VCol>
-          
+
           <VCol cols="12">
-            <VTextarea
-              v-model="form.description"
-              label="Description"
-              placeholder="Enter setting description"
-              :error-messages="errors.description"
-              rows="4"
-              density="comfortable"
-              variant="outlined"
-              prepend-inner-icon="ri-text-wrap"
-            />
+            <VTextarea v-model="form.description" label="Description" placeholder="Enter setting description"
+              :error-messages="errors.description" rows="4" density="comfortable" variant="outlined"
+              prepend-inner-icon="ri-text-wrap" />
           </VCol>
         </VRow>
 
         <VDivider class="my-6" />
-        
+
         <VCardActions class="pl-0">
-          <VBtn
-            color="secondary"
-            variant="outlined"
-            prepend-icon="ri-arrow-left-line"
-            @click="cancel"
-            :disabled="submitting"
-          >
+          <VBtn color="secondary" variant="outlined" prepend-icon="ri-arrow-left-line" @click="cancel"
+            :disabled="submitting">
             Cancel
           </VBtn>
-          
+
           <VSpacer />
-          
-          <VBtn
-            color="primary"
-            type="submit"
-            prepend-icon="ri-save-line"
-            :loading="submitting"
-            :disabled="submitting || types.length === 0"
-          >
+
+          <VBtn color="primary" type="submit" prepend-icon="ri-save-line" :loading="submitting"
+            :disabled="submitting || types.length === 0">
             Create Setting
           </VBtn>
         </VCardActions>
       </VForm>
     </VCardText>
   </VCard>
-  
+
   <!-- Snackbar for notifications -->
-  <VSnackbar
-    v-model="snackbar"
-    :color="snackbarColor"
-    :timeout="3000"
-  >
+  <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">
     {{ snackbarText }}
     <template #actions>
-      <VBtn
-        icon
-        variant="text"
-        @click="snackbar = false"
-      >
+      <VBtn icon variant="text" @click="snackbar = false">
         <VIcon>ri-close-line</VIcon>
       </VBtn>
     </template>

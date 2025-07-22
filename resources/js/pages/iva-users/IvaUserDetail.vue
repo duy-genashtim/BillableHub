@@ -104,6 +104,7 @@ function resetEditForm() {
   if (user.value) {
     editForm.value = {
       ...user.value,
+      timedoctor_version: String(user.value.timedoctor_version),
       original_region_id: user.value.region_id,
       original_cohort_id: user.value.cohort_id,
       original_work_status: user.value.work_status

@@ -33,3 +33,8 @@ npm run dev
 ```sh
 npm run build
 ```
+run :
+php artisan migrate
+    php artisan db:seed
+ php artisan db:seed --class=RolePermissionSeeder
+ php artisan db:seed --class=TaskCategorySeeder

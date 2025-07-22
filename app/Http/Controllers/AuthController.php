@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 
 class AuthController extends Controller
 {
@@ -154,30 +155,65 @@ class AuthController extends Controller
             $user = $request->user();
 
             // Load user with roles and permissions
-            $user->load(['roles', 'permissions']);
+            // $user->load(['roles', 'permissions']);
+            $user->load([
+                'roles:id,name',
+                'permissions:id,name',
+            ]);
+
+            $permissionsConfig = config('constants.permissions', []);
+
+            $roles = $user->roles->map(function ($role) {
+                return [
+                    'name'         => $role->name,
+                    'display_name' => $role->name, //strtoupper(str_replace('_', ' ', $role->name)),
+                ];
+            });
+
+            $allPermissions = $this->getAllUserPermissions($user);
+            $permissions    = $allPermissions->map(function ($permission) use ($permissionsConfig) {
+                return [
+                    'name'         => $permission->name,
+                    'display_name' => $permissionsConfig[$permission->name] ?? $permission->name,
+                ];
+            });
+
+            $avatarUrl = $user->avatar ? asset('storage/' . $user->avatar) : null;
 
             return response()->json([
                 'user' => [
                     'id'             => $user->id,
                     'name'           => $user->name,
                     'email'          => $user->email,
-                    'avatar'         => $user->avatar ? asset('storage/' . $user->avatar) : null,
-                    'roles'          => $user->roles->map(function ($role) {
-                        return [
-                            'name'         => $role->name,
-                            'display_name' => $role->display_name ?? $role->name,
-                        ];
-                    }),
-                    'permissions'    => $user->getAllPermissions()->map(function ($permission) {
-                        $displayName = config("constants.permissions.{$permission->name}", $permission->name);
-                        return [
-                            'name'         => $permission->name,
-                            'display_name' => $displayName,
-                        ];
-                    }),
+                    'avatar'         => $avatarUrl,
+                    'roles'          => $roles,
+                    'permissions'    => $permissions,
                     'is_super_admin' => $user->isSuperAdmin(),
                 ],
             ]);
+
+            // return response()->json([
+            //     'user' => [
+            //         'id'             => $user->id,
+            //         'name'           => $user->name,
+            //         'email'          => $user->email,
+            //         'avatar'         => $user->avatar ? asset('storage/' . $user->avatar) : null,
+            //         'roles'          => $user->roles->map(function ($role) {
+            //             return [
+            //                 'name'         => $role->name,
+            //                 'display_name' => $role->display_name ?? $role->name,
+            //             ];
+            //         }),
+            //         'permissions'    => $user->getAllPermissions()->map(function ($permission) {
+            //             $displayName = config("constants.permissions.{$permission->name}", $permission->name);
+            //             return [
+            //                 'name'         => $permission->name,
+            //                 'display_name' => $displayName,
+            //             ];
+            //         }),
+            //         'is_super_admin' => $user->isSuperAdmin(),
+            //     ],
+            // ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'User not found'], 404);
         }
@@ -187,5 +223,25 @@ class AuthController extends Controller
     {
         // JWT is stateless, so we just return success
         return response()->json(['message' => 'Successfully logged out']);
+    }
+
+    private function getAllUserPermissions($user)
+    {
+        // Get direct permissions
+        $directPermissions = $user->permissions;
+
+        // Get role-based permissions efficiently
+        $rolePermissions = collect();
+        if ($user->roles->isNotEmpty()) {
+            $roleIds         = $user->roles->pluck('id');
+            $rolePermissions = Permission::whereIn('id', function ($query) use ($roleIds) {
+                $query->select('permission_id')
+                    ->from('role_has_permissions')
+                    ->whereIn('role_id', $roleIds);
+            })->get();
+        }
+
+        // Merge and remove duplicates
+        return $directPermissions->merge($rolePermissions)->unique('id');
     }
 }

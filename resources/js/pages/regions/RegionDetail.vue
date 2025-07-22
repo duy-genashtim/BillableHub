@@ -421,7 +421,7 @@ function closeUserDialog() {
 
             <VDataTable v-model="selectedUsers" :headers="availableUserHeaders" :items="filteredAvailableUsers"
               item-value="id" density="comfortable" show-select class="elevation-1 rounded"
-              aria-label="Available users table" hide-default-footer>
+              aria-label="Available users table">
               <!-- ID Column (desktop only) -->
               <template v-if="!isMobile" #[`item.id`]="{ item }">
                 <span>{{ item.id }}</span>

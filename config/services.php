@@ -52,5 +52,8 @@ return [
         'nad_hour_rate' => [
             'rate' => env('NAD_HOUR_RATE', 8)],
     ],
+    'hrms'          => [
+        'ivas_info_url' => env('HRMS_API_IVAS_INFO_URL', 'https://my.genashtim.com/api/employee/get-employee-list-info'),
+    ],
 
 ];

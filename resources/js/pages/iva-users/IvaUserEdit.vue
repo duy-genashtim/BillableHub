@@ -10,6 +10,7 @@ const userId = route.params.id;
 // Form data
 const form = ref({
   full_name: '',
+  job_title: '',
   email: '',
   hire_date: null,
   end_date: null,
@@ -80,6 +81,7 @@ async function fetchUserData() {
     // Populate form
     form.value = {
       full_name: userData.full_name || '',
+      job_title: userData.job_title || '',
       email: userData.email || '',
       hire_date: userData.hire_date || null,
       end_date: userData.end_date || null,
@@ -231,6 +233,13 @@ function cancelWorkStatusChange() {
               <VTextField v-model="form.full_name" label="Full Name" :error-messages="errors.full_name" required
                 density="comfortable" variant="outlined" prepend-inner-icon="ri-user-line" :disabled="submitting"
                 aria-label="Enter full name" />
+            </VCol>
+
+            <!-- Job Title -->
+            <VCol cols="12" md="6">
+              <VTextField v-model="form.job_title" label="Job Title" :error-messages="errors.job_title"
+                density="comfortable" variant="outlined" prepend-inner-icon="ri-briefcase-line" :disabled="submitting"
+                aria-label="Enter job title" />
             </VCol>
 
             <!-- Email -->
@@ -437,6 +446,9 @@ function cancelWorkStatusChange() {
             <ul class="text-body-2">
               <li v-if="form.full_name !== originalData.full_name">
                 Name: {{ originalData.full_name }} → {{ form.full_name }}
+              </li>
+              <li v-if="form.job_title !== originalData.job_title">
+                Job Title: {{ originalData.job_title || 'None' }} → {{ form.job_title || 'None' }}
               </li>
               <li v-if="form.email !== originalData.email">
                 Email: {{ originalData.email }} → {{ form.email }}

@@ -112,6 +112,69 @@ if (! function_exists('decryptUserToken')) {
     }
 }
 
+if (! function_exists('encryptSecureHRMSToken')) {
+    function encryptSecureHRMSToken(): ?string
+    {
+        $key = env('API_NAD_SECRET_KEY');
+        if (! $key) {
+            return null;
+        }
+
+        $payload = [
+            'secret_key' => $key,
+            'datetime'   => Carbon::now()->toIso8601String(),
+        ];
+
+        return EncryptData(json_encode($payload), $key);
+    }
+}
+
+if (! function_exists('TestencryptSecureHRMSToken')) {
+    function TestencryptSecureHRMSToken(): ?string
+    {
+        $key = 'HRMS_SECRET_DATA_KEY';
+        if (! $key) {
+            return null;
+        }
+
+        $payload = [
+            'secret_key' => $key,
+            'datetime'   => (new DateTime())->format(DateTime::ATOM),
+        ];
+
+        return EncryptData(json_encode($payload), $key);
+    }
+}
+if (! function_exists('decryptAndValidateSecureHRMSToken')) {
+    function decryptAndValidateSecureHRMSToken(string $encrypted): bool
+    {
+        $key = env('API_NAD_SECRET_KEY');
+        if (! $key || ! $encrypted) {
+            return false;
+        }
+
+        $decryptedJson = DecryptData($encrypted, $key);
+        $payload       = json_decode($decryptedJson, true);
+
+        if (! $payload || ! isset($payload['datetime'])) {
+            return false;
+        }
+
+        try {
+            $datetime = Carbon::parse($payload['datetime']);
+        } catch (\Exception $e) {
+            return false;
+        }
+
+        $now = Carbon::now();
+        if ($datetime->between($now->copy()->subDay(), $now->copy()->addDay())) {
+            return $payload; // You can return `true` here if you only care about validity
+        }
+
+        return false;
+    }
+}
+
 if (! function_exists('callNADApi')) {
     /**
      * Send a request to the NAD API with encrypted token and given data.
@@ -194,6 +257,216 @@ if (! function_exists('fetchNADDataForPeriod')) {
         ];
     }
 }
+// For cache data
+// Generic Caching Functions for Performance Reports
+if (! function_exists('generateReportCacheKey')) {
+    /**
+     * Generate a cache key for performance reports
+     *
+     * @param string $reportType - 'daily', 'weekly', 'monthly', 'yearly'
+     * @param array $params - Parameters like year, week_number, month, start_date, end_date, etc.
+     * @param array $filters - Filters like work_status, region, search, sort_by, sort_order
+     * @return string
+     */
+    function generateReportCacheKey($reportType, array $params = [], array $filters = [])
+    {
+        // Base key with report type
+        $keyParts = ['performance_report', $reportType];
+
+        // Add time period parameters
+        if (isset($params['year'])) {
+            $keyParts[] = 'year_' . $params['year'];
+        }
+        if (isset($params['week_number'])) {
+            $keyParts[] = 'week_' . $params['week_number'];
+        }
+        if (isset($params['month'])) {
+            $keyParts[] = 'month_' . $params['month'];
+        }
+        if (isset($params['start_date']) && isset($params['end_date'])) {
+            $keyParts[] = 'range_' . $params['start_date'] . '_to_' . $params['end_date'];
+        }
+
+        // Add filter parameters
+        $filterParts = [];
+        foreach ($filters as $key => $value) {
+            if (! empty($value)) {
+                $filterParts[] = $key . '_' . md5($value);
+            }
+        }
+
+        if (! empty($filterParts)) {
+            $keyParts[] = 'filters_' . implode('_', $filterParts);
+        }
+
+        return implode(':', $keyParts);
+    }
+}
+
+if (! function_exists('getCachedReportData')) {
+    /**
+     * Get cached report data
+     *
+     * @param string $reportType
+     * @param array $params
+     * @param array $filters
+     * @return mixed|null
+     */
+    function getCachedReportData($reportType, array $params = [], array $filters = [])
+    {
+        $cacheKey = generateReportCacheKey($reportType, $params, $filters);
+
+        try {
+            return Cache::get($cacheKey);
+        } catch (\Exception $e) {
+            Log::warning('Cache retrieval failed', [
+                'cache_key' => $cacheKey,
+                'error'     => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+}
+
+if (! function_exists('setCachedReportData')) {
+    /**
+     * Set cached report data
+     *
+     * @param string $reportType
+     * @param array $params
+     * @param array $filters
+     * @param mixed $data
+     * @param int $ttlMinutes - Time to live in minutes
+     * @return bool
+     */
+    function setCachedReportData($reportType, array $params = [], array $filters = [], $data = null, $ttlMinutes = 30)
+    {
+        $cacheKey = generateReportCacheKey($reportType, $params, $filters);
+
+        try {
+            return Cache::put($cacheKey, $data, now()->addMinutes($ttlMinutes));
+        } catch (\Exception $e) {
+            Log::warning('Cache storage failed', [
+                'cache_key' => $cacheKey,
+                'error'     => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+}
+
+if (! function_exists('clearReportCache')) {
+    /**
+     * Clear cached report data
+     *
+     * @param string $reportType - 'daily', 'weekly', 'monthly', 'yearly', 'all'
+     * @param array $params - Optional specific parameters to clear
+     * @return bool
+     */
+    function clearReportCache($reportType = 'all', array $params = [])
+    {
+        try {
+            if ($reportType === 'all') {
+                // Clear all performance report caches
+                $pattern = 'performance_report:*';
+
+                // Get all cache keys matching the pattern
+                $keys = Cache::getRedis()->keys($pattern);
+
+                if (! empty($keys)) {
+                    foreach ($keys as $key) {
+                        // Remove the Redis prefix from key name
+                        $cleanKey = str_replace(config('database.redis.options.prefix'), '', $key);
+                        Cache::forget($cleanKey);
+                    }
+                }
+
+                Log::info('Cleared all performance report caches');
+                return true;
+            } else {
+                // Clear specific report type cache
+                if (! empty($params)) {
+                    $cacheKey = generateReportCacheKey($reportType, $params);
+                    Cache::forget($cacheKey);
+                    Log::info('Cleared specific cache', ['cache_key' => $cacheKey]);
+                } else {
+                    // Clear all caches for this report type
+                    $pattern = "performance_report:{$reportType}:*";
+                    $keys    = Cache::getRedis()->keys($pattern);
+
+                    if (! empty($keys)) {
+                        foreach ($keys as $key) {
+                            $cleanKey = str_replace(config('database.redis.options.prefix'), '', $key);
+                            Cache::forget($cleanKey);
+                        }
+                    }
+
+                    Log::info('Cleared report type caches', ['report_type' => $reportType]);
+                }
+
+                return true;
+            }
+        } catch (\Exception $e) {
+            Log::error('Cache clearing failed', [
+                'report_type' => $reportType,
+                'params'      => $params,
+                'error'       => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+}
+
+if (! function_exists('getReportCacheInfo')) {
+    /**
+     * Get cache information for debugging
+     *
+     * @param string $reportType
+     * @param array $params
+     * @param array $filters
+     * @return array
+     */
+    function getReportCacheInfo($reportType, array $params = [], array $filters = [])
+    {
+        $cacheKey = generateReportCacheKey($reportType, $params, $filters);
+
+        try {
+            $exists = Cache::has($cacheKey);
+            $data   = $exists ? Cache::get($cacheKey) : null;
+
+            return [
+                'cache_key' => $cacheKey,
+                'exists'    => $exists,
+                'data_size' => $data ? strlen(serialize($data)) : 0,
+                'cached_at' => $exists && is_array($data) && isset($data['cached_at']) ? $data['cached_at'] : null,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'cache_key' => $cacheKey,
+                'exists'    => false,
+                'error'     => $e->getMessage(),
+            ];
+        }
+    }
+}
+
+if (! function_exists('wrapDataWithCacheInfo')) {
+    /**
+     * Wrap data with cache metadata
+     *
+     * @param mixed $data
+     * @return array
+     */
+    function wrapDataWithCacheInfo($data)
+    {
+        return [
+            'data'          => $data,
+            'cached_at'     => now()->toISOString(),
+            'cache_version' => '1.0',
+        ];
+    }
+}
+// End of cache data
 
 // NEW: Unified worklog filtering function
 if (! function_exists('filterWorklogsByDateRange')) {
@@ -215,42 +488,6 @@ if (! function_exists('filterWorklogsByDateRange')) {
             $worklogDate = Carbon::parse($worklog->start_time)->setTimezone($timezone);
             return $worklogDate->between($start, $end);
         });
-    }
-}
-
-// NEW: Unified period metrics calculation function
-if (! function_exists('calculatePeriodMetrics')) {
-    /**
-     * Calculate metrics for a specific period with optional NAD data.
-     *
-     * @param object $user The IvaUser model instance
-     * @param \Illuminate\Support\Collection $worklogs
-     * @param string $startDate
-     * @param string $endDate
-     * @param bool $includeNAD Whether to include NAD data
-     * @param string $timezone
-     * @return array
-     */
-    function calculatePeriodMetrics($user, $worklogs, $startDate, $endDate, $includeNAD = true, $timezone = 'Asia/Singapore')
-    {
-        // Filter worklogs for the period
-        $periodWorklogs = filterWorklogsByDateRange($worklogs, $startDate, $endDate, $timezone);
-
-        // Calculate basic metrics
-        $basicMetrics = calculateBasicMetrics($periodWorklogs);
-
-        $result = [
-            'basic_metrics' => $basicMetrics,
-            'entries_count' => $basicMetrics['total_entries'],
-        ];
-
-        // Add NAD data if requested
-        if ($includeNAD) {
-            $nadData = fetchNADDataForPeriod($user, $startDate, $endDate);
-            $result  = array_merge($result, $nadData);
-        }
-
-        return $result;
     }
 }
 
@@ -646,11 +883,11 @@ if (! function_exists('calculatePerformanceMetrics')) {
             // Calculate performance metrics
             $percentage = $targetTotalHours > 0 ? ($billableHours / $targetTotalHours) * 100 : 0;
 
-            $status = 'POOR';
-            if ($percentage >= 100) {
-                $status = 'EXCELLENT';
-            } elseif ($percentage >= 90) {
-                $status = 'WARNING';
+            $status = 'BELOW';
+            if ($percentage >= 101) {
+                $status = 'EXCEEDED';
+            } elseif ($percentage >= 99) {
+                $status = 'MEET';
             }
 
             $performances[] = [
@@ -679,26 +916,6 @@ if (! function_exists('calculateTargetPerformancesForUser')) {
     function calculateTargetPerformancesForUser($user, $worklogs, $startDate, $endDate, $workStatusChanges)
     {
         return calculatePerformanceMetrics($user, $worklogs, $startDate, $endDate, $workStatusChanges);
-    }
-}
-
-if (! function_exists('calculateWeeklyPerformance')) {
-    /**
-     * Calculate performance metrics for a specific week.
-     */
-    function calculateWeeklyPerformance($user, $weekWorklogs, $startDate, $endDate, $workStatusChanges)
-    {
-        return calculatePerformanceMetrics($user, $weekWorklogs, $startDate, $endDate, $workStatusChanges);
-    }
-}
-
-if (! function_exists('calculateMonthlyPerformance')) {
-    /**
-     * Calculate performance metrics for a specific month.
-     */
-    function calculateMonthlyPerformance($user, $monthWorklogs, $startDate, $endDate, $workStatusChanges)
-    {
-        return calculatePerformanceMetrics($user, $monthWorklogs, $startDate, $endDate, $workStatusChanges);
     }
 }
 
@@ -844,382 +1061,6 @@ if (! function_exists('isTaskNonBillable')) {
     }
 }
 
-// Updated to use new unified function
-// if (! function_exists('isTaskBillableByMapping')) {
-//     /**
-//      * Check if task is billable by mapping.
-//      */
-//     function isTaskBillableByMapping($taskId, $taskCategoryMappings)
-//     {
-//         return checkTaskCategoryType($taskId, $taskCategoryMappings, 'billable');
-//     }
-// }
-
-// Updated to use new unified function
-// if (! function_exists('isTaskNonBillableByMapping')) {
-//     /**
-//      * Check if task is non-billable by mapping.
-//      */
-//     function isTaskNonBillableByMapping($taskId, $taskCategoryMappings)
-//     {
-//         return checkTaskCategoryType($taskId, $taskCategoryMappings, 'non-billable');
-//     }
-// }
-if (! function_exists('calculateBasicMetrics')) {
-    /**
-     * Calculate basic metrics for worklogs.
-     */
-    function calculateBasicMetrics($worklogs)
-    {
-        // Get all unique task IDs and fetch categories once
-        $taskIds           = $worklogs->pluck('task_id')->unique()->filter();
-        $taskCategoriesMap = [];
-
-        if ($taskIds->isNotEmpty()) {
-            $allTaskCategories = TaskReportCategory::with(['category.categoryType'])
-                ->whereIn('task_id', $taskIds)
-                ->get()
-                ->groupBy('task_id');
-
-            foreach ($allTaskCategories as $taskId => $categories) {
-                $taskCategoriesMap[$taskId] = $categories;
-            }
-        }
-
-        $billableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoriesMap) {
-            $taskCategories = $taskCategoriesMap[$worklog->task_id] ?? collect();
-            return isTaskBillable($worklog->task, $taskCategories);
-        });
-
-        $nonBillableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoriesMap) {
-            $taskCategories = $taskCategoriesMap[$worklog->task_id] ?? collect();
-            return isTaskNonBillable($worklog->task, $taskCategories);
-        });
-
-        $billableSeconds    = $billableWorklogs->sum('duration');
-        $nonBillableSeconds = $nonBillableWorklogs->sum('duration');
-        $totalSeconds       = $worklogs->sum('duration');
-
-        $billableHours    = round($billableSeconds / 3600, 2);
-        $nonBillableHours = round($nonBillableSeconds / 3600, 2);
-        $totalHours       = round($totalSeconds / 3600, 2);
-
-        return [
-            'billable_hours'       => $billableHours,
-            'non_billable_hours'   => $nonBillableHours,
-            'total_hours'          => $totalHours,
-            'total_entries'        => $worklogs->count(),
-            'billable_entries'     => $billableWorklogs->count(),
-            'non_billable_entries' => $nonBillableWorklogs->count(),
-        ];
-    }
-}
-
-if (! function_exists('calculateDailyBreakdown')) {
-    /**
-     * Calculate daily breakdown with billable/non-billable split.
-     */
-    function calculateDailyBreakdown($worklogs, $startDate, $endDate)
-    {
-        // Pre-fetch all task categories once
-        $taskIds           = $worklogs->pluck('task_id')->unique()->filter();
-        $taskCategoriesMap = [];
-
-        if ($taskIds->isNotEmpty()) {
-            $allTaskCategories = TaskReportCategory::with(['category.categoryType'])
-                ->whereIn('task_id', $taskIds)
-                ->get()
-                ->groupBy('task_id');
-
-            foreach ($allTaskCategories as $taskId => $categories) {
-                $taskCategoriesMap[$taskId] = $categories;
-            }
-        }
-
-        $dailyData   = [];
-        $currentDate = Carbon::parse($startDate);
-        $endDate     = Carbon::parse($endDate);
-
-        while ($currentDate <= $endDate) {
-            $dateString  = $currentDate->toDateString();
-            $dayWorklogs = $worklogs->filter(function ($worklog) use ($dateString) {
-                return Carbon::parse($worklog->start_time)->toDateString() === $dateString;
-            });
-
-            $billableWorklogs = $dayWorklogs->filter(function ($worklog) use ($taskCategoriesMap) {
-                $categories = $taskCategoriesMap[$worklog->task_id] ?? collect();
-                return isTaskBillable($worklog->task, $categories);
-            });
-
-            $nonBillableWorklogs = $dayWorklogs->filter(function ($worklog) use ($taskCategoriesMap) {
-                $categories = $taskCategoriesMap[$worklog->task_id] ?? collect();
-                return isTaskNonBillable($worklog->task, $categories);
-            });
-
-            $billableSeconds    = $billableWorklogs->sum('duration');
-            $nonBillableSeconds = $nonBillableWorklogs->sum('duration');
-            $totalSeconds       = $dayWorklogs->sum('duration');
-
-            $billableHours    = round($billableSeconds / 3600, 2);
-            $nonBillableHours = round($nonBillableSeconds / 3600, 2);
-            $totalHours       = round($totalSeconds / 3600, 2);
-
-            $dailyData[] = [
-                'date'                 => $dateString,
-                'day_name'             => $currentDate->format('l'),
-                'day_short'            => $currentDate->format('D'),
-                'is_weekend'           => $currentDate->isWeekend(),
-                'billable_hours'       => $billableHours,
-                'non_billable_hours'   => $nonBillableHours,
-                'total_hours'          => $totalHours,
-                'entries_count'        => $dayWorklogs->count(),
-                'billable_entries'     => $billableWorklogs->count(),
-                'non_billable_entries' => $nonBillableWorklogs->count(),
-            ];
-
-            $currentDate->addDay();
-        }
-
-        return $dailyData;
-    }
-}
-
-// NEW: Unified category breakdown calculation function
-if (! function_exists('calculateCategoryBreakdownGeneric')) {
-    /**
-     * Calculate category breakdown with configurable detail level.
-     *
-     * @param \Illuminate\Support\Collection $worklogs
-     * @param string $detailLevel 'full', 'weekly', 'monthly'
-     * @return array
-     */
-    function calculateCategoryBreakdownGeneric($worklogs, $detailLevel = 'full')
-    {
-        $categoryBreakdown = [];
-
-        // Get unique task IDs from worklogs
-        $taskIds = $worklogs->pluck('task_id')->unique()->filter();
-
-        // Get all task-category mappings for the tasks in our worklogs
-        $taskCategoryMappings = [];
-        if ($taskIds->isNotEmpty()) {
-            $taskCategoryMappings = TaskReportCategory::with(['task', 'category.categoryType'])
-                ->whereIn('task_id', $taskIds)
-                ->get()
-                ->groupBy('task_id');
-        }
-
-        // Group worklogs by billable/non-billable based on category
-        $billableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoryMappings) {
-            return checkTaskCategoryType($worklog->task_id, $taskCategoryMappings, 'billable');
-        });
-
-        $nonBillableWorklogs = $worklogs->filter(function ($worklog) use ($taskCategoryMappings) {
-            return checkTaskCategoryType($worklog->task_id, $taskCategoryMappings, 'non-billable');
-        });
-
-        if ($billableWorklogs->count() > 0) {
-            $categoryBreakdown[] = processCategoryGroupGeneric($billableWorklogs, $taskCategoryMappings, 'Billable', $detailLevel);
-        }
-
-        if ($nonBillableWorklogs->count() > 0) {
-            $categoryBreakdown[] = processCategoryGroupGeneric($nonBillableWorklogs, $taskCategoryMappings, 'Non-Billable', $detailLevel);
-        }
-
-        return array_filter($categoryBreakdown, function ($group) {
-            return $group['total_hours'] > 0;
-        });
-    }
-}
-
-// NEW: Unified category group processing function
-if (! function_exists('processCategoryGroupGeneric')) {
-    /**
-     * Process category group with configurable detail level.
-     *
-     * @param \Illuminate\Support\Collection $worklogs
-     * @param \Illuminate\Support\Collection $taskCategoryMappings
-     * @param string $type 'Billable' or 'Non-Billable'
-     * @param string $detailLevel 'full', 'weekly', 'monthly'
-     * @return array
-     */
-    function processCategoryGroupGeneric($worklogs, $taskCategoryMappings, $type, $detailLevel = 'full')
-    {
-        $categories = [];
-        $totalHours = 0;
-
-        // Group worklogs by category
-        $worklogsByCategory = [];
-
-        foreach ($worklogs as $worklog) {
-            $categoryName = 'Uncategorized';
-
-            if (isset($taskCategoryMappings[$worklog->task_id]) && $taskCategoryMappings[$worklog->task_id]->isNotEmpty()) {
-                $mapping = $taskCategoryMappings[$worklog->task_id]->first();
-                if ($mapping && $mapping->category) {
-                    $categoryName = $mapping->category->cat_name;
-                }
-            }
-
-            if (! isset($worklogsByCategory[$categoryName])) {
-                $worklogsByCategory[$categoryName] = [];
-            }
-            $worklogsByCategory[$categoryName][] = $worklog;
-        }
-
-        // Process each category
-        foreach ($worklogsByCategory as $categoryName => $categoryWorklogs) {
-            if ($categoryName === 'Uncategorized') {
-                continue; // Skip uncategorized for main summary
-            }
-
-            $categoryHours = collect($categoryWorklogs)->sum('duration') / 3600;
-            $totalHours += $categoryHours;
-
-            $categoryData = [
-                'category_name' => $categoryName,
-                'total_hours'   => round($categoryHours, 2),
-                'entries_count' => count($categoryWorklogs),
-            ];
-
-            // Add detailed breakdown only for 'full' detail level
-            if ($detailLevel === 'full') {
-                // Group by tasks within category
-                $taskGroups = collect($categoryWorklogs)->groupBy('task_id');
-                $tasks      = [];
-
-                foreach ($taskGroups as $taskId => $taskWorklogs) {
-                    $task      = $taskWorklogs->first()->task;
-                    $taskHours = collect($taskWorklogs)->sum('duration') / 3600;
-
-                    $entries = collect($taskWorklogs)->map(function ($worklog) {
-                        return [
-                            'id'             => $worklog->id,
-                            'start_time'     => $worklog->start_time,
-                            'end_time'       => $worklog->end_time,
-                            'duration_hours' => round($worklog->duration / 3600, 2),
-                            'comment'        => $worklog->comment,
-                            'project_name'   => $worklog->project?->project_name ?? 'No Project',
-                        ];
-                    })->toArray();
-
-                    $tasks[] = [
-                        'task_id'     => $taskId,
-                        'task_name'   => $task ? $task->task_name : 'Unknown Task',
-                        'total_hours' => round($taskHours, 2),
-                        'entries'     => $entries,
-                    ];
-                }
-
-                $categoryData['tasks'] = $tasks;
-            }
-
-            $categories[] = $categoryData;
-        }
-
-        // Sort categories by total hours descending (for weekly/monthly summaries)
-        if ($detailLevel !== 'full') {
-            usort($categories, function ($a, $b) {
-                return $b['total_hours'] <=> $a['total_hours'];
-            });
-        }
-
-        return [
-            'type'        => $type,
-            'total_hours' => round($totalHours, 2),
-            'categories'  => $categories,
-        ];
-    }
-}
-
-// Updated existing functions to use the new generic function
-if (! function_exists('calculateCategoryBreakdown')) {
-    /**
-     * Calculate category breakdown with hierarchical structure.
-     */
-    function calculateCategoryBreakdown($worklogs)
-    {
-        return calculateCategoryBreakdownGeneric($worklogs, 'full');
-    }
-}
-
-if (! function_exists('calculateWeeklyCategoryBreakdown')) {
-    /**
-     * Calculate category breakdown for weekly summary (simplified version).
-     */
-    function calculateWeeklyCategoryBreakdown($worklogs)
-    {
-        return calculateCategoryBreakdownGeneric($worklogs, 'weekly');
-    }
-}
-
-if (! function_exists('calculateMonthlyCategoryBreakdown')) {
-    /**
-     * Calculate category breakdown for monthly summary (simplified version).
-     */
-    function calculateMonthlyCategoryBreakdown($worklogs)
-    {
-        return calculateCategoryBreakdownGeneric($worklogs, 'monthly');
-    }
-}
-
-// Updated to use new unified functions
-if (! function_exists('calculateBimonthlyData')) {
-    /**
-     * Calculate bimonthly data for first and second half of month.
-     */
-    function calculateBimonthlyData($user, $year, $month, $splitDate = 15)
-    {
-        // First half: 1st to splitDate
-        $firstHalfStart = Carbon::create($year, $month, 1)->startOfDay();
-        $firstHalfEnd   = Carbon::create($year, $month, $splitDate)->endOfDay();
-
-        // Second half: (splitDate + 1) to end of month
-        $secondHalfStart = Carbon::create($year, $month, $splitDate + 1)->startOfDay();
-        $secondHalfEnd   = Carbon::create($year, $month)->endOfMonth();
-
-        // Get NAD data for both halves
-        $firstHalfNAD  = fetchNADDataForPeriod($user, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d'));
-        $secondHalfNAD = fetchNADDataForPeriod($user, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d'));
-
-        // Get worklogs for each half
-        $firstHalfWorklogs = \App\Models\WorklogsData::where('iva_id', $user->id)
-            ->where('is_active', true)
-            ->whereBetween('start_time', [$firstHalfStart, $firstHalfEnd])
-            ->with(['project', 'task'])
-            ->get();
-
-        $secondHalfWorklogs = \App\Models\WorklogsData::where('iva_id', $user->id)
-            ->where('is_active', true)
-            ->whereBetween('start_time', [$secondHalfStart, $secondHalfEnd])
-            ->with(['project', 'task'])
-            ->get();
-
-        return [
-            'first_half'  => [
-                'date_range'         => [
-                    'start' => $firstHalfStart->format('Y-m-d'),
-                    'end'   => $firstHalfEnd->format('Y-m-d'),
-                ],
-                'nad_data'           => $firstHalfNAD['nad_data'],
-                'basic_metrics'      => calculateBasicMetrics($firstHalfWorklogs),
-                'daily_breakdown'    => calculateDailyBreakdown($firstHalfWorklogs, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d')),
-                'category_breakdown' => calculateCategoryBreakdown($firstHalfWorklogs),
-            ],
-            'second_half' => [
-                'date_range'         => [
-                    'start' => $secondHalfStart->format('Y-m-d'),
-                    'end'   => $secondHalfEnd->format('Y-m-d'),
-                ],
-                'nad_data'           => $secondHalfNAD['nad_data'],
-                'basic_metrics'      => calculateBasicMetrics($secondHalfWorklogs),
-                'daily_breakdown'    => calculateDailyBreakdown($secondHalfWorklogs, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d')),
-                'category_breakdown' => calculateCategoryBreakdown($secondHalfWorklogs),
-            ],
-        ];
-    }
-}
-
 if (! function_exists('getWorkStatusChanges')) {
     /**
      * Get work status changes during the specified period.
@@ -1229,19 +1070,6 @@ if (! function_exists('getWorkStatusChanges')) {
         return IvaUserChangelog::where('iva_user_id', $user->id)
             ->where('field_changed', 'work_status')
             ->whereBetween('effective_date', [$startDate, $endDate])
-            ->orderBy('effective_date')
-            ->get();
-    }
-}
-
-if (! function_exists('getAllWorkStatusChanges')) {
-    /**
-     * Get all work status changes for a user.
-     */
-    function getAllWorkStatusChanges($user)
-    {
-        return IvaUserChangelog::where('iva_user_id', $user->id)
-            ->where('field_changed', 'work_status')
             ->orderBy('effective_date')
             ->get();
     }
@@ -1361,80 +1189,6 @@ if (! function_exists('getTimeDoctorDateRange')) {
     }
 }
 
-// Updated to use new unified functions
-if (! function_exists('calculateWeeklySummaryData')) {
-    /**
-     * Calculate weekly summary data with NAD hours and performance metrics.
-     */
-    function calculateWeeklySummaryData($user, $worklogs, $startDate, $endDate, $year, $startWeekNumber, $weekCount, $workStatusChanges)
-    {
-        $timezone = config('app.timezone', 'Asia/Singapore');
-
-        // Generate week ranges for the requested period
-        $selectedWeeks = getWeekRangeForDates($startDate, $endDate, $startWeekNumber);
-
-        $weeklyBreakdown       = [];
-        $totalBillableHours    = 0;
-        $totalNonBillableHours = 0;
-        $totalNadHours         = 0;
-        $totalNadCount         = 0;
-
-        foreach ($selectedWeeks as $weekData) {
-            // Calculate period metrics with NAD data
-            $weekMetrics = calculatePeriodMetrics($user, $worklogs, $weekData['start_date'], $weekData['end_date'], true, $timezone);
-
-            // Get filtered worklogs for performance calculation
-            $weekWorklogs = filterWorklogsByDateRange($worklogs, $weekData['start_date'], $weekData['end_date'], $timezone);
-
-            // Calculate performance for this week
-            $weekPerformance = calculatePerformanceMetrics($user, $weekWorklogs, $weekData['start_date'], $weekData['end_date'], $workStatusChanges);
-
-            $weeklyBreakdown[] = [
-                'week_number'        => $weekData['week_number'],
-                'start_date'         => $weekData['start_date'],
-                'end_date'           => $weekData['end_date'],
-                'label'              => $weekData['label'],
-                'billable_hours'     => $weekMetrics['basic_metrics']['billable_hours'],
-                'non_billable_hours' => $weekMetrics['basic_metrics']['non_billable_hours'],
-                'total_hours'        => $weekMetrics['basic_metrics']['total_hours'],
-                'nad_count'          => $weekMetrics['nad_count'],
-                'nad_hours'          => $weekMetrics['nad_hours'],
-                'nad_data'           => $weekMetrics['nad_data'],
-                'performance'        => $weekPerformance,
-                'entries_count'      => $weekMetrics['entries_count'],
-            ];
-
-            // Add to totals
-            $totalBillableHours += $weekMetrics['basic_metrics']['billable_hours'];
-            $totalNonBillableHours += $weekMetrics['basic_metrics']['non_billable_hours'];
-            $totalNadHours += $weekMetrics['nad_hours'];
-            $totalNadCount += $weekMetrics['nad_count'];
-        }
-
-        // Calculate overall category breakdown
-        $categoryBreakdown = calculateWeeklyCategoryBreakdown($worklogs);
-
-        return [
-            'summary'            => [
-                'total_weeks'              => count($selectedWeeks),
-                'total_billable_hours'     => round($totalBillableHours, 2),
-                'total_non_billable_hours' => round($totalNonBillableHours, 2),
-                'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
-                'total_nad_count'          => $totalNadCount,
-                'total_nad_hours'          => round($totalNadHours, 2),
-                'nad_hour_rate'            => $weekMetrics['nad_hour_rate'] ?? 8,
-            ],
-            'weekly_breakdown'   => $weeklyBreakdown,
-            'category_breakdown' => $categoryBreakdown,
-            'date_range'         => [
-                'start' => $selectedWeeks[0]['start_date'] ?? $startDate,
-                'end'   => end($selectedWeeks)['end_date'] ?? $endDate,
-                'mode'  => 'weekly_summary',
-            ],
-        ];
-    }
-}
-
 if (! function_exists('getWeekRangeForDates')) {
     /**
      * Generate week ranges between two dates.
@@ -1495,100 +1249,26 @@ if (! function_exists('getWeekRangeForDates')) {
     }
 }
 
-// Updated to use new unified functions
-if (! function_exists('calculateMonthlySummaryData')) {
-    /**
-     * Calculate monthly summary data with NAD hours and performance metrics.
-     */
-    function calculateMonthlySummaryData($user, $worklogs, $startDate, $endDate, $year, $startMonth, $monthCount, $workStatusChanges)
-    {
-        $timezone = config('app.timezone', 'Asia/Singapore');
-
-        // Generate month ranges for the requested period
-        $selectedMonths        = getMonthRangeForDates($startDate, $endDate, $monthCount);
-        $monthlyBreakdown      = [];
-        $totalBillableHours    = 0;
-        $totalNonBillableHours = 0;
-        $totalNadHours         = 0;
-        $totalNadCount         = 0;
-
-        foreach ($selectedMonths as $monthData) {
-            // Calculate period metrics with NAD data
-            $monthMetrics = calculatePeriodMetrics($user, $worklogs, $monthData['start_date'], $monthData['end_date'], true, $timezone);
-
-            // Get filtered worklogs for performance and weekly breakdown
-            $monthWorklogs = filterWorklogsByDateRange($worklogs, $monthData['start_date'], $monthData['end_date'], $timezone);
-
-            // Calculate weekly breakdown for this month
-            $weeklyBreakdown = calculateWeeklyBreakdownForMonth($user, $monthWorklogs, $monthData['start_date'], $monthData['end_date'], $workStatusChanges);
-
-            // Calculate performance for this month
-            $monthPerformance   = calculatePerformanceMetrics($user, $monthWorklogs, $monthData['start_date'], $monthData['end_date'], $workStatusChanges);
-            $monthlyBreakdown[] = [
-                'month_number'       => $monthData['month_number'],
-                'start_date'         => $monthData['start_date'],
-                'end_date'           => $monthData['end_date'],
-                'label'              => $monthData['label'],
-                'billable_hours'     => $monthMetrics['basic_metrics']['billable_hours'],
-                'non_billable_hours' => $monthMetrics['basic_metrics']['non_billable_hours'],
-                'total_hours'        => $monthMetrics['basic_metrics']['total_hours'],
-                'nad_count'          => $monthMetrics['nad_count'],
-                'nad_hours'          => $monthMetrics['nad_hours'],
-                'nad_data'           => $monthMetrics['nad_data'],
-                'performance'        => $monthPerformance,
-                'entries_count'      => $monthMetrics['entries_count'],
-                'weekly_breakdown'   => $weeklyBreakdown,
-            ];
-
-            // Add to totals
-            $totalBillableHours += $monthMetrics['basic_metrics']['billable_hours'];
-            $totalNonBillableHours += $monthMetrics['basic_metrics']['non_billable_hours'];
-            $totalNadHours += $monthMetrics['nad_hours'];
-            $totalNadCount += $monthMetrics['nad_count'];
-        }
-
-        // Calculate overall category breakdown
-        $categoryBreakdown = calculateMonthlyCategoryBreakdown($worklogs);
-
-        return [
-            'summary'            => [
-                'total_months'             => count($selectedMonths),
-                'total_billable_hours'     => round($totalBillableHours, 2),
-                'total_non_billable_hours' => round($totalNonBillableHours, 2),
-                'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
-                'total_nad_count'          => $totalNadCount,
-                'total_nad_hours'          => round($totalNadHours, 2),
-                'nad_hour_rate'            => $monthMetrics['nad_hour_rate'] ?? 8,
-            ],
-            'monthly_breakdown'  => $monthlyBreakdown,
-            'category_breakdown' => $categoryBreakdown,
-            'date_range'         => [
-                'start' => $selectedMonths[0]['start_date'] ?? $startDate,
-                'end'   => end($selectedMonths)['end_date'] ?? $endDate,
-                'mode'  => 'month_summary',
-            ],
-        ];
-    }
-}
-
 if (! function_exists('getMonthRangeForDates')) {
     /**
-     * Generate simplified month-like ranges (each consisting of 4 weeks) between two dates.
-     * Each "month" will always be 28 days (4 weeks), starting from the given start date.
+     * Generate simplified month-like ranges (each consisting of 4 weeks = 28 days).
+     * Optionally adjusts start date to a given adjusted date if it falls inside a range.
      *
-     * @param string $startDate   Must be a Monday (Y-m-d format)
-     * @param string $endDate     Must be a Sunday (Y-m-d format)
-     * @param int    $monthCount  Number of month-like ranges to generate
+     * @param string      $startDate     Must be a Monday (Y-m-d format)
+     * @param string      $endDate       Must be a Sunday (Y-m-d format)
+     * @param int         $monthCount    Number of 28-day periods to generate
+     * @param string|null $adjustedDate  Optional date to shift start within a matching 28-day period
      * @return array
      * @throws \Exception
      */
-    function getMonthRangeForDates($startDate, $endDate, $monthCount = 1)
+    function getMonthRangeForDates($startDate, $endDate, $monthCount = 1, $adjustedDate = null)
     {
         $timezone = config('app.timezone', 'Asia/Singapore');
 
         // Create Carbon instances
-        $start = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
-        $end   = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
+        $start    = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
+        $end      = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
+        $adjusted = $adjustedDate ? Carbon::createFromFormat('Y-m-d', $adjustedDate, $timezone)->startOfDay() : null;
 
         // Validation
         if (! $start->isMonday()) {
@@ -1607,19 +1287,29 @@ if (! function_exists('getMonthRangeForDates')) {
         $current = $start->copy();
 
         for ($i = 0; $i < $monthCount; $i++) {
-            $monthStart = $current->copy();
-            $monthEnd   = $current->copy()->addDays(27); // 4 weeks = 28 days
+            $rangeStart = $current->copy();
+            $rangeEnd   = $current->copy()->addDays(27); // 28-day period
 
-            // Ensure we don't exceed the end date
-            if ($monthEnd->gt($end)) {
-                break;
+            if ($rangeEnd->gt($end)) {
+                break; // skip if we exceed allowed range
+            }
+
+            // If adjusted date is set and falls within this 28-day period
+            if ($adjusted && $adjusted->between($rangeStart, $rangeEnd)) {
+                $rangeStart = $adjusted->copy();
+            }
+
+            // If adjusted date is AFTER this 28-day period, skip
+            if ($adjusted && $adjusted->gt($rangeEnd)) {
+                $current->addDays(28);
+                continue;
             }
 
             $months[] = [
                 'month_number' => $i + 1,
-                'start_date'   => $monthStart->format('Y-m-d'),
-                'end_date'     => $monthEnd->format('Y-m-d'),
-                'label'        => $monthStart->format('F'), // Month name only
+                'start_date'   => $rangeStart->format('Y-m-d'),
+                'end_date'     => $rangeEnd->format('Y-m-d'),
+                'label'        => $rangeStart->format('F'),
             ];
 
             $current->addDays(28);
@@ -1629,72 +1319,43 @@ if (! function_exists('getMonthRangeForDates')) {
     }
 }
 
-// Updated to use new unified functions
-if (! function_exists('calculateWeeklyBreakdownForMonth')) {
-    /**
-     * Calculate weekly breakdown within a month.
-     */
-    function calculateWeeklyBreakdownForMonth($user, $monthWorklogs, $startDate, $endDate, $workStatusChanges)
-    {
-        $timezone = config('app.timezone', 'Asia/Singapore');
+// Database index optimization suggestions (to be added as migrations)
+/*
+Recommended composite indexes for optimal performance:
 
-        // Get all weeks that fall within this month
-        $monthStart = Carbon::parse($startDate, $timezone);
-        $monthEnd   = Carbon::parse($endDate, $timezone);
+1. For worklogs_data table:
+   - INDEX idx_worklogs_user_active_time (iva_id, is_active, start_time)
+   - INDEX idx_worklogs_task_time (task_id, start_time)
+   - INDEX idx_worklogs_user_task_time (iva_id, task_id, start_time)
 
-        // Find the Monday of the first week and Sunday of the last week
-        $firstMonday = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
-        $lastSunday  = $monthEnd->copy()->endOfWeek(Carbon::SUNDAY);
+2. For task_report_categories table:
+   - INDEX idx_task_report_cat_task (task_id)
+   - INDEX idx_task_report_cat_category (cat_id)
 
-        $weeks       = [];
-        $currentWeek = $firstMonday->copy();
-        $weekNumber  = 1;
+3. For report_categories table:
+   - INDEX idx_report_categories_type_active (category_type, is_active)
 
-        while ($currentWeek->lte($lastSunday)) {
-            $weekStart = $currentWeek->copy();
-            $weekEnd   = $currentWeek->copy()->endOfWeek(Carbon::SUNDAY);
+4. For configuration_settings table:
+   - INDEX idx_config_settings_type_active (setting_type_id, is_active)
 
-            // Only include weeks that overlap with the month
-            if ($weekEnd->gte($monthStart) && $weekStart->lte($monthEnd)) {
-                // Adjust week boundaries to month boundaries if needed
-                $adjustedStart = $weekStart->lt($monthStart) ? $monthStart : $weekStart;
-                $adjustedEnd   = $weekEnd->gt($monthEnd) ? $monthEnd : $weekEnd;
+Example migration to add these indexes:
 
-                // Calculate period metrics with NAD data
-                $weekMetrics = calculatePeriodMetrics(
-                    $user,
-                    $monthWorklogs,
-                    $adjustedStart->format('Y-m-d'),
-                    $adjustedEnd->format('Y-m-d'),
-                    true,
-                    $timezone
-                );
+Schema::table('worklogs_data', function (Blueprint $table) {
+    $table->index(['iva_id', 'is_active', 'start_time'], 'idx_worklogs_user_active_time');
+    $table->index(['task_id', 'start_time'], 'idx_worklogs_task_time');
+    $table->index(['iva_id', 'task_id', 'start_time'], 'idx_worklogs_user_task_time');
+});
 
-                $weeks[] = [
-                    'week_number'        => $weekNumber,
-                    'start_date'         => $adjustedStart->format('Y-m-d'),
-                    'end_date'           => $adjustedEnd->format('Y-m-d'),
-                    'label'              => sprintf(
-                        'Week %d (%s - %s)',
-                        $weekNumber,
-                        $adjustedStart->format('M d'),
-                        $adjustedEnd->format('M d')
-                    ),
-                    'billable_hours'     => $weekMetrics['basic_metrics']['billable_hours'],
-                    'non_billable_hours' => $weekMetrics['basic_metrics']['non_billable_hours'],
-                    'total_hours'        => $weekMetrics['basic_metrics']['total_hours'],
-                    'nad_count'          => $weekMetrics['nad_count'],
-                    'nad_hours'          => $weekMetrics['nad_hours'],
-                    'nad_data'           => $weekMetrics['nad_data'],
-                    'entries_count'      => $weekMetrics['entries_count'],
-                ];
+Schema::table('task_report_categories', function (Blueprint $table) {
+    $table->index(['task_id'], 'idx_task_report_cat_task');
+    $table->index(['cat_id'], 'idx_task_report_cat_category');
+});
 
-                $weekNumber++;
-            }
+Schema::table('report_categories', function (Blueprint $table) {
+    $table->index(['category_type', 'is_active'], 'idx_report_categories_type_active');
+});
 
-            $currentWeek->addWeek();
-        }
-
-        return $weeks;
-    }
-}
+Schema::table('configuration_settings', function (Blueprint $table) {
+    $table->index(['setting_type_id', 'is_active'], 'idx_config_settings_type_active');
+});
+*/
