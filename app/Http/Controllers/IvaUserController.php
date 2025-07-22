@@ -15,6 +15,8 @@ use App\Models\TimedoctorV2User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -55,7 +57,8 @@ class IvaUserController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('full_name', 'LIKE', "%{$search}%")
-                    ->orWhere('email', 'LIKE', "%{$search}%");
+                    ->orWhere('email', 'LIKE', "%{$search}%")
+                    ->orWhere('job_title', 'LIKE', "%{$search}%");
             });
         }
 
@@ -79,11 +82,11 @@ class IvaUserController extends Controller
         });
 
         // Log the activity
-        ActivityLogService::log(
-            'view_iva_users_list',
-            'Viewed IVA users list',
-            ['total_users' => $users->total()]
-        );
+        // ActivityLogService::log(
+        //     'view_iva_users_list',
+        //     'Viewed IVA users list',
+        //     ['total_users' => $users->total()]
+        // );
 
         return response()->json([
             'users'               => $users,
@@ -101,6 +104,7 @@ class IvaUserController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'full_name'          => 'required|string|max:255',
+            'job_title'          => 'nullable|string|max:255',
             'email'              => 'required|email|unique:iva_user,email',
             'hire_date'          => 'nullable|date',
             'region_id'          => 'nullable|exists:regions,id',
@@ -130,6 +134,7 @@ class IvaUserController extends Controller
             // Create the user
             $user = IvaUser::create([
                 'full_name'          => $request->full_name,
+                'job_title'          => $request->job_title,
                 'email'              => $request->email,
                 'hire_date'          => $request->hire_date,
                 'region_id'          => $request->region_id,
@@ -247,6 +252,7 @@ class IvaUserController extends Controller
 
         $validator = Validator::make($request->all(), [
             'full_name'                             => 'required|string|max:255',
+            'job_title'                             => 'nullable|string|max:255',
             'email'                                 => [
                 'required',
                 'email',
@@ -289,6 +295,7 @@ class IvaUserController extends Controller
 
             // Update user
             $user->full_name = $request->full_name;
+            $user->job_title = $request->job_title;
             $user->email     = $request->email;
             $user->hire_date = $request->hire_date;
             $user->end_date  = $request->end_date;
@@ -372,6 +379,234 @@ class IvaUserController extends Controller
                 'message' => 'Failed to update user',
                 'error'   => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Sync IVA users from external API
+     */
+    public function syncUsers(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'sync_type' => 'required|in:manager,specific',
+            'emails'    => 'required_if:sync_type,specific|array',
+            'emails.*'  => 'required_if:sync_type,specific|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $token = encryptSecureHRMSToken();
+            if (! $token) {
+                return response()->json([
+                    'message' => 'Failed to generate secure token',
+                ], 500);
+            }
+
+            $apiUrl  = config('services.hrms.ivas_info_url');
+            $payload = ['token' => $token];
+
+            if ($request->sync_type === 'manager') {
+                // Get COO email from configuration
+                $cooEmailSetting = ConfigurationSetting::join('configuration_settings_type', 'configuration_settings.setting_type_id', '=', 'configuration_settings_type.id')
+                    ->where('configuration_settings_type.key', 'tocert_coo_email')
+                    ->where('configuration_settings.is_active', true)
+                    ->first();
+
+                if (! $cooEmailSetting) {
+                    return response()->json([
+                        'message' => 'COO email not configured in system settings',
+                    ], 422);
+                }
+
+                $payload['email'] = $cooEmailSetting->setting_value;
+            } else {
+                $payload['emails'] = $request->emails;
+            }
+
+            // Make API call
+            $response = Http::timeout(60)->post($apiUrl, $payload);
+
+            if (! $response->successful()) {
+                Log::error('Employee API sync failed', [
+                    'status' => $response->status(),
+                    'body'   => $response->body(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Failed to sync users from external API',
+                    'error'   => $response->body(),
+                ], 500);
+            }
+
+            $responseData = $response->json();
+
+            if (! $responseData['success'] || empty($responseData['data'])) {
+                return response()->json([
+                    'message' => 'No users data received from API',
+                ], 422);
+            }
+
+            $syncResults = $this->processUserSyncData($responseData['data']);
+
+            // Log the activity
+            ActivityLogService::log(
+                'sync_iva_users',
+                'Synced IVA users from external API',
+                [
+                    'sync_type'            => $request->sync_type,
+                    'total_processed'      => count($responseData['data']),
+                    'created'              => $syncResults['created'],
+                    'updated'              => $syncResults['updated'],
+                    'work_status_warnings' => $syncResults['work_status_warnings'],
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Users sync completed successfully',
+                'results' => $syncResults,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('User sync error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to sync users',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get COO email for sync page
+     */
+    public function getCooEmail()
+    {
+        // dd('get coo email');
+        $cooEmailSetting = ConfigurationSetting::join('configuration_settings_type', 'configuration_settings.setting_type_id', '=', 'configuration_settings_type.id')
+            ->where('configuration_settings_type.key', 'tocert_coo_email')
+            ->where('configuration_settings.is_active', true)
+            ->select('configuration_settings.*')
+            ->first();
+
+        if (! $cooEmailSetting) {
+            return response()->json([
+                'message' => 'COO email not configured',
+            ], 422);
+        }
+
+        return response()->json([
+            'email' => $cooEmailSetting->setting_value,
+            'name'  => $cooEmailSetting->description,
+        ]);
+    }
+
+    /**
+     * Process user sync data from API
+     */
+    private function processUserSyncData($usersData)
+    {
+        $created            = [];
+        $updated            = [];
+        $workStatusWarnings = [];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($usersData as $userData) {
+                $email        = $userData['email'];
+                $existingUser = IvaUser::where('email', $email)->first();
+
+                // Map type_of_work to our work_status format
+                $workStatus = null;
+                if (isset($userData['type_of_work'])) {
+                    $workType = strtolower($userData['type_of_work']);
+                    if (strpos($workType, 'full') !== false) {
+                        $workStatus = 'full-time';
+                    } elseif (strpos($workType, 'part') !== false) {
+                        $workStatus = 'part-time';
+                    }
+                }
+
+                $syncData = [
+                    'full_name'          => $userData['full_name'],
+                    'job_title'          => $userData['job_title'] ?? null,
+                    'email'              => $email,
+                    'hire_date'          => $userData['start_date'] ?? null,
+                    'end_date'           => $userData['leaving_date'] ?? null,
+                    'is_active'          => $userData['current_status'] ?? true,
+                    'timedoctor_version' => 1, // Default to version 1
+                ];
+
+                if ($existingUser) {
+                    // Update existing user
+                    $existingUser->update([
+                        'full_name' => $syncData['full_name'],
+                        'job_title' => $syncData['job_title'],
+                        'hire_date' => $syncData['hire_date'],
+                        'end_date'  => $syncData['end_date'],
+                        'is_active' => $syncData['is_active'],
+                        // Note: we don't update work_status automatically
+                    ]);
+
+                    // Check if work status needs to be updated manually
+                    if ($workStatus && $existingUser->work_status !== $workStatus) {
+                        $workStatusWarnings[] = [
+                            'user'           => $existingUser->full_name,
+                            'email'          => $existingUser->email,
+                            'current_status' => $existingUser->work_status,
+                            'api_status'     => $workStatus,
+                            'message'        => "Work status needs manual update from '{$existingUser->work_status}' to '{$workStatus}'",
+                        ];
+                    }
+
+                    $updated[] = [
+                        'id'        => $existingUser->id,
+                        'full_name' => $existingUser->full_name,
+                        'email'     => $existingUser->email,
+                        'job_title' => $existingUser->job_title,
+                        'action'    => 'updated',
+                    ];
+                } else {
+                    // Create new user
+                    if ($workStatus) {
+                        $syncData['work_status'] = $workStatus;
+                    }
+
+                    $newUser = IvaUser::create($syncData);
+
+                    // Try to link with TimeDoctor user
+                    $this->linkTimeDoctorUser($newUser);
+
+                    $created[] = [
+                        'id'        => $newUser->id,
+                        'full_name' => $newUser->full_name,
+                        'email'     => $newUser->email,
+                        'job_title' => $newUser->job_title,
+                        'action'    => 'created',
+                    ];
+                }
+            }
+
+            DB::commit();
+
+            return [
+                'created'              => $created,
+                'updated'              => $updated,
+                'work_status_warnings' => $workStatusWarnings,
+                'total_created'        => count($created),
+                'total_updated'        => count($updated),
+                'total_warnings'       => count($workStatusWarnings),
+            ];
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
     }
 

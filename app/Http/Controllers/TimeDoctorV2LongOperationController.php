@@ -24,7 +24,7 @@ class TimeDoctorV2LongOperationController extends Controller
     public function __construct(TimeDoctorV2Service $timeDoctorV2Service)
     {
         $this->timeDoctorV2Service = $timeDoctorV2Service;
-        set_time_limit(600);
+        set_time_limit(0); // Allow script to run indefinitely
         ini_set('memory_limit', '1024M');
     }
 
@@ -237,8 +237,8 @@ class TimeDoctorV2LongOperationController extends Controller
                 $progressCallback("Fetching TimeDoctor V2 worklogs for user: {$userName}");
 
                 // Use the helper functions for proper timezone conversion
-                $localStartOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $date->format('Y-m-d') . ' 00:00:00', config('app.timezone', 'Asia/Singapore'));
-                $localEndOfDay   = Carbon::createFromFormat('Y-m-d H:i:s', $date->format('Y-m-d') . ' 23:59:59', config('app.timezone', 'Asia/Singapore'));
+                $localStartOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $date->format('Y-m-d') . ' 00:00:00', config('app.timezone-timedoctor', 'Asia/Singapore'));
+                $localEndOfDay   = Carbon::createFromFormat('Y-m-d H:i:s', $date->format('Y-m-d') . ' 23:59:59', config('app.timezone-timedoctor', 'Asia/Singapore'));
 
                 $worklogData = $this->timeDoctorV2Service->getUserWorklogs(
                     $timeDoctorUserId,
@@ -359,7 +359,7 @@ class TimeDoctorV2LongOperationController extends Controller
                     // Convert from UTC to local timezone for proper storage
                     // TimeDoctor V2 returns UTC timestamps, convert to Singapore time
                     $startTimeUtc = Carbon::parse($worklog['start'], 'UTC');
-                    $startTime    = convertFromTimeDoctorTimezone($startTimeUtc, config('app.timezone', 'Asia/Singapore'));
+                    $startTime    = convertFromTimeDoctorTimezone($startTimeUtc, config('app.timezone-timedoctor', 'Asia/Singapore'));
                     $endTime      = $startTime->copy()->addSeconds($worklog['time']);
 
                     // Duration is already in seconds from V2 API

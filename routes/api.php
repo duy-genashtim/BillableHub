@@ -7,9 +7,13 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CohortController;
 use App\Http\Controllers\ConfigurationSettingsController;
 use App\Http\Controllers\ConfigurationSettingTypeController;
+use App\Http\Controllers\IvaDailyReportController;
 use App\Http\Controllers\IvaManagerController;
+use App\Http\Controllers\IvaOverallReportController;
+use App\Http\Controllers\IvaRegionReportController;
 use App\Http\Controllers\IvaUserController;
 use App\Http\Controllers\IvaUserTimeDoctorRecordsController;
+use App\Http\Controllers\IvaWeeklyReportController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\ReportCategoryController;
 use App\Http\Controllers\TimeDoctorAuthController;
@@ -18,6 +22,7 @@ use App\Http\Controllers\TimeDoctorLongOperationController;
 use App\Http\Controllers\TimeDoctorV2AuthController;
 use App\Http\Controllers\TimeDoctorV2Controller;
 use App\Http\Controllers\TimeDoctorV2LongOperationController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WorklogDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +31,12 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::middleware('auth.jwt')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+    // Dashboard routes
+    Route::prefix('dashboard')->name('dashboard.')->group(function () {
+        Route::get('/overview', [DashboardController::class, 'getDashboardOverview'])->name('overview');
+        Route::post('/clear-cache', [DashboardController::class, 'clearDashboardCache'])->name('clear-cache');
+    });
 
     // Admin routes
     Route::prefix('admin')->group(function () {
@@ -82,6 +93,10 @@ Route::middleware('auth.jwt')->group(function () {
         Route::prefix('iva-users')->name('iva-users.')->group(function () {
             Route::get('/', [IvaUserController::class, 'index']);
             Route::post('/', [IvaUserController::class, 'store']);
+            // User sync functionality
+            Route::post('/sync', [IvaUserController::class, 'syncUsers']);
+            Route::get('/coo-email', [IvaUserController::class, 'getCooEmail']);
+
             Route::get('/{id}', [IvaUserController::class, 'show']);
             Route::put('/{id}', [IvaUserController::class, 'update']);
 
@@ -216,26 +231,25 @@ Route::middleware('auth.jwt')->group(function () {
         Route::delete('/{id}/tasks', [ReportCategoryController::class, 'removeTasks'])->name('remove-tasks');
     });
 
-    // Worklog Dashboard API Routes
-    // Route::get('/worklog-dashboard/weeks', [WorklogDashboardController::class, 'getAvailableWeeks'])
-    //     ->name('api.worklog-dashboard.weeks');
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/daily-performance', [IvaDailyReportController::class, 'getDailyPerformanceReport'])
+            ->name('daily-performance');
+        Route::get('/weekly-performance', [IvaWeeklyReportController::class, 'getWeeklyPerformanceReport'])
+            ->name('weekly-performance');
+        Route::post('/weekly-performance/clear-cache', [IvaWeeklyReportController::class, 'clearWeeklyReportCache'])
+            ->name('weekly-performance.clear-cache');
 
-    // Worklog Dashboard API Routes (Global/Shared)
-    // Route::prefix('worklog-dashboard')->name('worklog-dashboard.')->group(function () {
-    //     Route::get('/weeks', [WorklogDashboardController::class, 'getAvailableWeeks'])->name('weeks');
-    //     Route::get('/years', [WorklogDashboardController::class, 'getAvailableYears'])->name('years');
-    //     Route::get('/performance-targets', [WorklogDashboardController::class, 'getPerformanceTargets'])->name('performance-targets');
-    //     Route::get('/category-mappings', [WorklogDashboardController::class, 'getCategoryMappings'])->name('category-mappings');
-    //     Route::get('/analytics', [WorklogDashboardController::class, 'getAnalytics'])->name('analytics');
-    //     Route::post('/bulk-export', [WorklogDashboardController::class, 'bulkExportDashboardData'])->name('bulk-export');
-    // });
+        Route::get('/region-performance', [IvaRegionReportController::class, 'getRegionPerformanceReport'])
+            ->name('region-performance');
+        Route::post('/region-performance/clear-cache', [IvaRegionReportController::class, 'clearRegionReportCache'])
+            ->name('region-performance.clear-cache');
+        Route::get('/region-performance/regions', [IvaRegionReportController::class, 'getAvailableRegions'])
+            ->name('region-performance.regions');
 
-    // Additional Worklog Dashboard API Routes for advanced features
-    // Route::prefix('dashboard')->name('dashboard.')->group(function () {
-    //     Route::get('/overview', [WorklogDashboardController::class, 'getOverviewData'])->name('overview');
-    //     Route::get('/team-performance', [WorklogDashboardController::class, 'getTeamPerformance'])->name('team-performance');
-    //     Route::get('/productivity-insights', [WorklogDashboardController::class, 'getProductivityInsights'])->name('productivity-insights');
-    //     Route::get('/time-tracking-summary', [WorklogDashboardController::class, 'getTimeTrackingSummary'])->name('time-tracking-summary');
-    // });
+        Route::get('/overall-performance', [IvaOverallReportController::class, 'getOverallPerformanceReport'])
+            ->name('overall-performance');
+        Route::post('/overall-performance/clear-cache', [IvaOverallReportController::class, 'clearOverallReportCache'])
+            ->name('overall-performance.clear-cache');
+    });
 
 });

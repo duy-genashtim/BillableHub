@@ -8,6 +8,7 @@ const router = useRouter();
 // Form data
 const user = ref({
   full_name: '',
+  job_title: '',
   email: '',
   hire_date: null,
   region_id: null,
@@ -183,6 +184,11 @@ function cancel() {
             <VCol cols="12" md="6">
               <VTextField v-model="user.full_name" density="comfortable" label="Full Name" variant="outlined"
                 :error-messages="errors.full_name" required autofocus aria-label="User's full name" />
+            </VCol>
+
+            <VCol cols="12" md="6">
+              <VTextField v-model="user.job_title" density="comfortable" label="Job Title" variant="outlined"
+                :error-messages="errors.job_title" aria-label="User's job title" />
             </VCol>
 
             <VCol cols="12" md="6">

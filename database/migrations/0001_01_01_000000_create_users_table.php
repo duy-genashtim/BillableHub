@@ -22,6 +22,9 @@ return new class extends Migration
             $table->json('azure_data')->nullable();
             $table->rememberToken();
             $table->timestamps();
+
+            $table->index('email');
+            $table->index('azure_id');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

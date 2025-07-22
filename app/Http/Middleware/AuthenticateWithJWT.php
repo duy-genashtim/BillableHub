@@ -32,7 +32,10 @@ class AuthenticateWithJWT
 
         try {
             $decoded = JWT::decode($token, new Key(config('app.key'), 'HS256'));
-            $user    = User::find($decoded->sub);
+            // $user    = User::find($decoded->sub);
+            // OPTIMIZATION: Only load user with minimal data for middleware
+            $user = User::select('id', 'name', 'email', 'avatar', 'azure_id')
+                ->find($decoded->sub);
 
             if (! $user) {
                 return response()->json(['error' => 'User not found'], 401);

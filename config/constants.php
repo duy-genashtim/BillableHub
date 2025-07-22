@@ -208,7 +208,7 @@ return [
 
     'setting_categories'   => [
         'site'        => 'Site Settings',
-        'user'        => 'User Settings',
+        'user'        => 'IVA User Settings',
         'report_time' => 'Report Time Settings',
         'report_cat'  => 'Report Category Settings',
         'report'      => 'Report Settings',

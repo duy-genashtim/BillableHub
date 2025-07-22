@@ -25,7 +25,7 @@ class TimeDoctorLongOperationController extends Controller
     public function __construct(TimeDoctorService $timeDoctorService)
     {
         $this->timeDoctorService = $timeDoctorService;
-        set_time_limit(600);
+        set_time_limit(0); // Allow script to run indefinitely
         ini_set('memory_limit', '1024M');
     }
 
@@ -293,7 +293,7 @@ class TimeDoctorLongOperationController extends Controller
                 $totalUpdated += $userUpdated;
 
                 $processedUsers++;
-                $progressCallback("Completed processing worklogs for user: {$userName} (Added: {$userInserted}, Updated: {$userUpdated})");
+                $progressCallback("Completed processing worklogs for user: {$userName} on {$date->format('Y-m-d')} (Added: {$userInserted}, Updated: {$userUpdated})");
 
             } catch (\Exception $e) {
                 Log::error("Error processing worklogs for user {$userName}", [

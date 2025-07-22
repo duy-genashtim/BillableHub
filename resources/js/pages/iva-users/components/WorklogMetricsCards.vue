@@ -1,5 +1,7 @@
 <script setup>
+import { getPerformanceColor, getPerformanceIcon, getProgressColor } from '@/@core/utils/helpers';
 import { formatHours } from '@/@core/utils/worklogHelpers';
+
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -24,39 +26,25 @@ const props = defineProps({
 const basicMetrics = computed(() => props.dashboardData?.basic_metrics || {});
 const nadData = computed(() => props.dashboardData?.nad_data || {});
 
-function getProgressColor(percentage) {
-  if (percentage >= 100) return 'success';
-  if (percentage >= 90) return 'warning';
-  return 'error';
-}
 
-function getPerformanceStatus(percentage) {
-  if (percentage >= 100) return 'EXCELLENT';
-  if (percentage >= 90) return 'WARNING';
-  return 'POOR';
-}
-
-function getPerformanceColor(status) {
-  switch (status) {
-    case 'EXCELLENT': return 'success';
-    case 'WARNING': return 'warning';
-    case 'POOR': return 'error';
-    default: return 'grey';
-  }
-}
-
-function getPerformanceIcon(status) {
-  switch (status) {
-    case 'EXCELLENT': return 'ri-checkbox-circle-line';
-    case 'WARNING': return 'ri-error-warning-line';
-    case 'POOR': return 'ri-close-circle-line';
-    default: return 'ri-time-line';
-  }
-}
 </script>
 
 <template>
   <div>
+    <!-- Add adjusted start date notification card -->
+    <VCard v-if="dashboardData?.adjusted_start_date?.is_adjusted" class="mb-6" color="info" variant="tonal">
+      <VCardText>
+        <div class="d-flex align-center">
+          <VIcon icon="ri-information-line" color="info" class="mr-3" />
+          <div>
+            <h3 class="text-subtitle-1 font-weight-medium mb-1">Date Range Adjusted</h3>
+            <p class="text-body-2 mb-0">
+              {{ dashboardData.adjusted_start_date.message }}
+            </p>
+          </div>
+        </div>
+      </VCardText>
+    </VCard>
     <!-- Basic Metrics Summary -->
     <VRow class="mb-6">
       <VCol cols="12" md="3">
@@ -158,12 +146,11 @@ function getPerformanceIcon(status) {
                   </VChip>
                 </div>
 
-                <VProgressLinear :model-value="target.percentage" :color="getProgressColor(target.percentage)"
-                  height="20" rounded class="mb-2">
+                <VProgressLinear :model-value="target.percentage" :max="Math.max(target.percentage, 100)"
+                  :color="getProgressColor(target.percentage)" height="20" rounded class="mb-2">
                   <template v-slot:default="{ value }">
                     <div class="text-center text-white font-weight-medium">
-                      <!-- {{ Math.ceil(value) }}% rounds a number up -->
-                      {{ value.toFixed(2) }}%
+                      {{ target.percentage.toFixed(2) }}%
                     </div>
                   </template>
                 </VProgressLinear>

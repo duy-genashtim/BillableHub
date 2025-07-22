@@ -1,5 +1,6 @@
 <script setup>
-import { enableChartDragScrolling, formatDateTime, formatHours, getPerformanceColor, getResponsiveChartSettings, smoothScrollChart } from '@/@core/utils/worklogHelpers';
+import { formatShortDate, getPerformanceColor } from '@/@core/utils/helpers';
+import { enableChartDragScrolling, formatDateTime, formatHours, getResponsiveChartSettings, smoothScrollChart } from '@/@core/utils/worklogHelpers';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import WeeklySummaryBreakdown from './WeeklySummaryBreakdown.vue';
@@ -98,15 +99,6 @@ const maxHours = computed(() => {
 const chartSettings = computed(() => {
   return getResponsiveChartSettings(props.isMobile, chartData.value.length);
 });
-
-function formatShortDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-}
 
 // Setup chart drag scrolling
 onMounted(() => {
@@ -570,7 +562,7 @@ watch(() => activeTab.value, (newTab) => {
                     <span>By: {{ log.creator?.name || 'Unknown' }} • </span>
                     <span>{{ formatDateTime(log.created_at) }}</span>
                     <span v-if="log.updated_at !== log.created_at"> • Updated: {{ formatDateTime(log.updated_at)
-                      }}</span>
+                    }}</span>
                   </div>
                 </VCardText>
               </VCard>

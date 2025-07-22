@@ -70,7 +70,8 @@ class TimeDoctorV2Controller extends Controller
                             $timeDoctorUser->save();
 
                             // Update IVA user to use V2
-                            $ivaUser->update(['timedoctor_version' => 2]);
+                            // Duy - remove auto update to version 2
+                            // $ivaUser->update(['timedoctor_version' => 2]);
                         }
                     }
 

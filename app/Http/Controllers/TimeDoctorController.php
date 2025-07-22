@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 use App\Jobs\SyncTimeDoctorWorklogs;
 use App\Models\IvaUser;
 use App\Models\Project;
-use App\Models\Region;
 use App\Models\Task;
 use App\Models\TimedoctorV1User;
 use App\Models\WorklogsData;
@@ -50,134 +49,7 @@ class TimeDoctorController extends Controller
                 ], 400);
             }
 
-            $syncCount       = 0;
-            $nameToRegionMap = [
-                'Blab - Afonso Pedroso'                      => 'America (Cohorts 1-5)',
-                'Blab - Alexandra Castillo'                  => 'EMEA',
-                'Blab - Alma Vazquez'                        => 'America (Cohorts 1-5)',
-                'Blab - Almira Zaskya'                       => 'ID/PH',
-                'Blab - Ananta Praditya'                     => 'ID/PH',
-                'Blab - Angeline Gonzales'                   => 'ID/PH',
-                'Blab - Aprilya Lestari'                     => 'ID/PH',
-                'Blab - Bahman Mehryar'                      => 'ID/PH',
-                'Blab - Bavani Jayadevan'                    => 'MY/SG',
-                'Blab - Bernard Nathan'                      => 'MY/SG',
-                'Blab - Bismarck Njeck Tifang'               => 'EMEA',
-                'Blab - Charlie Lee'                         => 'MY/SG',
-                'Blab - Charlyne Bong Chiao Lynn'            => 'MY/SG',
-                'Blab - Cilene Mazzarelli'                   => 'America (Cohorts 1-5)',
-                'Blab - Daniel Makombo Ali'                  => 'EMEA',
-                'Blab - Eric Sanches Simões'                 => 'America (Cohorts 1-5)',
-                'Blab - Erick Monteiro'                      => 'America (Cohorts 1-5)',
-                'Blab - Eriona Abazi'                        => 'EMEA',
-                'Blab - Felipe Matheus Müller'               => 'America (Cohorts 1-5)',
-                'Blab - Gabriel Angulo'                      => 'America (Cohorts 1-5)',
-                'Blab - Gabriela Eugenio'                    => 'America (Cohorts 1-5)',
-                'Blab - Giordano Morello'                    => 'America (Cohorts 1-5)',
-                'Blab - Jesús Eduardo Muruaga Díaz'          => 'America (Cohorts 1-5)',
-                'Blab - Juan Quintero'                       => 'America (Cohorts 1-5)',
-                'Blab - Juliana Cristancho'                  => 'EMEA',
-                'Blab - Juliana Motta'                       => 'EMEA',
-                'Blab - June Ng'                             => 'MY/SG',
-                'Blab - Khales Manokra'                      => 'America (Cohorts 1-5)',
-                'Blab - Kimi Ashikeen Iqbal'                 => 'MY/SG',
-                'Blab - Kristina Golovina'                   => 'America (Cohort 6)',
-                'Blab - Leelavathi Raju'                     => 'America (Cohorts 1-5)',
-                'Blab - Leigh Mcintyre'                      => 'America (Cohorts 1-5)',
-                'Blab - Marco Amorim Campos Siktberg'        => 'EMEA',
-                'Blab - Maria Jose Ramirez'                  => 'America (Cohorts 1-5)',
-                'Blab - Matheus Pinheiro Gomes'              => 'America (Cohorts 1-5)',
-                'Blab - Mazrina Mahat'                       => 'MY/SG',
-                'Blab - Michelle Nabong'                     => 'ID/PH',
-                'Blab - Mohammad Salikandi'                  => 'EMEA',
-                'Blab - Muhammad Adam Aiman Bin Mohd Raflee' => 'MY/SG',
-                'Blab - Muneer Ahmad'                        => 'EMEA',
-                'Blab - Natalia Lopes'                       => 'America (Cohorts 1-5)',
-                'Blab - Norshahana Abd Halim'                => 'MY/SG',
-                'Blab - Oceane Metais'                       => 'ID/PH',
-                'Blab - Patricea D\'cruz'                    => 'MY/SG',
-                'Blab - Pearly Mershia Wuryanto'             => 'ID/PH',
-                'Blab - Raj Kumar Selvaraj'                  => 'MY/SG',
-                'Blab - Ricardo Bosqueiro Ayres'             => 'America (Cohorts 1-5)',
-                'Blab - Rizza Tenorio'                       => 'ID/PH',
-                'Blab - Robin Low'                           => 'MY/SG',
-                'Blab - Roger Ooi'                           => 'MY/SG',
-                'Blab - Ronald Teo'                          => 'MY/SG',
-                'Blab - Rose Ann De Mesa'                    => 'America (Cohort 6)',
-                'Blab - Samantha Foo'                        => 'MY/SG',
-                'Blab - Sara Barajas'                        => 'MY/SG',
-                'Blab - Silvia Soncini'                      => 'EMEA',
-                'Blab - Stephanie Roedel'                    => 'EMEA',
-                'Blab - Subashini Maniam'                    => 'MY/SG',
-                'Blab - Thiago Silva'                        => 'America (Cohorts 1-5)',
-                'Blab - Usha Packia Rani Sithamparam'        => 'ID/PH',
-                'Blab - Vera Verawati'                       => 'ID/PH',
-                'Blab - Veronica Red Pioquinto'              => 'ID/PH',
-                'Blab - Yaxal Vasquez Cabrera'               => 'America (Cohorts 1-5)',
-                'Blab - Ahmed Heiba'                         => 'America (Cohort 6)',
-                'Blab - Alexandra Donose'                    => 'EMEA',
-                'Blab - Ashish Pradhan'                      => 'EMEA',
-                'Blab - Bhagyaraj K'                         => 'EMEA',
-                'Blab - Carlos Daniel Castañeda Novoa'       => 'America (Cohort 6)',
-                'Blab - Christina Yeo'                       => 'MY/SG',
-                'Blab - Cristina Luengo'                     => 'EMEA',
-                'Blab - Daniel Aviña Ramírez'                => 'America (Cohort 6)',
-                'Blab - Denisse Ramos'                       => 'America (Cohort 6)',
-                'Blab - Dionelio Jesus Moreno'               => 'America (Cohort 6)',
-                'Blab - Fadzai Praise Musakana'              => 'EMEA',
-                'Blab - Gerardo Tallavas'                    => 'America (Cohort 6)',
-                'Blab - Gillian Henderson'                   => 'America (Cohort 6)',
-                'Blab - Juan Felipe Pinto Castelblanco'      => 'America (Cohort 6)',
-                'Blab - Karen Ximena Laguna Serrato'         => 'America (Cohort 6)',
-                'Blab - Laura Lizbeth Sanchez Ruiz'          => 'America (Cohort 6)',
-                'Blab - Laura Sofia Llanos'                  => 'America (Cohort 6)',
-                'Blab - Luz Ángela Libreros'                 => 'America (Cohort 6)',
-                'Blab - Iris Pardillo'                       => 'ID/PH',
-                'Blab - Isabel Sampaio Rodrigues'            => 'America (Cohort 6)',
-                'Blab - Mariela Deancy Parcon'               => 'ID/PH',
-                'Blab - Marizabel Valencia Sánchez'          => 'America (Cohort 6)',
-                'Blab - Marzia Puya'                         => 'EMEA',
-                'Blab - María Camila Cortés-Bohórquez'       => 'America (Cohort 6)',
-                'Blab - María Paula Olaya Pulido'            => 'America (Cohort 6)',
-                'Blab - Muhammad Harith Zamsaimi'            => 'MY/SG',
-                'Blab - Santiago Osorio Piedrahita'          => 'America (Cohort 6)',
-                'Blab - Siew Sim Lim'                        => 'MY/SG',
-                'Blab - Sshreyas Hariharno'                  => 'EMEA',
-                'Blab - Wei Jing Khaw'                       => 'MY/SG',
-                'Blab - Isaac Robinson'                      => 'EMEA',
-                'Blab - Tracey Ong'                          => 'MY/SG',
-                'Blab - Eric Yves Wuilleumier'               => 'America (Cohort 6)',
-                'Blab - Ruthy Yang'                          => 'ID/PH',
-                'Blab - Giancarlo Fiorito'                   => 'EMEA',
-                'Blab - Ahmad Kamil'                         => 'MY/SG',
-                'Blab - Alberto Avila Nunez'                 => 'America (Cohort 6)',
-                'Blab - Alice Faustine'                      => 'ID/PH',
-                'Blab - Amadea Risa Hardigaloeh'             => 'ID/PH',
-                'Blab - Anil Kotame'                         => 'EMEA',
-                'Blab - Arnold L. Sagritalo'                 => 'ID/PH',
-                'Blab - Ayesha Afreen'                       => 'EMEA',
-                'Blab - Celine Lean'                         => 'MY/SG',
-                'Blab - Christopher Mark Gomez'              => 'MY/SG',
-                'Blab - Clarice Carvalho'                    => 'EMEA',
-                'Blab - Faizah Newell'                       => 'MY/SG',
-                'Blab - Julie Le Gallo'                      => 'EMEA',
-                'Blab - Karina Sanchez'                      => 'America (Cohort 6)',
-                'Blab - Leslie Leow'                         => 'MY/SG',
-                'Blab - Michael Steven Alfaro Diaz'          => 'America (Cohort 6)',
-                'Blab - Mohamed Eid'                         => 'EMEA',
-                'Blab - Mohd Adree'                          => 'MY/SG',
-                'Blab - Mohd Rizwan Ali'                     => 'EMEA',
-                'Blab - Muhammad Luthvan Hood'               => 'ID/PH',
-                'Blab - Paloma De Oliveira'                  => 'EMEA',
-                'Blab - Rabia Batool'                        => 'EMEA',
-                'Blab - Raoul Vicente Abraham Perez'         => 'ID/PH',
-                'Blab - Sasho Boshevski'                     => 'EMEA',
-                'Blab - Supachai Kulchokvanich'              => 'ID/PH',
-                'Blab - Tunku Muhammad'                      => 'MY/SG',
-                'Blab - Victor Robles'                       => 'America (Cohort 6)',
-                'Blab - Bruno Scott'                         => 'EMEA',
-                'Blab - Jeremy Lutgen'                       => 'MY/SG',
-            ];
+            $syncCount = 0;
 
             DB::beginTransaction();
 
@@ -193,28 +65,13 @@ class TimeDoctorController extends Controller
                         ]
                     );
 
-                    if (strpos($user['full_name'], 'Blab -') === 0) {
-                        $regionName = $nameToRegionMap[$user['full_name']] ?? null;
-                        $regionId   = null;
+                    if (! empty($user['email'])) {
+                        $ivaUser = IvaUser::where('email', $user['email'])->first();
+                        if ($ivaUser) {
+                            $timeDoctorUser->iva_user_id = $ivaUser->id;
+                            $timeDoctorUser->save();
 
-                        if ($regionName) {
-                            $region   = Region::where('name', $regionName)->first();
-                            $regionId = $region ? $region->id : null;
                         }
-
-                        $ivaUser = IvaUser::firstOrCreate(
-                            ['email' => $user['email']],
-                            [
-                                'full_name'          => $user['full_name'],
-                                'timedoctor_version' => 1,
-                                'is_active'          => true,
-                                'hire_date'          => null,
-                                'region_id'          => $regionId,
-                            ]
-                        );
-
-                        $timeDoctorUser->iva_user_id = $ivaUser->id;
-                        $timeDoctorUser->save();
                     }
 
                     $syncCount++;

@@ -254,13 +254,13 @@ class WorklogsData extends Model
         $workingDays   = $worklogs->groupBy('date')->count();
 
         return [
-            'total_hours'           => round($totalHours, 2),
-            'billable_hours'        => round($billableHours, 2),
-            'non_billable_hours'    => round($totalHours - $billableHours, 2),
-            'working_days'          => $workingDays,
-            'average_daily_hours'   => $workingDays > 0 ? round($totalHours / $workingDays, 2) : 0,
-            'efficiency_percentage' => $totalHours > 0 ? round(($billableHours / $totalHours) * 100, 1) : 0,
-            'entries_count'         => $worklogs->count(),
+            'total_hours'         => round($totalHours, 2),
+            'billable_hours'      => round($billableHours, 2),
+            'non_billable_hours'  => round($totalHours - $billableHours, 2),
+            'working_days'        => $workingDays,
+            'average_daily_hours' => $workingDays > 0 ? round($totalHours / $workingDays, 2) : 0,
+            // 'efficiency_percentage' => $totalHours > 0 ? round(($billableHours / $totalHours) * 100, 1) : 0,
+            'entries_count'       => $worklogs->count(),
         ];
     }
 

@@ -26,6 +26,7 @@ return new class extends Migration
             // Add indexes
             $table->index('key');
             $table->index('setting_category');
+
         });
 
         // Now create the configuration_settings table that references the type table
@@ -44,6 +45,7 @@ return new class extends Migration
             $table->index('setting_type_id');
             $table->index('is_active');
             $table->index(['setting_type_id', 'order']);
+            $table->index(['setting_value', 'is_active'], 'idx_settings_value_active');
         });
 
         Schema::create('activity_logs', function (Blueprint $table) {

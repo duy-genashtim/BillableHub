@@ -112,6 +112,11 @@ function updateWorkStatusChangeInfo(field, value) {
     </VCol>
 
     <VCol cols="12" md="6">
+      <VTextField v-model="user.job_title" density="comfortable" label="Job Title" :readonly="!isEditing"
+        variant="outlined" :error-messages="errors.job_title" aria-label="User's job title" />
+    </VCol>
+
+    <VCol cols="12" md="6">
       <VTextField v-model="user.email" density="comfortable" label="Email" :readonly="!isEditing" variant="outlined"
         :error-messages="errors.email" required aria-label="User's email address" />
     </VCol>

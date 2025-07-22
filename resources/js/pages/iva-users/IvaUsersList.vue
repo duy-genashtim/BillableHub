@@ -47,6 +47,7 @@ const headers = computed(() => {
   } else {
     return [
       { title: 'Name', key: 'full_name', sortable: true, width: '200px' },
+      { title: 'Job Title', key: 'job_title', sortable: true, width: '150px' },
       { title: 'Region', key: 'region.name', sortable: true, width: '120px' },
       { title: 'Cohort', key: 'cohort.name', sortable: true, width: '120px' },
       { title: 'Work Status', key: 'work_status', sortable: true, width: '120px' },
@@ -115,6 +116,10 @@ async function fetchUsers() {
 
 function createUser() {
   router.push({ name: 'iva-user-create' });
+}
+
+function syncUsers() {
+  router.push({ name: 'iva-user-sync' });
 }
 
 function viewUser(user) {
@@ -224,10 +229,17 @@ function debounce(fn, delay) {
             IVA Users Management
           </h1>
 
-          <VBtn color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="createUser"
-            aria-label="Create new IVA user">
-            Create User
-          </VBtn>
+          <div class="d-flex gap-2 flex-wrap">
+            <VBtn color="info" prepend-icon="ri-refresh-line" :size="isMobile ? 'small' : 'default'" @click="syncUsers"
+              aria-label="Sync IVA users from API">
+              Sync IVA Users
+            </VBtn>
+
+            <VBtn color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="createUser"
+              aria-label="Create new IVA user">
+              Create IVA User
+            </VBtn>
+          </div>
         </div>
 
         <VDivider class="mb-4" aria-hidden="true" />
@@ -239,7 +251,7 @@ function debounce(fn, delay) {
               <VRow>
                 <VCol cols="12" md="3">
                   <VTextField v-model="filters.search" label="Search users..." prepend-inner-icon="ri-search-line"
-                    density="comfortable" variant="outlined" clearable placeholder="Search by name or email"
+                    density="comfortable" variant="outlined" clearable placeholder="Search by name, email, or job title"
                     aria-label="Search users" />
                 </VCol>
 
@@ -292,6 +304,9 @@ function debounce(fn, delay) {
               <div v-if="isMobile" class="text-caption text-secondary">
                 {{ item.email }}
               </div>
+              <div v-if="isMobile && item.job_title" class="text-caption">
+                {{ item.job_title }}
+              </div>
               <div v-if="isMobile && item.region" class="text-caption">
                 {{ item.region.name }}
               </div>
@@ -299,6 +314,12 @@ function debounce(fn, delay) {
                 {{ item.cohort.name }}
               </div>
             </div>
+          </template>
+
+          <!-- Job Title Column (desktop only) -->
+          <template v-if="!isMobile" #[`item.job_title`]="{ item }">
+            <span v-if="item.job_title" class="text-body-2">{{ item.job_title }}</span>
+            <span v-else class="text-secondary">No Job Title</span>
           </template>
 
           <!-- Region Column (desktop only) -->
@@ -383,7 +404,7 @@ function debounce(fn, delay) {
                   No users match your current filters. Try adjusting your search criteria.
                 </span>
                 <span v-else>
-                  Get started by creating your first IVA user.
+                  Get started by creating your first IVA user or syncing from the API.
                 </span>
               </p>
               <div class="d-flex gap-2 flex-wrap">
@@ -391,8 +412,11 @@ function debounce(fn, delay) {
                   @click="clearFilters" aria-label="Clear all filters">
                   Clear Filters
                 </VBtn>
+                <VBtn color="info" @click="syncUsers" aria-label="Sync users from API">
+                  Sync Users
+                </VBtn>
                 <VBtn color="primary" @click="createUser" aria-label="Create first user">
-                  Create First User
+                  Create IVA User
                 </VBtn>
               </div>
             </div>

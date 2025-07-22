@@ -696,8 +696,8 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 Log::info("Syncing V2 worklogs for user {$user->full_name} on {$currentDate->format('Y-m-d')}");
 
                 // Use the helper functions for proper timezone conversion
-                $localStartOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d') . ' 00:00:00', config('app.timezone', 'Asia/Singapore'));
-                $localEndOfDay   = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d') . ' 23:59:59', config('app.timezone', 'Asia/Singapore'));
+                $localStartOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d') . ' 00:00:00', config('app.timezone-timedoctor', 'Asia/Singapore'));
+                $localEndOfDay   = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d') . ' 23:59:59', config('app.timezone-timedoctor', 'Asia/Singapore'));
 
                 $worklogData = $this->timeDoctorV2Service->getUserWorklogs(
                     $user->timedoctorV2User->timedoctor_id,
@@ -733,7 +733,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
                         // Convert from UTC to local timezone for proper storage
                         $startTimeUtc = Carbon::parse($worklog['start'], 'UTC');
-                        $startTime    = convertFromTimeDoctorTimezone($startTimeUtc, config('app.timezone', 'Asia/Singapore'));
+                        $startTime    = convertFromTimeDoctorTimezone($startTimeUtc, config('app.timezone-timedoctor', 'Asia/Singapore'));
                         $endTime      = $startTime->copy()->addSeconds($worklog['time']);
 
                         // Duration is already in seconds from V2 API

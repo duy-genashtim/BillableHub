@@ -1,20 +1,14 @@
 <script setup>
+import {
+  SETTING_CATEGORIES
+} from '@/@core/utils/siteConsts';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-
 // Data
 const settings = ref([]);
 const types = ref([]);
-const categories = ref({
-  site: 'Site Settings',
-  user: 'User Settings',
-  report: 'Report Settings',
-  'report-time': 'Report Time Settings',
-  'report-cat': 'Report Category Settings',
-  system: 'System Settings',
-  other: 'Other Settings'
-});
+const categories = ref(SETTING_CATEGORIES);
 const currentTypeId = ref(null);
 const currentCategory = ref(null);
 const loading = ref(true);
@@ -48,12 +42,12 @@ const headers = computed(() => {
     { title: 'Status', key: 'is_active', sortable: true },
     { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
   ];
-  
+
   // Additional headers for desktop view
   if (!isMobile.value) {
     baseHeaders.splice(3, 0, { title: 'Order', key: 'order', sortable: true });
   }
-  
+
   return baseHeaders;
 });
 
@@ -87,7 +81,7 @@ async function fetchSettings() {
     if (currentTypeId.value) {
       params.type_id = currentTypeId.value;
     }
-    
+
     const response = await axios.get('/api/configuration', { params });
     settings.value = response.data.settings;
   } catch (error) {
@@ -136,7 +130,7 @@ function confirmDelete(setting) {
 async function toggleStatus() {
   try {
     await axios.put(`/api/configuration/${settingToToggle.value.id}/toggle-status`);
-    
+
     snackbarText.value = `Setting status changed to ${!settingToToggle.value.is_active ? 'active' : 'inactive'} successfully`;
     snackbarColor.value = 'success';
     snackbar.value = true;
@@ -155,21 +149,21 @@ async function toggleStatus() {
 async function deleteSetting() {
   try {
     await axios.delete(`/api/configuration/${settingToDelete.value.id}`);
-    
+
     snackbarText.value = 'Setting deleted successfully';
     snackbarColor.value = 'success';
     snackbar.value = true;
     fetchSettings();
   } catch (error) {
     console.error('Error deleting setting:', error);
-    
+
     // Special handling for system settings that can't be deleted
     if (error.response && error.response.status === 403) {
       snackbarText.value = 'System settings cannot be deleted';
     } else {
       snackbarText.value = 'Failed to delete setting';
     }
-    
+
     snackbarColor.value = 'error';
     snackbar.value = true;
   } finally {
@@ -180,35 +174,35 @@ async function deleteSetting() {
 
 const filteredTypes = computed(() => {
   if (!currentCategory.value) return types.value;
-  
+
   return types.value.filter(type => type.setting_category === currentCategory.value);
 });
 
 const filteredSettings = computed(() => {
   let filtered = settings.value;
-  
+
   // Filter by category if selected
   if (currentCategory.value) {
     const typeIdsInCategory = types.value
       .filter(type => type.setting_category === currentCategory.value)
       .map(type => type.id);
-    
+
     filtered = filtered.filter(setting => typeIdsInCategory.includes(setting.setting_type_id));
   }
-  
+
   // Filter by type if selected (applied at the API level)
-  
+
   // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(setting => {
       const typeName = types.value.find(t => t.id === setting.setting_type_id)?.name || '';
-      
-      return setting.setting_value.toLowerCase().includes(query) || 
+
+      return setting.setting_value.toLowerCase().includes(query) ||
         typeName.toLowerCase().includes(query);
     });
   }
-  
+
   return filtered;
 });
 
@@ -228,7 +222,7 @@ function getTypeName(typeId) {
 function getCategoryName(typeId) {
   const type = types.value.find(t => t.id === typeId);
   if (!type) return 'Unknown';
-  
+
   return categories.value[type.setting_category] || type.setting_category;
 }
 
@@ -250,14 +244,14 @@ function getSettingCategory(typeId) {
 }
 
 function addNewSetting() {
-  router.push({ 
+  router.push({
     name: 'configuration-create',
     query: { type_id: currentTypeId.value }
   });
 }
 
 function addNewType() {
-  router.push({ 
+  router.push({
     name: 'configuration-type-create',
     query: { category: currentCategory.value }
   });
@@ -303,21 +297,13 @@ function resetFilters() {
             <span v-if="!isMobile">View Logs</span>
             <span v-else>Logs</span>
           </VBtn> -->
-          <VBtn
-            color="secondary"
-            prepend-icon="ri-list-settings-line"
-            :size="isMobile ? 'small' : 'default'"
-            @click="manageTypes"
-          >
+          <VBtn color="secondary" prepend-icon="ri-list-settings-line" :size="isMobile ? 'small' : 'default'"
+            @click="manageTypes">
             <span v-if="!isMobile">Manage Types</span>
             <span v-else>Types</span>
           </VBtn>
-          <VBtn
-            color="primary"
-            prepend-icon="ri-add-line"
-            :size="isMobile ? 'small' : 'default'"
-            @click="addNewSetting"
-          >
+          <VBtn color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'"
+            @click="addNewSetting">
             <span v-if="!isMobile">Add Setting</span>
             <span v-else>Add</span>
           </VBtn>
@@ -327,91 +313,52 @@ function resetFilters() {
       <!-- Category and Type filters -->
       <div class="d-flex flex-column flex-md-row flex-wrap align-md-center mb-6 gap-2">
         <div class="filter-container flex-grow-1 flex-md-grow-0 mb-2 mb-md-0">
-          <VSelect
-            v-model="currentCategory"
-            :items="Object.entries(categories).map(([value, title]) => ({ title, value }))"
-            item-title="title"
-            item-value="value"
-            label="Filter by Category"
-            clearable
-            hide-details
-            density="compact"
-            class="max-width-300"
-            @update:model-value="filterByCategory"
-          >
+          <VSelect v-model="currentCategory"
+            :items="Object.entries(categories).map(([value, title]) => ({ title, value }))" item-title="title"
+            item-value="value" label="Filter by Category" clearable hide-details density="compact" class="max-width-300"
+            @update:model-value="filterByCategory">
             <template v-slot:prepend-inner>
               <VIcon size="small">ri-folder-line</VIcon>
             </template>
           </VSelect>
         </div>
-        
+
         <div class="filter-container flex-grow-1 flex-md-grow-0 ml-0 ml-md-2 mb-2 mb-md-0">
-          <VSelect
-            v-model="currentTypeId"
-            :items="filteredTypes.map(type => ({ title: type.name, value: type.id }))"
-            item-title="title"
-            item-value="value"
-            label="Filter by Type"
-            clearable
-            hide-details
-            density="compact"
-            class="max-width-300"
-            @update:model-value="filterByType"
-          >
+          <VSelect v-model="currentTypeId" :items="filteredTypes.map(type => ({ title: type.name, value: type.id }))"
+            item-title="title" item-value="value" label="Filter by Type" clearable hide-details density="compact"
+            class="max-width-300" @update:model-value="filterByType">
             <template v-slot:prepend-inner>
               <VIcon size="small">ri-filter-line</VIcon>
             </template>
           </VSelect>
         </div>
-        
+
         <VSpacer class="d-none d-md-block" />
-        
-        <VTextField
-          v-model="searchQuery"
-          density="compact"
-          placeholder="Search settings..."
-          prepend-inner-icon="ri-search-line"
-          hide-details
-          class="flex-grow-1 max-width-400 ml-0 ml-md-2"
-          single-line
-        />
+
+        <VTextField v-model="searchQuery" density="compact" placeholder="Search settings..."
+          prepend-inner-icon="ri-search-line" hide-details class="flex-grow-1 max-width-400 ml-0 ml-md-2" single-line />
       </div>
 
-      <VDataTable
-        :headers="headers"
-        :items="filteredSettings"
-        :loading="loading"
-        density="comfortable"
-        hover
-        class="elevation-1 rounded"
-      >
+      <VDataTable :headers="headers" :items="filteredSettings" :loading="loading" density="comfortable" hover
+        class="elevation-1 rounded">
         <!-- Setting Value Column -->
         <template #[`item.setting_value`]="{ item }">
           <div class="font-weight-medium text-break">
             {{ item.setting_value }}
           </div>
         </template>
-        
+
         <!-- Type Column -->
         <template #[`item.setting_type_id`]="{ item }">
-          <VChip
-            size="small"
-            color="primary"
-            variant="flat"
-            class="text-truncate"
-          >
+          <VChip size="small" color="primary" variant="flat" class="text-truncate">
             {{ getTypeName(item.setting_type_id) }}
           </VChip>
         </template>
-        
+
         <!-- Category Column -->
         <template #[`item.category`]="{ item }">
-          <VChip
-            size="small"
-            :color="getCategoryColor(getSettingCategory(item.setting_type_id))"
-            variant="flat"
-            class="text-truncate"
-          >
+          <VChip size="small" :color="getCategoryColor(getSettingCategory(item.setting_type_id))" variant="flat"
+            class="text-truncate">
             {{ getCategoryName(item.setting_type_id) }}
           </VChip>
         </template>
@@ -425,11 +372,7 @@ function resetFilters() {
 
         <!-- Status Column -->
         <template #[`item.is_active`]="{ item }">
-          <VChip
-            size="small"
-            :color="getStatusColor(item.is_active)"
-            text-color="white"
-          >
+          <VChip size="small" :color="getStatusColor(item.is_active)" text-color="white">
             {{ getStatusText(item.is_active) }}
           </VChip>
         </template>
@@ -437,67 +380,35 @@ function resetFilters() {
         <!-- Actions Column -->
         <template #[`item.actions`]="{ item }">
           <div class="d-flex justify-end">
-            <VBtn
-              v-if="!isMobile"
-              icon
-              size="small"
-              variant="text"
-              color="primary"
-              class="me-1"
-              @click="viewSetting(item)"
-            >
+            <VBtn v-if="!isMobile" icon size="small" variant="text" color="primary" class="me-1"
+              @click="viewSetting(item)">
               <VIcon size="20">ri-eye-line</VIcon>
               <VTooltip activator="parent">View Details</VTooltip>
             </VBtn>
-            
-            <VBtn
-              v-if="!isMobile && item.setting_type && item.setting_type.allow_edit"
-              icon
-              size="small"
-              variant="text"
-              color="secondary"
-              class="me-1"
-              @click="editSetting(item)"
-            >
+
+            <VBtn v-if="!isMobile && item.setting_type && item.setting_type.allow_edit" icon size="small" variant="text"
+              color="secondary" class="me-1" @click="editSetting(item)">
               <VIcon size="20">ri-pencil-line</VIcon>
               <VTooltip activator="parent">Edit</VTooltip>
             </VBtn>
-            
-            <VBtn
-              icon
-              size="small"
-              variant="text"
-              :color="item.is_active ? 'error' : 'success'"
-              class="me-1"
-              @click="confirmStatusChange(item)"
-            >
+
+            <VBtn icon size="small" variant="text" :color="item.is_active ? 'error' : 'success'" class="me-1"
+              @click="confirmStatusChange(item)">
               <VIcon size="20">{{ item.is_active ? 'ri-close-circle-line' : 'ri-checkbox-circle-line' }}</VIcon>
               <VTooltip activator="parent">{{ item.is_active ? 'Deactivate' : 'Activate' }}</VTooltip>
             </VBtn>
-            
+
             <!-- Only show delete button for non-system settings that are allowed to be deleted -->
-            <VBtn
-              v-if="!item.is_system && item.setting_type && item.setting_type.allow_delete"
-              icon
-              size="small"
-              variant="text"
-              color="error"
-              @click="confirmDelete(item)"
-            >
+            <VBtn v-if="!item.is_system && item.setting_type && item.setting_type.allow_delete" icon size="small"
+              variant="text" color="error" @click="confirmDelete(item)">
               <VIcon size="20">ri-delete-bin-line</VIcon>
               <VTooltip activator="parent">Delete</VTooltip>
             </VBtn>
-            
+
             <!-- On mobile, use a menu for actions to save space -->
             <VMenu v-if="isMobile">
               <template v-slot:activator="{ props }">
-                <VBtn
-                  icon
-                  size="small"
-                  variant="text"
-                  color="secondary"
-                  v-bind="props"
-                >
+                <VBtn icon size="small" variant="text" color="secondary" v-bind="props">
                   <VIcon size="20">ri-more-2-fill</VIcon>
                 </VBtn>
               </template>
@@ -508,11 +419,8 @@ function resetFilters() {
                   </template>
                   <VListItemTitle>View Details</VListItemTitle>
                 </VListItem>
-                
-                <VListItem 
-                  v-if="item.setting_type && item.setting_type.allow_edit"
-                  @click="editSetting(item)"
-                >
+
+                <VListItem v-if="item.setting_type && item.setting_type.allow_edit" @click="editSetting(item)">
                   <template v-slot:prepend>
                     <VIcon size="small">ri-pencil-line</VIcon>
                   </template>
@@ -526,36 +434,21 @@ function resetFilters() {
         <!-- Empty state -->
         <template #no-data>
           <div class="d-flex flex-column align-center pa-6">
-            <VIcon
-              size="48"
-              color="secondary"
-              icon="ri-settings-3-line"
-              class="mb-4"
-            />
+            <VIcon size="48" color="secondary" icon="ri-settings-3-line" class="mb-4" />
             <h3 class="text-h6 font-weight-regular mb-2">No settings found</h3>
             <p class="text-secondary text-center mb-4">
-              There are no settings matching your criteria. 
+              There are no settings matching your criteria.
               <span v-if="currentTypeId || currentCategory || searchQuery">Try changing your filters.</span>
               <span v-else>Create one to get started.</span>
             </p>
             <div class="d-flex gap-2 flex-wrap justify-center">
-              <VBtn
-                v-if="currentTypeId || currentCategory || searchQuery"
-                color="secondary"
-                @click="resetFilters"
-              >
+              <VBtn v-if="currentTypeId || currentCategory || searchQuery" color="secondary" @click="resetFilters">
                 Clear Filters
               </VBtn>
-              <VBtn
-                color="secondary"
-                @click="addNewType"
-              >
+              <VBtn color="secondary" @click="addNewType">
                 Add Setting Type
               </VBtn>
-              <VBtn
-                color="primary"
-                @click="addNewSetting"
-              >
+              <VBtn color="primary" @click="addNewSetting">
                 Add New Setting
               </VBtn>
             </div>
@@ -566,15 +459,12 @@ function resetFilters() {
   </VCard>
 
   <!-- Confirm Status Change Dialog -->
-  <VDialog
-    v-model="statusDialog"
-    max-width="500"
-  >
+  <VDialog v-model="statusDialog" max-width="500">
     <VCard>
       <VCardTitle class="text-h5">
         {{ settingToToggle && settingToToggle.is_active ? 'Confirm Deactivation' : 'Confirm Activation' }}
       </VCardTitle>
-      
+
       <VCardText>
         <template v-if="settingToToggle && settingToToggle.is_active">
           Are you sure you want to deactivate this setting?
@@ -591,20 +481,13 @@ function resetFilters() {
           </p>
         </template>
       </VCardText>
-      
+
       <VCardActions>
         <VSpacer />
-        <VBtn
-          color="secondary"
-          variant="outlined"
-          @click="statusDialog = false"
-        >
+        <VBtn color="secondary" variant="outlined" @click="statusDialog = false">
           Cancel
         </VBtn>
-        <VBtn
-          :color="settingToToggle && settingToToggle.is_active ? 'error' : 'success'"
-          @click="toggleStatus"
-        >
+        <VBtn :color="settingToToggle && settingToToggle.is_active ? 'error' : 'success'" @click="toggleStatus">
           {{ settingToToggle && settingToToggle.is_active ? 'Deactivate' : 'Activate' }}
         </VBtn>
       </VCardActions>
@@ -612,15 +495,12 @@ function resetFilters() {
   </VDialog>
 
   <!-- Confirm Delete Dialog -->
-  <VDialog
-    v-model="deleteDialog"
-    max-width="500"
-  >
+  <VDialog v-model="deleteDialog" max-width="500">
     <VCard>
       <VCardTitle class="text-h5 bg-error text-white d-flex align-center py-3">
         <span>Delete Setting</span>
       </VCardTitle>
-      
+
       <VCardText class="pt-4">
         <p>Are you sure you want to delete this setting?</p>
         <p v-if="settingToDelete" class="font-weight-bold">{{ settingToDelete.setting_value }}</p>
@@ -628,20 +508,13 @@ function resetFilters() {
           This action cannot be undone. The setting will be permanently removed from the system.
         </p>
       </VCardText>
-      
+
       <VCardActions>
         <VSpacer />
-        <VBtn
-          color="secondary"
-          variant="outlined"
-          @click="deleteDialog = false"
-        >
+        <VBtn color="secondary" variant="outlined" @click="deleteDialog = false">
           Cancel
         </VBtn>
-        <VBtn
-          color="error"
-          @click="deleteSetting"
-        >
+        <VBtn color="error" @click="deleteSetting">
           Delete
         </VBtn>
       </VCardActions>
@@ -649,18 +522,10 @@ function resetFilters() {
   </VDialog>
 
   <!-- Snackbar for notifications -->
-  <VSnackbar
-    v-model="snackbar"
-    :color="snackbarColor"
-    :timeout="3000"
-  >
+  <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">
     {{ snackbarText }}
     <template #actions>
-      <VBtn
-        icon
-        variant="text"
-        @click="snackbar = false"
-      >
+      <VBtn icon variant="text" @click="snackbar = false">
         <VIcon>ri-close-line</VIcon>
       </VBtn>
     </template>
@@ -677,6 +542,7 @@ function resetFilters() {
 }
 
 @media (max-width: 767px) {
+
   .max-width-300,
   .max-width-400 {
     max-inline-size: 100%;

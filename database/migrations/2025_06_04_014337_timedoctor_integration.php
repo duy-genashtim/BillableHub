@@ -45,6 +45,7 @@ return new class extends Migration
         Schema::create('iva_user', function (Blueprint $table) {
             $table->id();
             $table->string('full_name');
+            $table->string('job_title')->nullable();
             $table->string('email')->unique();
             $table->date('hire_date')->nullable();
             $table->date('end_date')->nullable();
@@ -62,6 +63,13 @@ return new class extends Migration
             $table->index('is_active');
             $table->index('region_id');
             $table->index('cohort_id');
+            $table->index(['email', 'is_active'], 'idx_iva_user_email_active');
+            $table->index(['region_id', 'is_active'], 'idx_iva_region_active');
+            $table->index(['is_active', 'work_status'], 'idx_iva_user_active_work_status');
+
+            $table->index(['cohort_id', 'is_active'], 'idx_iva_cohort_active');
+            $table->index(['region_id', 'is_active', 'hire_date', 'end_date'], 'idx_iva_user_region_active_dates');
+            $table->index(['region_id', 'work_status', 'is_active'], 'idx_iva_user_region_work_status');
         });
 
         // 3. timedoctor_v1_user table
@@ -135,6 +143,7 @@ return new class extends Migration
             $table->index('project_name');
             $table->index('is_active');
             $table->index('last_synced_at');
+            $table->index(['is_active', 'project_name'], 'idx_projects_active_name');
         });
 
         // 5. tasks table - UPDATED
@@ -151,6 +160,7 @@ return new class extends Migration
             // $table->index('user_list', 'tasks_user_list_index', 'hash'); // Using hash index for text field
             $table->index('task_name');
             $table->index('is_active');
+            $table->index(['is_active', 'task_name'], 'idx_tasks_active_name');
         });
 
         // 6. report_categories table - moved up for dependency
@@ -166,6 +176,8 @@ return new class extends Migration
             // Add index
             $table->index('cat_name');
             $table->index('is_active');
+            $table->index(['is_active', 'category_type'], 'idx_categories_active_type');
+
         });
 
         // 7. task_report_categories table
@@ -193,8 +205,8 @@ return new class extends Migration
             $table->integer('duration');
             $table->string('device_id')->nullable();
             $table->text('comment')->nullable();
-            $table->string('api_type'); // timedoctor, manual or other
-            $table->string('timedoctor_worklog_id')->nullable();
+            $table->string('api_type', 50); // timedoctor, manual or other
+            $table->string('timedoctor_worklog_id', 120)->nullable();
             $table->boolean('is_active')->default(true);
             $table->text('update_comment')->nullable();
             $table->smallInteger('timedoctor_version');
@@ -214,6 +226,20 @@ return new class extends Migration
             $table->index('timedoctor_task_id');
             $table->index('task_id');
             $table->index('project_id');
+
+            // This covers the main query: WHERE iva_id = ? AND is_active = 1 AND start_time BETWEEN ? AND ?
+            $table->index(['iva_id', 'is_active', 'start_time'], 'idx_worklogs_user_active_time');
+
+            $table->index(['iva_id', 'is_active', 'start_time', 'duration', 'task_id'], 'idx_worklogs_covering_basic');
+
+            // For task categorization queries (billable/non-billable filtering)
+            $table->index(['task_id', 'is_active', 'start_time'], 'idx_worklogs_task_active_time');
+
+            // For duration summations in calculateOptimizedBasicMetrics()
+            $table->index(['iva_id', 'is_active', 'duration'], 'idx_worklogs_user_active_duration');
+
+            // For timedoctor sync operations (finding existing records)
+            $table->index(['timedoctor_worklog_id', 'api_type', 'timedoctor_version'], 'idx_worklogs_td_sync');
         });
 
         // 10. timedoctor_sync_status table

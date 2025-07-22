@@ -41,30 +41,18 @@ const handleNavScroll = evt => {
 
 <template>
   <!-- eslint-disable vue/no-v-html -->
-  <Component
-    :is="props.tag"
-    ref="refNav"
-    data-allow-mismatch
-    class="layout-vertical-nav"
-    :class="[
-      {
-        'visible': isOverlayNavActive,
-        'scrolled': isVerticalNavScrolled,
-        'overlay-nav': mdAndDown,
-      },
-    ]"
-  >
+  <Component :is="props.tag" ref="refNav" data-allow-mismatch class="layout-vertical-nav" :class="[
+    {
+      'visible': isOverlayNavActive,
+      'scrolled': isVerticalNavScrolled,
+      'overlay-nav': mdAndDown,
+    },
+  ]">
     <!-- 👉 Header -->
     <div class="nav-header">
       <slot name="nav-header">
-        <RouterLink
-          to="/"
-          class="app-logo app-title-wrapper"
-        >
-          <div
-            class="d-flex"
-            v-html="logo"
-          />
+        <RouterLink to="/" class="app-logo app-title-wrapper">
+          <div class="d-flex" v-html="logo" />
 
           <h1 class="font-weight-medium leading-normal text-xl text-uppercase">
             Materio
@@ -75,16 +63,9 @@ const handleNavScroll = evt => {
     <slot name="before-nav-items">
       <div class="vertical-nav-items-shadow" />
     </slot>
-    <slot
-      name="nav-items"
-      :update-is-vertical-nav-scrolled="updateIsVerticalNavScrolled"
-    >
-      <PerfectScrollbar
-        tag="ul"
-        class="nav-items"
-        :options="{ wheelPropagation: false }"
-        @ps-scroll-y="handleNavScroll"
-      >
+    <slot name="nav-items" :update-is-vertical-nav-scrolled="updateIsVerticalNavScrolled">
+      <PerfectScrollbar v-show="isOverlayNavActive || !mdAndDown" tag="ul" class="nav-items"
+        :options="{ wheelPropagation: false }" @ps-scroll-y="handleNavScroll">
         <slot />
       </PerfectScrollbar>
     </slot>
@@ -133,6 +114,7 @@ const handleNavScroll = evt => {
 
       @at-root {
         #{variables.$selector-vertical-nav-mini} .nav-header .header-action {
+
           &.nav-pin,
           &.nav-unpin {
             display: none !important;
@@ -185,5 +167,4 @@ const handleNavScroll = evt => {
     transition: transform 0.25s ease-in-out;
   }
 }
-
 </style>
