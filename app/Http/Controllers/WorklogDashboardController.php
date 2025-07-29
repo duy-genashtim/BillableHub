@@ -63,7 +63,7 @@ class WorklogDashboardController extends Controller
         // dd($worklogData); // Debugging line, remove in production
         // Get work status changes during the period to handle performance calculations
         $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
-
+        // dd($workStatusChanges);
         // Calculate dashboard metrics
         $dashboardData = [
             'user' => [

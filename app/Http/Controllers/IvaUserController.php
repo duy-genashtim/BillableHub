@@ -337,6 +337,7 @@ class IvaUserController extends Controller
             }
 
             $user->timedoctor_version = $request->timedoctor_version;
+            $user->is_active          = $request->is_active;
             $user->save();
 
             // Update TimeDoctor user info if exists and re-link if needed

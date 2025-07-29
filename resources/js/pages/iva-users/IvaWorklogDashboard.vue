@@ -556,9 +556,9 @@ watch(customDateTo, () => {
                 View Records
               </VBtn>
 
-              <VBtn color="secondary" variant="outlined" prepend-icon="ri-arrow-left-line"
-                :size="isMobile ? 'small' : 'default'" @click="goBack" aria-label="Back to user details">
-                Back
+              <VBtn color="primary" variant="outlined" prepend-icon="ri-eye-line" :size="isMobile ? 'small' : 'default'"
+                @click="goBack" aria-label="Back to IVA user details">
+                IVA details
               </VBtn>
             </div>
           </div>

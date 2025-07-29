@@ -1069,7 +1069,7 @@ if (! function_exists('getWorkStatusChanges')) {
     {
         return IvaUserChangelog::where('iva_user_id', $user->id)
             ->where('field_changed', 'work_status')
-            ->whereBetween('effective_date', [$startDate, $endDate])
+        // ->whereBetween('effective_date', [$startDate, $endDate])
             ->orderBy('effective_date')
             ->get();
     }

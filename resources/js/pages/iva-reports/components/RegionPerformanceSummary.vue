@@ -60,7 +60,7 @@ function getPerformanceIcon(percentage) {
             <div class="text-center">
               <VIcon icon="ri-money-dollar-circle-line" color="success" size="32" class="mb-2" />
               <div class="text-h4 font-weight-bold text-success">
-                {{ summary.overall?.total_billable_hours?.toFixed(0) || 0 }}
+                {{ summary.overall?.total_billable_hours || 0 }}
               </div>
               <div class="text-body-2">Billable Hours</div>
             </div>
@@ -70,7 +70,7 @@ function getPerformanceIcon(percentage) {
             <div class="text-center">
               <VIcon icon="ri-time-line" color="info" size="32" class="mb-2" />
               <div class="text-h4 font-weight-bold text-info">
-                {{ summary.overall?.total_non_billable_hours?.toFixed(0) || 0 }}
+                {{ summary.overall?.total_non_billable_hours || 0 }}
               </div>
               <div class="text-body-2">Non-Billable</div>
             </div>
@@ -80,7 +80,7 @@ function getPerformanceIcon(percentage) {
             <div class="text-center">
               <VIcon icon="ri-flag-line" color="warning" size="32" class="mb-2" />
               <div class="text-h4 font-weight-bold text-warning">
-                {{ summary.overall?.total_target_hours?.toFixed(0) || 0 }}
+                {{ summary.overall?.total_target_hours || 0 }}
               </div>
               <div class="text-body-2">Target Hours</div>
             </div>
@@ -358,7 +358,8 @@ function getPerformanceIcon(percentage) {
             <template #append>
               <div class="text-right">
                 <div class="font-weight-bold">{{ formatHours(category.total_hours) }}</div>
-                <VProgressLinear :model-value="allCategories[0] ? (category.total_hours / allCategories[0].total_hours) * 100 : 0"
+                <VProgressLinear
+                  :model-value="allCategories[0] ? (category.total_hours / allCategories[0].total_hours) * 100 : 0"
                   color="primary" height="4" rounded class="mt-1" style="inline-size: 100px;" />
               </div>
             </template>
