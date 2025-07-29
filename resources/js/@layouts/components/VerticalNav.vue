@@ -55,7 +55,7 @@ const handleNavScroll = evt => {
           <div class="d-flex" v-html="logo" />
 
           <h1 class="font-weight-medium leading-normal text-xl text-uppercase">
-            Materio
+            HOURS
           </h1>
         </RouterLink>
       </slot>

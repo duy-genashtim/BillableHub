@@ -173,7 +173,8 @@ function handleViewCategory(categoryId) {
               {{ userGreeting }}
             </h1>
             <p class="text-body-1 text-medium-emphasis mb-2">
-              Welcome to your TimeTrack dashboard. Monitor IVA performance, manage users, and track billable hours.
+              Welcome to HOURS - Hours Tracking and Reporting System dashboard. Monitor IVA performance, manage
+              users, and track billable hours.
             </p>
             <div class="d-flex flex-wrap gap-2">
               <VChip v-if="cacheStatusText" :color="cacheStatusColor" size="small" variant="tonal"

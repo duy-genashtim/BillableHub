@@ -2,19 +2,18 @@
 
 return [
     'roles'                => [
-        'admin'   => 'Admin (Developer)',
-        'hr'      => 'HR',
-        'finance' => 'Finance',
-        'rtl'     => 'RTL',
-        'artl'    => 'ARTL',
-        'iva'     => 'IVA',
+        'admin' => 'Admin (Developer)',
+        'hr'    => 'HR',
+        // 'finance' => 'Finance',
+        // 'rtl'     => 'RTL',
+        // 'artl'    => 'ARTL',
+        // 'iva'     => 'IVA',
     ],
 
     'permissions'          => [
         // System Management
         'manage_users'         => 'Manage Users',
         'manage_roles'         => 'Manage Roles',
-        'manage_permissions'   => 'Manage Permissions',
         'view_activity_logs'   => 'View Activity Logs',
         'manage_configuration' => 'Manage Configuration',
 
@@ -27,7 +26,6 @@ return [
 
         // IVA Management
         'manage_ivas'          => 'Manage IVAs',
-        'view_iva_data'        => 'View IVA Data',
         'edit_iva_data'        => 'Edit IVA Data',
 
         // Reports
@@ -37,18 +35,12 @@ return [
 
         // Team Management
         'view_team_data'       => 'View Team Data',
-        'manage_team_data'     => 'Manage Team Data',
-
-        // Own Data
-        'view_own_data'        => 'View Own Data',
-        'edit_own_data'        => 'Edit Own Data',
     ],
 
     'role_permissions'     => [
-        'admin'   => [
+        'admin' => [
             'manage_users',
             'manage_roles',
-            'manage_permissions',
             'view_activity_logs',
             'manage_configuration',
             'sync_timedoctor_data',
@@ -57,42 +49,34 @@ return [
             'edit_manual_entry',
             'delete_manual_entry',
             'manage_ivas',
-            'view_iva_data',
             'edit_iva_data',
             'generate_reports',
             'view_reports',
             'export_reports',
             'view_team_data',
-            'manage_team_data',
-            'view_own_data',
-            'edit_own_data',
         ],
-        'hr'      => [
+        'hr'    => [
             'sync_timedoctor_data',
             'approve_manual_time',
             'manage_ivas',
-            'view_iva_data',
             'edit_iva_data',
             'generate_reports',
             'view_reports',
             'export_reports',
             'manage_configuration',
         ],
-        'finance' => [
-            'view_reports',
-            'export_reports',
-        ],
-        'rtl'     => [
-            'view_team_data',
-            'approve_manual_time',
-        ],
-        'artl'    => [
-            'view_team_data',
-            'approve_manual_time',
-        ],
-        'iva'     => [
-            'view_own_data',
-        ],
+        // 'finance' => [
+        //     'view_reports',
+        //     'export_reports',
+        // ],
+        // 'rtl'     => [
+        //     'view_team_data',
+        //     'approve_manual_time',
+        // ],
+        // 'artl'    => [
+        //     'view_team_data',
+        //     'approve_manual_time',
+        // ],
     ],
 
     'activity_log_actions' => [

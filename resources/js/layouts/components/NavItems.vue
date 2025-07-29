@@ -43,7 +43,7 @@ console.log(authStore.user);
     icon: 'ri-bar-chart-grouped-line',
     to: '/admin/reports/weekly-performance',
   }" /> -->
-  <VerticalNavGroup v-if="hasPermission('manage_configuration')" :item="{
+  <VerticalNavGroup v-if="hasPermission('view_reports')" :item="{
     title: 'Performance',
     icon: 'ri-speed-line',
   }">
@@ -59,17 +59,17 @@ console.log(authStore.user);
       to: '/admin/reports/weekly-performance',
     }" />
   </VerticalNavGroup>
-  <VerticalNavGroup v-if="hasPermission('manage_configuration')" :item="{
+  <VerticalNavGroup v-if="hasPermission('view_reports')" :item="{
     title: 'Reports',
     icon: 'ri-bar-chart-line',
   }">
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('view_reports')" :item="{
       title: 'Region',
       icon: 'ri-map-pin-line',
       to: '/admin/reports/region-performance',
     }" />
 
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('view_reports')" :item="{
       title: 'Overall',
       icon: 'ri-global-line',
       to: '/admin/reports/overall-performance',
@@ -97,27 +97,27 @@ console.log(authStore.user);
       icon: 'ri-settings-3-line',
       to: '/admin/configuration',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
       title: 'Region',
       icon: 'ri-map-pin-line',
       to: '/admin/regions',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
       title: 'Cohorts',
       icon: 'ri-team-line',
       to: '/admin/cohorts',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
       title: 'Task Categories',
       icon: 'ri-price-tag-3-line',
       to: '/admin/categories',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
       title: 'IVA Users',
       icon: 'ri-user-line',
       to: '/admin/iva-users',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
       title: 'IVA Managers',
       icon: 'ri-user-settings-line',
       to: '/admin/iva-managers',
@@ -130,84 +130,28 @@ console.log(authStore.user);
   </template>
 
   <!-- 👉 Front Pages -->
-  <VerticalNavGroup v-if="hasPermission('manage_configuration')" :item="{
+  <VerticalNavGroup v-if="hasPermission('sync_timedoctor_data')" :item="{
     title: 'Sync Data',
     icon: 'ri-time-line',
   }">
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('sync_timedoctor_data')" :item="{
       title: 'TimeDoctor V1',
       icon: 'ri-progress-1-line',
       to: '/admin/timedoctor',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_configuration')" :item="{
+    <VerticalNavLink v-if="hasPermission('sync_timedoctor_data')" :item="{
       title: 'TimeDoctor V2',
       icon: 'ri-progress-2-line',
       to: '/admin/timedoctor-v2',
     }" />
   </VerticalNavGroup>
 
-  <!-- 👉 Apps & Pages -->
-  <VerticalNavSectionTitle :item="{
-    heading: 'Apps & Pages',
-  }" />
 
-  <VerticalNavLink :item="{
+  <!-- <VerticalNavLink :item="{
     title: 'Account Settings',
     icon: 'ri-user-settings-line',
     to: '/account-settings',
-  }" />
-
-  <VerticalNavLink :item="{
-    title: 'Login',
-    icon: 'ri-login-box-line',
-    to: '/login',
-  }" />
-  <VerticalNavLink :item="{
-    title: 'Register',
-    icon: 'ri-user-add-line',
-    to: '/register',
-  }" />
-  <VerticalNavLink :item="{
-    title: 'Error',
-    icon: 'ri-information-line',
-    to: '/no-existence',
-  }" />
-
-  <!-- 👉 User Interface -->
-  <VerticalNavSectionTitle :item="{
-    heading: 'User Interface',
-  }" />
-  <VerticalNavLink :item="{
-    title: 'Typography',
-    icon: 'ri-text',
-    to: '/typography',
-  }" />
-  <VerticalNavLink :item="{
-    title: 'Icons',
-    icon: 'ri-remixicon-line',
-    to: '/icons',
-  }" />
-  <VerticalNavLink :item="{
-    title: 'Cards',
-    icon: 'ri-bar-chart-box-line',
-    to: '/cards',
-  }" />
-
-  <!-- 👉 Forms & Tables -->
-  <VerticalNavSectionTitle :item="{
-    heading: 'Forms & Tables',
-  }" />
-  <VerticalNavLink :item="{
-    title: 'Form Layouts',
-    icon: 'ri-layout-4-line',
-    to: '/form-layouts',
-  }" />
-
-  <VerticalNavLink :item="{
-    title: 'Tables',
-    icon: 'ri-table-alt-line',
-    to: '/tables',
-  }" />
+  }" /> -->
 
 
 </template>

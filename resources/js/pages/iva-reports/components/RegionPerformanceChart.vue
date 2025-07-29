@@ -50,35 +50,43 @@ const performanceData = computed(() => {
   ];
 });
 
-// Comparison chart data
-const comparisonData = computed(() => {
-  const fullTimeHours = props.fullTimeSummary?.total_billable_hours || 0;
-  const partTimeHours = props.partTimeSummary?.total_billable_hours || 0;
-  const overallHours = props.overallSummary?.total_billable_hours || 0;
+// Hours breakdown data
+const hoursBreakdown = computed(() => {
+  const fullTimeBillable = props.fullTimeSummary?.total_billable_hours || 0;
+  const fullTimeNonBillable = props.fullTimeSummary?.total_non_billable_hours || 0;
+  const fullTimeTotal = props.fullTimeSummary?.total_hours || 0;
 
-  // Find the maximum value for percentage calculation
-  const maxHours = Math.max(fullTimeHours, partTimeHours, overallHours);
+  const partTimeBillable = props.partTimeSummary?.total_billable_hours || 0;
+  const partTimeNonBillable = props.partTimeSummary?.total_non_billable_hours || 0;
+  const partTimeTotal = props.partTimeSummary?.total_hours || 0;
 
-  return [
-    {
-      label: 'Full-Time Billable',
-      hours: fullTimeHours,
-      percentage: maxHours > 0 ? (fullTimeHours / maxHours) * 100 : 0,
-      color: 'success'
+  const overallBillable = props.overallSummary?.total_billable_hours || 0;
+  const overallNonBillable = props.overallSummary?.total_non_billable_hours || 0;
+  const overallTotal = props.overallSummary?.total_hours || 0;
+
+  return {
+    fullTime: {
+      billable: fullTimeBillable,
+      nonBillable: fullTimeNonBillable,
+      total: fullTimeTotal,
+      billablePercentage: fullTimeTotal > 0 ? (fullTimeBillable / fullTimeTotal) * 100 : 0,
+      avgHoursPerUser: (props.fullTimeSummary?.total_users || 0) > 0 ? fullTimeTotal / props.fullTimeSummary.total_users : 0
     },
-    {
-      label: 'Part-Time Billable',
-      hours: partTimeHours,
-      percentage: maxHours > 0 ? (partTimeHours / maxHours) * 100 : 0,
-      color: 'warning'
+    partTime: {
+      billable: partTimeBillable,
+      nonBillable: partTimeNonBillable,
+      total: partTimeTotal,
+      billablePercentage: partTimeTotal > 0 ? (partTimeBillable / partTimeTotal) * 100 : 0,
+      avgHoursPerUser: (props.partTimeSummary?.total_users || 0) > 0 ? partTimeTotal / props.partTimeSummary.total_users : 0
     },
-    {
-      label: 'Total Billable',
-      hours: overallHours,
-      percentage: maxHours > 0 ? (overallHours / maxHours) * 100 : 0,
-      color: 'primary'
+    overall: {
+      billable: overallBillable,
+      nonBillable: overallNonBillable,
+      total: overallTotal,
+      billablePercentage: overallTotal > 0 ? (overallBillable / overallTotal) * 100 : 0,
+      avgHoursPerUser: (props.overallSummary?.total_users || 0) > 0 ? overallTotal / props.overallSummary.total_users : 0
     }
-  ];
+  };
 });
 
 // Chart gradient for donut charts
@@ -99,6 +107,10 @@ function getChartGradient(data) {
     rgb(var(--v-theme-warning)) ${meetStartAngle}deg ${meetEndAngle}deg,
     rgb(var(--v-theme-error)) ${belowStartAngle}deg 360deg
   )`;
+}
+
+function formatHours(hours) {
+  return Math.round(hours * 100) / 100;
 }
 </script>
 
@@ -174,31 +186,156 @@ function getChartGradient(data) {
         </VCol>
       </VRow>
 
-      <!-- Comparison Bar Chart -->
+      <!-- Hours Analysis Section -->
       <VDivider class="my-6" />
 
-      <h3 class="text-h6 font-weight-medium mb-4">Hours Comparison</h3>
+      <h3 class="text-h6 font-weight-medium mb-4">
+        <VIcon icon="ri-time-line" class="mr-2" />
+        Hours Analysis
+      </h3>
 
-      <div class="comparison-chart">
-        <VRow>
-          <VCol v-for="item in comparisonData" :key="item.label" cols="12" md="4" class="text-center">
-            <div class="mb-2">
-              <div class="text-h4 font-weight-bold" :class="`text-${item.color}`">
-                {{ item.hours }}h
+      <VRow>
+        <!-- Full-Time Hours -->
+        <VCol cols="12" md="4">
+          <VCard variant="outlined" class="h-100">
+            <VCardText class="pa-4">
+              <div class="text-center mb-3">
+                <VIcon icon="ri-user-fill" color="primary" size="32" class="mb-2" />
+                <h4 class="text-subtitle-1 font-weight-bold">Full-Time</h4>
+                <div class="text-caption text-disabled">{{ props.fullTimeSummary?.total_users || 0 }} employees</div>
               </div>
-              <div class="text-body-2">{{ item.label }}</div>
-            </div>
-            <VProgressLinear :model-value="item.percentage" :color="item.color" height="24" rounded class="mb-4">
-              <span class="text-caption font-weight-bold">
-                {{ Math.round(item.percentage) }}%
-              </span>
-            </VProgressLinear>
-            <div class="text-caption text-disabled">
-              Relative to highest value
-            </div>
-          </VCol>
-        </VRow>
-      </div>
+
+              <div class="hours-breakdown">
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <span class="text-body-2">Billable Hours</span>
+                  <span class="text-h6 font-weight-bold text-success">
+                    {{ formatHours(hoursBreakdown.fullTime.billable) }}h
+                  </span>
+                </div>
+
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <span class="text-body-2">Non-Billable Hours</span>
+                  <span class="text-h6 font-weight-bold text-info">
+                    {{ formatHours(hoursBreakdown.fullTime.nonBillable) }}h
+                  </span>
+                </div>
+
+                <VDivider class="my-2" />
+
+                <div class="d-flex justify-space-between align-center mb-3">
+                  <span class="text-body-2 font-weight-medium">Total Hours</span>
+                  <span class="text-h6 font-weight-bold">
+                    {{ formatHours(hoursBreakdown.fullTime.total) }}h
+                  </span>
+                </div>
+
+                <div class="text-center">
+                  <VChip color="primary" size="small" variant="tonal">
+                    {{ formatHours(hoursBreakdown.fullTime.billablePercentage) }}% Billable
+                  </VChip>
+                  <div class="text-caption text-disabled mt-1">
+                    Avg: {{ formatHours(hoursBreakdown.fullTime.avgHoursPerUser) }}h per employee
+                  </div>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
+        </VCol>
+
+        <!-- Part-Time Hours -->
+        <VCol cols="12" md="4">
+          <VCard variant="outlined" class="h-100">
+            <VCardText class="pa-4">
+              <div class="text-center mb-3">
+                <VIcon icon="ri-user-3-line" color="secondary" size="32" class="mb-2" />
+                <h4 class="text-subtitle-1 font-weight-bold">Part-Time</h4>
+                <div class="text-caption text-disabled">{{ props.partTimeSummary?.total_users || 0 }} employees</div>
+              </div>
+
+              <div class="hours-breakdown">
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <span class="text-body-2">Billable Hours</span>
+                  <span class="text-h6 font-weight-bold text-success">
+                    {{ formatHours(hoursBreakdown.partTime.billable) }}h
+                  </span>
+                </div>
+
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <span class="text-body-2">Non-Billable Hours</span>
+                  <span class="text-h6 font-weight-bold text-info">
+                    {{ formatHours(hoursBreakdown.partTime.nonBillable) }}h
+                  </span>
+                </div>
+
+                <VDivider class="my-2" />
+
+                <div class="d-flex justify-space-between align-center mb-3">
+                  <span class="text-body-2 font-weight-medium">Total Hours</span>
+                  <span class="text-h6 font-weight-bold">
+                    {{ formatHours(hoursBreakdown.partTime.total) }}h
+                  </span>
+                </div>
+
+                <div class="text-center">
+                  <VChip color="primary" size="small" variant="tonal">
+                    {{ formatHours(hoursBreakdown.partTime.billablePercentage) }}% Billable
+                  </VChip>
+                  <div class="text-caption text-disabled mt-1">
+                    Avg: {{ formatHours(hoursBreakdown.partTime.avgHoursPerUser) }}h per employee
+                  </div>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
+        </VCol>
+
+        <!-- Overall Hours Summary -->
+        <VCol cols="12" md="4">
+          <VCard variant="outlined" class="h-100" color="primary" style="border-width: 2px;">
+            <VCardText class="pa-4">
+              <div class="text-center mb-3">
+                <VIcon icon="ri-group-line" color="primary" size="32" class="mb-2" />
+                <h4 class="text-subtitle-1 font-weight-bold">Overall Total</h4>
+                <div class="text-caption text-disabled">{{ props.overallSummary?.total_users || 0 }} employees</div>
+              </div>
+
+              <div class="hours-breakdown">
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <span class="text-body-2">Billable Hours</span>
+                  <span class="text-h6 font-weight-bold text-success">
+                    {{ formatHours(hoursBreakdown.overall.billable) }}h
+                  </span>
+                </div>
+
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <span class="text-body-2">Non-Billable Hours</span>
+                  <span class="text-h6 font-weight-bold text-info">
+                    {{ formatHours(hoursBreakdown.overall.nonBillable) }}h
+                  </span>
+                </div>
+
+                <VDivider class="my-2" />
+
+                <div class="d-flex justify-space-between align-center mb-3">
+                  <span class="text-body-2 font-weight-medium">Total Hours</span>
+                  <span class="text-h6 font-weight-bold">
+                    {{ formatHours(hoursBreakdown.overall.total) }}h
+                  </span>
+                </div>
+
+                <div class="text-center">
+                  <VChip color="primary" size="small" variant="flat">
+                    {{ formatHours(hoursBreakdown.overall.billablePercentage) }}% Billable
+                  </VChip>
+                  <div class="text-caption text-disabled mt-1">
+                    Avg: {{ formatHours(hoursBreakdown.overall.avgHoursPerUser) }}h per employee
+                  </div>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
+        </VCol>
+      </VRow>
 
       <!-- Additional Summary Stats -->
       <VDivider class="my-6" />
@@ -323,6 +460,10 @@ function getChartGradient(data) {
   max-inline-size: 280px;
 }
 
+.hours-breakdown {
+  min-block-size: 160px;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 767px) {
   .donut-chart-container {
@@ -341,14 +482,19 @@ function getChartGradient(data) {
   .text-h4 {
     font-size: 1.5rem !important;
   }
+
+  .hours-breakdown {
+    min-block-size: 140px;
+  }
 }
 
-/* Progress bar enhancement */
-:deep(.v-progress-linear) {
-  overflow: visible;
+/* Card hover effects */
+:deep(.v-card--variant-outlined) {
+  transition: all 0.3s ease;
 }
 
-:deep(.v-progress-linear__determinate) {
-  transition: inline-size 0.5s ease;
+:deep(.v-card--variant-outlined:hover) {
+  box-shadow: 0 4px 12px rgba(var(--v-theme-on-surface), 0.1);
+  transform: translateY(-2px);
 }
 </style>
