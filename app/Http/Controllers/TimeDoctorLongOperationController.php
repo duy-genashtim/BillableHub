@@ -50,10 +50,10 @@ class TimeDoctorLongOperationController extends Controller
         $startDate = Carbon::parse($request->input('start_date'));
         $endDate   = Carbon::parse($request->input('end_date'));
 
-        Log::info("Worklog sync request received", [
-            'start_date' => $startDate->format('Y-m-d'),
-            'end_date'   => $endDate->format('Y-m-d'),
-        ]);
+        // Log::info("Worklog sync request received", [
+        //     'start_date' => $startDate->format('Y-m-d'),
+        //     'end_date'   => $endDate->format('Y-m-d'),
+        // ]);
 
         if ($startDate->diffInDays($endDate) > 30) {
             return new StreamedResponse(function () {
@@ -86,7 +86,7 @@ class TimeDoctorLongOperationController extends Controller
                 }
 
                 $companyId = $companyInfo['accounts'][0]['company_id'];
-                Log::info("Using TimeDoctor company ID: {$companyId}");
+                // Log::info("Using TimeDoctor company ID: {$companyId}");
 
                 $users = IvaUser::with('timedoctorUser')
                     ->where('is_active', true)
@@ -95,7 +95,7 @@ class TimeDoctorLongOperationController extends Controller
                     })
                     ->get();
 
-                Log::info("Found " . $users->count() . " active IVA users with TimeDoctor mapping");
+                // Log::info("Found " . $users->count() . " active IVA users with TimeDoctor mapping");
 
                 if ($users->isEmpty()) {
                     echo "data: " . json_encode([
@@ -309,11 +309,11 @@ class TimeDoctorLongOperationController extends Controller
             }
         }
 
-        Log::info("Completed worklog sync for date {$date->format('Y-m-d')}", [
-            'total_inserted' => $totalInserted,
-            'total_updated'  => $totalUpdated,
-            'total_errors'   => $totalErrors,
-        ]);
+        // Log::info("Completed worklog sync for date {$date->format('Y-m-d')}", [
+        //     'total_inserted' => $totalInserted,
+        //     'total_updated'  => $totalUpdated,
+        //     'total_errors'   => $totalErrors,
+        // ]);
 
         if ($progressCallback) {
             $progressCallback("Daily summary: Added {$totalInserted} records, Updated {$totalUpdated} records, Errors: {$totalErrors}", 'success');
@@ -329,7 +329,7 @@ class TimeDoctorLongOperationController extends Controller
     private function processWorklogBatch(array $worklogItems, $user, callable $progressCallback = null)
     {
         if (empty($worklogItems)) {
-            Log::info("No worklog items to process for user {$user->timedoctorUser->tm_fullname}");
+            // Log::info("No worklog items to process for user {$user->timedoctorUser->tm_fullname}");
             if ($progressCallback) {
                 $progressCallback("No worklog items found for this user", 'info');
             }
@@ -347,7 +347,7 @@ class TimeDoctorLongOperationController extends Controller
 
             foreach ($worklogItems as $worklog) {
                 try {
-                    Log::debug("Processing worklog item", ['worklog' => $worklog]);
+                    // Log::debug("Processing worklog item", ['worklog' => $worklog]);
 
                     if (! isset($worklog['id']) || ! isset($worklog['start_time']) || ! isset($worklog['end_time'])) {
                         Log::warning("Missing required fields in worklog item", ['worklog' => $worklog]);
@@ -433,12 +433,12 @@ class TimeDoctorLongOperationController extends Controller
                 foreach (array_chunk($worklogsToInsert, self::BATCH_SIZE) as $chunk) {
                     WorklogsData::insert($chunk);
                 }
-                Log::info("Inserted {$insertedCount} worklog records");
+                // Log::info("Inserted {$insertedCount} worklog records");
                 if ($progressCallback) {
                     $progressCallback("Inserted {$insertedCount} new worklog records", 'success');
                 }
             } else {
-                Log::info("No new worklog records to insert");
+                // Log::info("No new worklog records to insert");
                 if ($progressCallback) {
                     $progressCallback("No new worklog records to insert", 'info');
                 }

@@ -5,7 +5,7 @@ import { routes } from './routes'
 export const isLoading = ref(false)
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory('/'),
   routes,
 })
 
@@ -14,7 +14,7 @@ router.beforeEach(async (to, from, next) => {
   isLoading.value = true
 
   const authStore = useAuthStore()
-  
+
   // Wait for auth initialization if still loading
   let attempts = 0
   while (authStore.isLoading && attempts < 50) {
@@ -38,7 +38,7 @@ router.beforeEach(async (to, from, next) => {
       // Redirect to dashboard with error message
       next({
         path: '/dashboard',
-        query: { error: 'insufficient_permissions' }
+        query: { error: 'insufficient_permissions' },
       })
     } else {
       next()

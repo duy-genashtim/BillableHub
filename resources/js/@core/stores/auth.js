@@ -6,7 +6,7 @@ const msalConfig = {
   auth: {
     clientId: import.meta.env.VITE_AZURE_CLIENT_ID,
     authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID}`,
-    redirectUri: import.meta.env.VITE_AZURE_REDIRECT_URI,
+    redirectUri: window.location.origin + '/connect', //  import.meta.env.VITE_AZURE_REDIRECT_URI,
   },
   cache: {
     cacheLocation: 'localStorage',
@@ -28,24 +28,24 @@ export const useAuthStore = defineStore('auth', {
   }),
 
   getters: {
-    getUser: (state) => state.user,
-    getToken: (state) => state.token,
-    isAuth: (state) => state.isAuthenticated,
-    userPermissions: (state) => state.user?.permissions || [],
-    userRoles: (state) => state.user?.roles || [],
-    hasPermission: (state) => (permission) => {
+    getUser: state => state.user,
+    getToken: state => state.token,
+    isAuth: state => state.isAuthenticated,
+    userPermissions: state => state.user?.permissions || [],
+    userRoles: state => state.user?.roles || [],
+    hasPermission: state => permission => {
       return state.user?.permissions?.some(p => p.name === permission) || false
     },
-    hasRole: (state) => (role) => {
+    hasRole: state => role => {
       return state.user?.roles?.some(r => r.name === role) || false
     },
-    isSuperAdmin: (state) => state.user?.is_super_admin || false,
+    isSuperAdmin: state => state.user?.is_super_admin || false,
   },
 
   actions: {
     async initializeAuth() {
       this.isLoading = true
-      
+
       try {
         if (!import.meta.env.VITE_AZURE_CLIENT_ID || !import.meta.env.VITE_AZURE_TENANT_ID) {
           throw new Error('Azure configuration missing')
@@ -55,9 +55,9 @@ export const useAuthStore = defineStore('auth', {
           msalInstance = new PublicClientApplication(msalConfig)
           await msalInstance.initialize()
         }
-        
+
         this.msalInstance = msalInstance
-        
+
         // Check if user is already authenticated
         const token = localStorage.getItem('auth_token')
         if (token) {
@@ -82,13 +82,14 @@ export const useAuthStore = defineStore('auth', {
       try {
         this.isInteractionInProgress = true
         this.isLoading = true
-        
+
         if (!this.msalInstance) {
           throw new Error('MSAL not initialized')
         }
 
         // Check if there's already an ongoing interaction
-        const inProgress = this.msalInstance.getActiveAccount() && this.msalInstance.getConfiguration().auth.navigateToLoginRequestUrl
+        const inProgress =
+          this.msalInstance.getActiveAccount() && this.msalInstance.getConfiguration().auth.navigateToLoginRequestUrl
         if (inProgress) {
           throw new Error('Another authentication is already in progress')
         }
@@ -97,7 +98,7 @@ export const useAuthStore = defineStore('auth', {
           scopes: ['User.Read'],
           prompt: 'select_account',
         }
-        
+
         let accounts = []
         try {
           accounts = this.msalInstance.getAllAccounts() || []
@@ -105,7 +106,7 @@ export const useAuthStore = defineStore('auth', {
           console.warn('Failed to get accounts:', accountError)
           accounts = []
         }
-        
+
         let response = null
 
         if (accounts.length > 0) {
@@ -117,7 +118,7 @@ export const useAuthStore = defineStore('auth', {
             })
           } catch (silentError) {
             console.warn('Silent token acquisition failed:', silentError)
-            
+
             // Only proceed with popup if it's not an interaction_required error during an ongoing interaction
             if (silentError.errorCode !== 'interaction_in_progress') {
               try {
@@ -137,16 +138,15 @@ export const useAuthStore = defineStore('auth', {
             throw popupError
           }
         }
-        
+
         if (response && response.accessToken) {
           await this.authenticateWithBackend(response.accessToken)
         } else {
           throw new Error('No access token received from Microsoft')
         }
-        
       } catch (error) {
         let errorMessage = 'Login failed. Please try again.'
-        
+
         if (error.errorCode === 'user_cancelled') {
           errorMessage = 'Login was cancelled'
         } else if (error.errorCode === 'interaction_in_progress') {
@@ -158,7 +158,7 @@ export const useAuthStore = defineStore('auth', {
         } else if (error.message) {
           errorMessage = error.message
         }
-        
+
         throw new Error(errorMessage)
       } finally {
         this.isLoading = false
@@ -176,18 +176,18 @@ export const useAuthStore = defineStore('auth', {
       try {
         this.isInteractionInProgress = true
         this.isLoading = true
-        
+
         if (!this.msalInstance) {
           throw new Error('MSAL not initialized')
         }
-        
+
         const response = await this.msalInstance.handleRedirectPromise()
-        
+
         if (response && response.accessToken) {
           await this.authenticateWithBackend(response.accessToken)
           return true
         }
-        
+
         let accounts = []
         try {
           accounts = this.msalInstance.getAllAccounts() || []
@@ -202,7 +202,7 @@ export const useAuthStore = defineStore('auth', {
               scopes: ['User.Read'],
               account: accounts[0],
             })
-            
+
             if (tokenResponse && tokenResponse.accessToken) {
               await this.authenticateWithBackend(tokenResponse.accessToken)
               return true
@@ -211,7 +211,7 @@ export const useAuthStore = defineStore('auth', {
             console.error('Silent token acquisition failed in callback:', silentError)
           }
         }
-        
+
         return false
       } catch (error) {
         console.error('Redirect callback failed:', error)
@@ -227,8 +227,8 @@ export const useAuthStore = defineStore('auth', {
         const response = await axios.post('/api/auth/login', {
           access_token: accessToken,
         })
-        console.log('Backend authentication response:', response.data);
-        
+        console.log('Backend authentication response:', response.data)
+
         if (response.data && response.data.token) {
           this.token = response.data.token
           this.user = {
@@ -238,10 +238,10 @@ export const useAuthStore = defineStore('auth', {
             is_super_admin: false,
           }
           this.isAuthenticated = true
-          
+
           localStorage.setItem('auth_token', this.token)
           this.setAuthHeader(this.token)
-          
+
           // Fetch user details with roles and permissions
           await this.fetchUser()
         } else {
@@ -249,7 +249,7 @@ export const useAuthStore = defineStore('auth', {
         }
       } catch (error) {
         let errorMessage = 'Authentication failed'
-        
+
         if (error.response) {
           if (error.response.data && error.response.data.error) {
             errorMessage = error.response.data.error
@@ -261,7 +261,7 @@ export const useAuthStore = defineStore('auth', {
         } else if (error.request) {
           errorMessage = 'Network error. Please check your connection.'
         }
-        
+
         throw new Error(errorMessage)
       }
     },
@@ -269,7 +269,7 @@ export const useAuthStore = defineStore('auth', {
     async fetchUser() {
       try {
         const response = await axios.get('/api/auth/me')
-        console.log('Fetch user response:', response.data);
+        console.log('Fetch user response:', response.data)
         if (response.data && response.data.user) {
           this.user = {
             ...response.data.user,
@@ -290,7 +290,7 @@ export const useAuthStore = defineStore('auth', {
     async fetchUserDetails() {
       try {
         if (!this.user) return
-        
+
         const response = await axios.get(`/api/admin/users/${this.user.id}`)
         if (response.data && response.data.user) {
           this.user = {
@@ -328,10 +328,10 @@ export const useAuthStore = defineStore('auth', {
         this.token = null
         this.isAuthenticated = false
         this.isInteractionInProgress = false // Reset interaction flag
-        
+
         localStorage.removeItem('auth_token')
         delete axios.defaults.headers.common['Authorization']
-        
+
         if (this.msalInstance) {
           try {
             const accounts = this.msalInstance.getAllAccounts() || []

@@ -101,6 +101,7 @@ Route::middleware('auth.jwt')->group(function () {
             Route::put('/{id}', [IvaUserController::class, 'update']);
 
             // User customizations
+            Route::post('/{id}/customizations', [IvaUserController::class, 'addCustomizations']);
             Route::put('/{id}/customizations/{customizationId}', [IvaUserController::class, 'updateCustomization']);
             Route::delete('/{id}/customizations/{customizationId}', [IvaUserController::class, 'removeCustomization']);
 
@@ -117,10 +118,6 @@ Route::middleware('auth.jwt')->group(function () {
 
             // Time Doctor Records Management Routes
             Route::get('/{id}/timedoctor-records', [IvaUserTimeDoctorRecordsController::class, 'index']);
-            Route::post('/{id}/timedoctor-records', [IvaUserTimeDoctorRecordsController::class, 'store']);
-            Route::put('/{id}/timedoctor-records/{worklogId}', [IvaUserTimeDoctorRecordsController::class, 'update']);
-            Route::delete('/{id}/timedoctor-records/{worklogId}', [IvaUserTimeDoctorRecordsController::class, 'destroy']);
-            Route::patch('/{id}/timedoctor-records/{worklogId}/toggle-status', [IvaUserTimeDoctorRecordsController::class, 'toggleStatus']);
             Route::post('/{id}/timedoctor-records/sync', [IvaUserTimeDoctorRecordsController::class, 'syncTimeDoctorRecords']);
 
             // Helper routes for dropdowns
