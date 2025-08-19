@@ -172,14 +172,14 @@ class TimeDoctorService
         $formattedStartDate = $startDate->format('Y-m-d');
         $formattedEndDate   = $endDate->format('Y-m-d');
 
-        Log::debug("getUserWorklogs request params", [
-            'company_id' => $companyId,
-            'user_id'    => $userId,
-            'start_date' => $formattedStartDate,
-            'end_date'   => $formattedEndDate,
-            'offset'     => $offset,
-            'limit'      => $limit,
-        ]);
+        // Log::debug("getUserWorklogs request params", [
+        //     'company_id' => $companyId,
+        //     'user_id'    => $userId,
+        //     'start_date' => $formattedStartDate,
+        //     'end_date'   => $formattedEndDate,
+        //     'offset'     => $offset,
+        //     'limit'      => $limit,
+        // ]);
 
         return $this->get("/companies/{$companyId}/worklogs", [
             'start_date'   => $formattedStartDate,

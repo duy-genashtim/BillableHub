@@ -50,7 +50,7 @@ class AuthController extends Controller
                 'iss' => config('app.url'),
                 'sub' => $user->id,
                 'iat' => time(),
-                'exp' => time() + (7 * 24 * 60 * 60), // 7*24 hours
+                'exp' => time() + (20 * 24 * 60 * 60), // 7*24 hours
             ];
 
             $token = JWT::encode($payload, config('app.key'), 'HS256');

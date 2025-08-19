@@ -41,7 +41,7 @@ const weeklyMetrics = computed(() => [
   },
   {
     title: 'NAD Count',
-    value: props.currentWeek.nad_count || 0,
+    value: `${props.currentWeek.nad_count || 0} (${Math.round((props.currentWeek.nad_hours || 0) * 10) / 10}h)`,
     icon: 'ri-calendar-close-line',
     color: 'error',
     subtitle: 'This week'
@@ -72,10 +72,10 @@ const monthlyMetrics = computed(() => [
   },
   {
     title: 'NAD Hours',
-    value: `${props.currentMonth.nad_count || 0} (${formatHours(props.currentMonth.nad_hours || 0)})`,
+    value: `${props.currentMonth.nad_count || 0} (${Math.round((props.currentMonth.nad_hours || 0) * 10) / 10}h)`,
     icon: 'ri-calendar-close-line',
     color: 'error',
-    subtitle: 'Count and hours'
+    subtitle: 'This month'
   }
 ])
 

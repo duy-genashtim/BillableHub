@@ -224,11 +224,11 @@ class IvaUserController extends Controller
         $timeDoctorSyncStatus = $this->getTimeDoctorSyncStatus($user);
 
         // Log the activity
-        ActivityLogService::log(
-            'view_iva_user',
-            'Viewed IVA user details: ' . $user->full_name,
-            ['user_id' => $id]
-        );
+        // ActivityLogService::log(
+        //     'view_iva_user',
+        //     'Viewed IVA user details: ' . $user->full_name,
+        //     ['user_id' => $id]
+        // );
 
         return response()->json([
             'user'                 => $user,
@@ -724,6 +724,99 @@ class IvaUserController extends Controller
         }
 
         return $workStatus;
+    }
+
+    /**
+     * Add customizations to a user.
+     */
+    public function addCustomizations(Request $request, $id)
+    {
+        $user = IvaUser::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'customizations'                => 'required|array|min:1',
+            'customizations.*.setting_id'   => 'required|exists:configuration_settings,id',
+            'customizations.*.custom_value' => 'required|string',
+            'customizations.*.start_date'   => 'required|date',
+            'customizations.*.end_date'     => 'nullable|date|after_or_equal:customizations.*.start_date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $addedCustomizations = [];
+
+            foreach ($request->customizations as $customizationData) {
+                // Verify the setting allows customization
+                $setting = ConfigurationSetting::with('settingType')->find($customizationData['setting_id']);
+                if (! $setting || ! $setting->settingType || ! $setting->settingType->for_user_customize) {
+                    return response()->json([
+                        'message' => 'One or more settings cannot be customized',
+                    ], 422);
+                }
+
+                // Check if user already has a customization for this setting
+                $existingCustomization = IvaUserCustomize::where('iva_user_id', $user->id)
+                    ->where('setting_id', $customizationData['setting_id'])
+                    ->first();
+
+                if ($existingCustomization) {
+                    return response()->json([
+                        'message' => 'User already has a customization for setting: ' . $setting->setting_value,
+                    ], 422);
+                }
+
+                // Create the customization
+                $customization = IvaUserCustomize::create([
+                    'iva_user_id'  => $user->id,
+                    'setting_id'   => $customizationData['setting_id'],
+                    'custom_value' => $customizationData['custom_value'],
+                    'start_date'   => $customizationData['start_date'],
+                    'end_date'     => $customizationData['end_date'] ?? null,
+                ]);
+
+                $addedCustomizations[] = $customization->load(['setting.settingType']);
+
+                // Log the activity
+                ActivityLogService::log(
+                    'add_iva_user_customization',
+                    'Added customization for user: ' . $user->full_name,
+                    [
+                        'user_id'          => $user->id,
+                        'customization_id' => $customization->id,
+                        'setting_id'       => $customization->setting_id,
+                        'setting_name'     => $setting->setting_value,
+                        'setting_type'     => $setting->settingType->name,
+                        'custom_value'     => $customization->custom_value,
+                        'start_date'       => $customization->start_date,
+                        'end_date'         => $customization->end_date,
+                    ]
+                );
+            }
+
+            DB::commit();
+
+            // Get all user customizations
+            $allCustomizations = IvaUserCustomize::where('iva_user_id', $user->id)
+                ->with(['setting.settingType'])
+                ->get();
+
+            return response()->json([
+                'message'        => 'Customization(s) added successfully',
+                'customizations' => $allCustomizations,
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to add customization(s)',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

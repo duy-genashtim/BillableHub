@@ -273,7 +273,7 @@ function isCustomizationActive(customization) {
 
           <VCol cols="12" md="6">
             <VTextField v-model="customizationForm.start_date" label="Start Date" type="date" density="comfortable"
-              variant="outlined" hint="Optional - when this setting becomes effective" persistent-hint />
+              variant="outlined" required hint="When this setting becomes effective" persistent-hint />
           </VCol>
 
           <VCol cols="12" md="6">
@@ -289,7 +289,7 @@ function isCustomizationActive(customization) {
           Cancel
         </VBtn>
         <VBtn color="primary" @click="addCustomization"
-          :disabled="!customizationForm.setting_id || !customizationForm.custom_value">
+          :disabled="!customizationForm.setting_id || !customizationForm.custom_value || !customizationForm.start_date">
           Add Setting
         </VBtn>
       </VCardActions>
@@ -317,7 +317,7 @@ function isCustomizationActive(customization) {
 
           <VCol cols="12" md="6">
             <VTextField v-model="editCustomizationForm.start_date" label="Start Date" type="date" density="comfortable"
-              variant="outlined" hint="Optional - when this setting becomes effective" persistent-hint />
+              variant="outlined" required hint="When this setting becomes effective" persistent-hint />
           </VCol>
 
           <VCol cols="12" md="6">
@@ -332,7 +332,7 @@ function isCustomizationActive(customization) {
         <VBtn color="secondary" variant="outlined" @click="editCustomizationDialog = false">
           Cancel
         </VBtn>
-        <VBtn color="info" @click="updateCustomization" :disabled="!editCustomizationForm.custom_value">
+        <VBtn color="info" @click="updateCustomization" :disabled="!editCustomizationForm.custom_value || !editCustomizationForm.start_date">
           Update Setting
         </VBtn>
       </VCardActions>

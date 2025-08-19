@@ -149,7 +149,7 @@ function handleViewRegion(regionId) {
 
 function handleViewUser(userId) {
   router.push({
-    name: 'iva-user-detail',
+    name: 'iva-user-worklog-dashboard',
     params: { id: userId }
   })
 }

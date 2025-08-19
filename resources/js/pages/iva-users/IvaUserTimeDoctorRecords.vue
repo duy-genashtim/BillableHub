@@ -17,6 +17,7 @@ const loadingWorklogs = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 const timeDoctorConnected = ref(false);
 const timeDoctorMessage = ref('');
+const timeDoctorVersion = ref('');
 
 // Search and filters
 const searchQuery = ref('');
@@ -43,39 +44,9 @@ const sortDesc = ref([]);
 const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
-const editDialog = ref(false);
-const addDialog = ref(false);
-const deleteDialog = ref(false);
 const syncConfirmDialog = ref(false);
-const statusToggleDialog = ref(false);
-const itemToDelete = ref(null);
-const itemToToggle = ref(null);
 
-// Edit form
-const editForm = ref({
-  id: null,
-  project_id: null,
-  task_id: null,
-  start_time: '',
-  end_time: '',
-  comment: '',
-  is_active: true
-});
 
-// Add form
-const addForm = ref({
-  project_id: null,
-  task_id: null,
-  start_time: '',
-  end_time: '',
-  comment: '',
-  work_mode: 'manual',
-  api_type: 'manual'
-});
-
-// Form validation
-const errors = ref({});
-const autoSaving = ref(false);
 const syncing = ref(false);
 
 // Table headers
@@ -84,7 +55,6 @@ const headers = computed(() => {
     return [
       { title: 'Date/Time', key: 'start_time', sortable: true },
       { title: 'Duration', key: 'duration_hours', sortable: true },
-      { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
     ];
   } else {
     return [
@@ -95,9 +65,8 @@ const headers = computed(() => {
       { title: 'Project', key: 'project.project_name', sortable: true },
       { title: 'Task', key: 'task.task_name', sortable: true },
       { title: 'Comment', key: 'comment', sortable: false },
-      { title: 'Type', key: 'api_type', sortable: true, width: '100px' },
+      { title: 'API Type', key: 'api_type', sortable: true, width: '100px' },
       { title: 'Status', key: 'is_active', sortable: true, width: '100px' },
-      { title: 'Actions', key: 'actions', sortable: false, align: 'end', width: '120px' },
     ];
   }
 });
@@ -204,21 +173,6 @@ const activeFiltersText = computed(() => {
   return filters.join(' • ');
 });
 
-const editFormValid = computed(() => {
-  return editForm.value.start_time &&
-    editForm.value.end_time &&
-    editForm.value.project_id &&
-    editForm.value.task_id &&
-    new Date(editForm.value.start_time) < new Date(editForm.value.end_time);
-});
-
-const addFormValid = computed(() => {
-  return addForm.value.start_time &&
-    addForm.value.end_time &&
-    addForm.value.project_id &&
-    addForm.value.task_id &&
-    new Date(addForm.value.start_time) < new Date(addForm.value.end_time);
-});
 
 // Lifecycle
 onMounted(() => {
@@ -240,6 +194,13 @@ async function checkTimeDoctorConnection() {
     const response = await axios.get('/api/timedoctor/status');
     timeDoctorConnected.value = response.data.connected;
     timeDoctorMessage.value = response.data.message;
+    
+    // Set TimeDoctorVersion based on user's timedoctor_version
+    if (user.value?.timedoctor_version === 2) {
+      timeDoctorVersion.value = 'Time Doctor V2';
+    } else {
+      timeDoctorVersion.value = 'Time Doctor V1 Classic';
+    }
 
     if (!timeDoctorConnected.value) {
       snackbarText.value = 'Time Doctor is not connected. Some features may be limited.';
@@ -250,6 +211,7 @@ async function checkTimeDoctorConnection() {
     console.error('Error checking Time Doctor connection:', error);
     timeDoctorConnected.value = false;
     timeDoctorMessage.value = 'Failed to check connection status';
+    timeDoctorVersion.value = 'Time Doctor V1 Classic'; // Default fallback
   }
 }
 
@@ -353,154 +315,6 @@ async function syncTimeDoctorRecords() {
   }
 }
 
-// CRUD operations
-function openEditDialog(worklog) {
-  editForm.value = {
-    id: worklog.id,
-    project_id: worklog.project_id,
-    task_id: worklog.task_id,
-    start_time: formatDateTimeForInput(worklog.start_time),
-    end_time: formatDateTimeForInput(worklog.end_time),
-    comment: worklog.comment || '',
-    is_active: worklog.is_active
-  };
-  errors.value = {};
-  editDialog.value = true;
-}
-
-function openAddDialog() {
-  addForm.value = {
-    project_id: null,
-    task_id: null,
-    start_time: '',
-    end_time: '',
-    comment: '',
-    work_mode: 'manual',
-    api_type: 'manual'
-  };
-  errors.value = {};
-  addDialog.value = true;
-}
-
-function openDeleteDialog(worklog) {
-  itemToDelete.value = worklog;
-  deleteDialog.value = true;
-}
-
-function openStatusToggleDialog(worklog) {
-  itemToToggle.value = worklog;
-  statusToggleDialog.value = true;
-}
-
-async function saveWorklog() {
-  if (!editFormValid.value) {
-    snackbarText.value = 'Please fill all required fields correctly';
-    snackbarColor.value = 'error';
-    snackbar.value = true;
-    return;
-  }
-
-  autoSaving.value = true;
-  errors.value = {};
-
-  try {
-    const response = await axios.put(`/api/admin/iva-users/${userId}/timedoctor-records/${editForm.value.id}`, editForm.value);
-
-    if (response.data.success) {
-      snackbarText.value = 'Worklog updated successfully';
-      snackbarColor.value = 'success';
-      snackbar.value = true;
-      editDialog.value = false;
-      await fetchWorklogs();
-    }
-  } catch (error) {
-    console.error('Error updating worklog:', error);
-
-    if (error.response?.data?.errors) {
-      errors.value = error.response.data.errors;
-    } else {
-      snackbarText.value = error.response?.data?.message || 'Failed to update worklog';
-      snackbarColor.value = 'error';
-      snackbar.value = true;
-    }
-  } finally {
-    autoSaving.value = false;
-  }
-}
-
-async function addWorklog() {
-  if (!addFormValid.value) {
-    snackbarText.value = 'Please fill all required fields correctly';
-    snackbarColor.value = 'error';
-    snackbar.value = true;
-    return;
-  }
-
-  autoSaving.value = true;
-  errors.value = {};
-
-  try {
-    const response = await axios.post(`/api/admin/iva-users/${userId}/timedoctor-records`, addForm.value);
-
-    if (response.data.success) {
-      snackbarText.value = 'Worklog added successfully';
-      snackbarColor.value = 'success';
-      snackbar.value = true;
-      addDialog.value = false;
-      await fetchWorklogs();
-    }
-  } catch (error) {
-    console.error('Error adding worklog:', error);
-
-    if (error.response?.data?.errors) {
-      errors.value = error.response.data.errors;
-    } else {
-      snackbarText.value = error.response?.data?.message || 'Failed to add worklog';
-      snackbarColor.value = 'error';
-      snackbar.value = true;
-    }
-  } finally {
-    autoSaving.value = false;
-  }
-}
-
-async function deleteWorklog() {
-  try {
-    const response = await axios.delete(`/api/admin/iva-users/${userId}/timedoctor-records/${itemToDelete.value.id}`);
-
-    if (response.data.success) {
-      snackbarText.value = 'Worklog deleted successfully';
-      snackbarColor.value = 'success';
-      snackbar.value = true;
-      deleteDialog.value = false;
-      await fetchWorklogs();
-    }
-  } catch (error) {
-    console.error('Error deleting worklog:', error);
-    snackbarText.value = error.response?.data?.message || 'Failed to delete worklog';
-    snackbarColor.value = 'error';
-    snackbar.value = true;
-  }
-}
-
-async function confirmToggleWorklogStatus() {
-  try {
-    const response = await axios.patch(`/api/admin/iva-users/${userId}/timedoctor-records/${itemToToggle.value.id}/toggle-status`);
-
-    if (response.data.success) {
-      snackbarText.value = `Worklog ${itemToToggle.value.is_active ? 'deactivated' : 'activated'} successfully`;
-      snackbarColor.value = 'success';
-      snackbar.value = true;
-      statusToggleDialog.value = false;
-      await fetchWorklogs();
-    }
-  } catch (error) {
-    console.error('Error toggling worklog status:', error);
-    snackbarText.value = error.response?.data?.message || 'Failed to update worklog status';
-    snackbarColor.value = 'error';
-    snackbar.value = true;
-  }
-}
 
 // Utility functions
 function formatDateTimeForInput(dateTime) {
@@ -539,27 +353,6 @@ function formatDuration(hours) {
   return `${wholeHours}h ${minutes}m`;
 }
 
-function calculateDuration() {
-  if (editForm.value.start_time && editForm.value.end_time) {
-    const start = new Date(editForm.value.start_time);
-    const end = new Date(editForm.value.end_time);
-    const diffMs = end - start;
-    const diffHours = diffMs / (1000 * 60 * 60);
-    return diffHours > 0 ? formatDuration(diffHours) : 'Invalid duration';
-  }
-  return 'Select times';
-}
-
-function calculateAddDuration() {
-  if (addForm.value.start_time && addForm.value.end_time) {
-    const start = new Date(addForm.value.start_time);
-    const end = new Date(addForm.value.end_time);
-    const diffMs = end - start;
-    const diffHours = diffMs / (1000 * 60 * 60);
-    return diffHours > 0 ? formatDuration(diffHours) : 'Invalid duration';
-  }
-  return 'Select times';
-}
 
 function getStatusColor(isActive) {
   return isActive ? 'success' : 'error';
@@ -638,7 +431,7 @@ function debounce(fn, delay) {
               </h1>
               <div class="d-flex align-center mt-2">
                 <VChip size="small" :color="timeDoctorConnected ? 'success' : 'error'" text-color="white" class="mr-2">
-                  Time Doctor: {{ timeDoctorConnected ? 'Connected' : 'Disconnected' }}
+                  {{ timeDoctorVersion }}: {{ timeDoctorConnected ? 'Connected' : 'Disconnected' }}
                 </VChip>
                 <span class="text-caption">{{ timeDoctorMessage }}</span>
               </div>
@@ -651,10 +444,6 @@ function debounce(fn, delay) {
                 Sync Records
               </VBtn>
 
-              <VBtn color="success" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'"
-                @click="openAddDialog" aria-label="Add new worklog record">
-                Add Record
-              </VBtn>
 
               <VBtn color="info" variant="outlined" prepend-icon="ri-dashboard-line"
                 :size="isMobile ? 'small' : 'default'" @click="viewWorklogDashboard"
@@ -662,9 +451,9 @@ function debounce(fn, delay) {
                 View Dashboard
               </VBtn>
 
-              <VBtn color="secondary" variant="outlined" prepend-icon="ri-arrow-left-line"
-                :size="isMobile ? 'small' : 'default'" @click="goBack" aria-label="Back to user details">
-                Back
+              <VBtn color="primary" variant="outlined" prepend-icon="ri-eye-line" :size="isMobile ? 'small' : 'default'"
+                @click="goBack" aria-label="Back to IVA user details">
+                IVA details
               </VBtn>
             </div>
           </div>
@@ -787,7 +576,7 @@ function debounce(fn, delay) {
             <!-- Comment Column (desktop only) -->
             <template v-if="!isMobile" #[`item.comment`]="{ item }">
               <span class="text-truncate" style="max-inline-size: 200px;">
-                {{ item.comment || 'No comment' }}
+                {{ item.comment || '' }}
               </span>
             </template>
 
@@ -806,29 +595,6 @@ function debounce(fn, delay) {
               </VChip>
             </template>
 
-            <!-- Actions Column -->
-            <template #[`item.actions`]="{ item }">
-              <div class="d-flex justify-end" :class="isMobile ? 'flex-wrap gap-1' : ''">
-                <VBtn icon size="small" variant="text" color="primary" class="me-1" @click="openEditDialog(item)"
-                  aria-label="Edit worklog record">
-                  <VIcon size="20">ri-edit-line</VIcon>
-                  <VTooltip activator="parent">Edit</VTooltip>
-                </VBtn>
-
-                <VBtn icon size="small" variant="text" :color="item.is_active ? 'warning' : 'success'" class="me-1"
-                  @click="openStatusToggleDialog(item)"
-                  :aria-label="item.is_active ? 'Deactivate record' : 'Activate record'">
-                  <VIcon size="20">{{ item.is_active ? 'ri-pause-line' : 'ri-play-line' }}</VIcon>
-                  <VTooltip activator="parent">{{ item.is_active ? 'Deactivate' : 'Activate' }}</VTooltip>
-                </VBtn>
-
-                <VBtn icon size="small" variant="text" color="error" @click="openDeleteDialog(item)"
-                  aria-label="Delete worklog record">
-                  <VIcon size="20">ri-delete-bin-line</VIcon>
-                  <VTooltip activator="parent">Delete</VTooltip>
-                </VBtn>
-              </div>
-            </template>
 
             <!-- Empty state -->
             <template #no-data>
@@ -852,9 +618,6 @@ function debounce(fn, delay) {
                     aria-label="Sync from Time Doctor">
                     Sync from Time Doctor
                   </VBtn>
-                  <VBtn color="success" @click="openAddDialog" aria-label="Add new record manually">
-                    Add Record
-                  </VBtn>
                 </div>
               </div>
             </template>
@@ -871,10 +634,14 @@ function debounce(fn, delay) {
         </VCardTitle>
 
         <VCardText class="pt-4">
-          <p>This will sync Time Doctor records for <strong>{{ user?.full_name }}</strong> from:</p>
+          <p>This will sync {{ timeDoctorVersion }} records for <strong>{{ user?.full_name }}</strong> from:</p>
           <div class="my-3 pa-3 bg-grey-lighten-4 rounded">
             <p class="mb-1"><strong>Start Date:</strong> {{ selectedDateRange.start }}</p>
             <p class="mb-0"><strong>End Date:</strong> {{ selectedDateRange.end }}</p>
+          </div>
+          <div class="my-3 pa-3 bg-orange-lighten-4 rounded">
+            <VIcon icon="ri-alert-line" size="18" class="mr-2" color="orange" />
+            <strong>Warning:</strong> All existing records for the selected date range will be removed and replaced with new data from the TimeDoctor server.
           </div>
           <p class="text-body-2 mb-0">This process may take a few moments to complete.</p>
         </VCardText>
@@ -891,192 +658,6 @@ function debounce(fn, delay) {
       </VCard>
     </VDialog>
 
-    <!-- Status Toggle Confirmation Dialog -->
-    <VDialog v-model="statusToggleDialog" max-width="500" persistent role="alertdialog">
-      <VCard>
-        <VCardTitle class="text-h5 bg-warning text-white d-flex align-center py-3">
-          {{ itemToToggle?.is_active ? 'Deactivate' : 'Activate' }} Record
-        </VCardTitle>
-
-        <VCardText class="pt-4">
-          <p>Are you sure you want to {{ itemToToggle?.is_active ? 'deactivate' : 'activate' }} this worklog record?</p>
-          <div v-if="itemToToggle" class="my-3 pa-3 bg-grey-lighten-4 rounded">
-            <p class="mb-1"><strong>Date:</strong> {{ formatDateRaw(itemToToggle.start_time) }}</p>
-            <p class="mb-1"><strong>Time:</strong> {{ formatTimeRaw(itemToToggle.start_time) }} - {{
-              formatTimeRaw(itemToToggle.end_time) }}</p>
-            <p class="mb-1"><strong>Duration:</strong> {{ formatDuration(itemToToggle.duration_hours) }}</p>
-            <p class="mb-1"><strong>Project:</strong> {{ itemToToggle.project?.project_name || 'No Project' }}</p>
-            <p class="mb-0"><strong>Task:</strong> {{ itemToToggle.task?.task_name || 'No Task' }}</p>
-          </div>
-          <p class="text-body-2 mb-0">
-            {{ itemToToggle?.is_active ? 'Deactivating' : 'Activating' }} this record will {{ itemToToggle?.is_active ?
-              'exclude it from' : 'include it in' }} reports and calculations.
-          </p>
-        </VCardText>
-
-        <VCardActions class="pa-4 pt-0">
-          <VSpacer />
-          <VBtn color="secondary" variant="outlined" @click="statusToggleDialog = false" aria-label="Cancel">
-            Cancel
-          </VBtn>
-          <VBtn :color="itemToToggle?.is_active ? 'warning' : 'success'" variant="flat"
-            @click="confirmToggleWorklogStatus" aria-label="Confirm status change">
-            {{ itemToToggle?.is_active ? 'Deactivate' : 'Activate' }}
-          </VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
-
-    <!-- Edit Dialog -->
-    <VDialog v-model="editDialog" max-width="700" persistent role="dialog" aria-labelledby="edit-dialog-title">
-      <VCard>
-        <VCardTitle id="edit-dialog-title" class="text-h5 bg-primary text-white d-flex align-center py-3">
-          Edit Worklog Record
-        </VCardTitle>
-
-        <VCardText class="pt-4">
-          <VRow>
-            <VCol cols="12" md="6">
-              <VSelect v-model="editForm.project_id" :items="projects" item-title="project_name" item-value="id"
-                label="Project" density="comfortable" variant="outlined" :error-messages="errors.project_id"
-                aria-label="Select project" required />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VSelect v-model="editForm.task_id" :items="tasks" item-title="task_name" item-value="id" label="Task"
-                density="comfortable" variant="outlined" :error-messages="errors.task_id" aria-label="Select task"
-                required />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VTextField v-model="editForm.start_time" label="Start Time" type="datetime-local" density="comfortable"
-                variant="outlined" :error-messages="errors.start_time" required aria-label="Start time" />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VTextField v-model="editForm.end_time" label="End Time" type="datetime-local" density="comfortable"
-                variant="outlined" :error-messages="errors.end_time" required aria-label="End time" />
-            </VCol>
-
-            <VCol cols="12">
-              <VTextField v-model="editForm.comment" label="Comment" density="comfortable" variant="outlined"
-                :error-messages="errors.comment" aria-label="Comment" />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VSwitch v-model="editForm.is_active" label="Active" color="success"
-                aria-label="Toggle record active status" />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VAlert type="info" variant="tonal" density="compact" class="mb-0">
-                Duration: {{ calculateDuration() }}
-              </VAlert>
-            </VCol>
-          </VRow>
-        </VCardText>
-
-        <VCardActions class="pa-4 pt-0">
-          <VSpacer />
-          <VBtn color="secondary" variant="outlined" @click="editDialog = false" aria-label="Cancel editing">
-            Cancel
-          </VBtn>
-          <VBtn color="primary" variant="flat" :loading="autoSaving" :disabled="!editFormValid" @click="saveWorklog"
-            aria-label="Save changes">
-            Save Changes
-          </VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
-
-    <!-- Add Dialog -->
-    <VDialog v-model="addDialog" max-width="700" persistent role="dialog" aria-labelledby="add-dialog-title">
-      <VCard>
-        <VCardTitle id="add-dialog-title" class="text-h5 bg-success text-white d-flex align-center py-3">
-          Add New Worklog Record
-        </VCardTitle>
-
-        <VCardText class="pt-4">
-          <VRow>
-            <VCol cols="12" md="6">
-              <VSelect v-model="addForm.project_id" :items="projects" item-title="project_name" item-value="id"
-                label="Project" density="comfortable" variant="outlined" :error-messages="errors.project_id"
-                aria-label="Select project" required />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VSelect v-model="addForm.task_id" :items="tasks" item-title="task_name" item-value="id" label="Task"
-                density="comfortable" variant="outlined" :error-messages="errors.task_id" aria-label="Select task"
-                required />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VTextField v-model="addForm.start_time" label="Start Time" type="datetime-local" density="comfortable"
-                variant="outlined" :error-messages="errors.start_time" required aria-label="Start time" />
-            </VCol>
-
-            <VCol cols="12" md="6">
-              <VTextField v-model="addForm.end_time" label="End Time" type="datetime-local" density="comfortable"
-                variant="outlined" :error-messages="errors.end_time" required aria-label="End time" />
-            </VCol>
-
-            <VCol cols="12">
-              <VTextField v-model="addForm.comment" label="Comment" density="comfortable" variant="outlined"
-                :error-messages="errors.comment" aria-label="Comment" />
-            </VCol>
-
-            <VCol cols="12">
-              <VAlert type="info" variant="tonal" density="compact" class="mb-0">
-                Duration: {{ calculateAddDuration() }}
-              </VAlert>
-            </VCol>
-          </VRow>
-        </VCardText>
-
-        <VCardActions class="pa-4 pt-0">
-          <VSpacer />
-          <VBtn color="secondary" variant="outlined" @click="addDialog = false" aria-label="Cancel adding">
-            Cancel
-          </VBtn>
-          <VBtn color="success" variant="flat" :loading="autoSaving" :disabled="!addFormValid" @click="addWorklog"
-            aria-label="Add record">
-            Add Record
-          </VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
-
-    <!-- Delete Confirmation Dialog -->
-    <VDialog v-model="deleteDialog" max-width="500" role="alertdialog" aria-labelledby="delete-dialog-title">
-      <VCard>
-        <VCardTitle id="delete-dialog-title" class="text-h5 bg-error text-white d-flex align-center py-3">
-          Delete Worklog Record
-        </VCardTitle>
-
-        <VCardText class="pt-4">
-          <p>Are you sure you want to delete this worklog record?</p>
-          <div v-if="itemToDelete" class="my-3 pa-3 bg-grey-lighten-4 rounded">
-            <p class="mb-1"><strong>Date:</strong> {{ formatDateRaw(itemToDelete.start_time) }}</p>
-            <p class="mb-1"><strong>Time:</strong> {{ formatTimeRaw(itemToDelete.start_time) }} - {{
-              formatTimeRaw(itemToDelete.end_time) }}</p>
-            <p class="mb-1"><strong>Duration:</strong> {{ formatDuration(itemToDelete.duration_hours) }}</p>
-            <p class="mb-1"><strong>Project:</strong> {{ itemToDelete.project?.project_name || 'No Project' }}</p>
-            <p class="mb-0"><strong>Task:</strong> {{ itemToDelete.task?.task_name || 'No Task' }}</p>
-          </div>
-          <p class="text-body-2 mb-0">This action cannot be undone.</p>
-        </VCardText>
-
-        <VCardActions class="pa-4 pt-0">
-          <VSpacer />
-          <VBtn color="secondary" variant="outlined" @click="deleteDialog = false" aria-label="Cancel deletion">
-            Cancel
-          </VBtn>
-          <VBtn color="error" variant="flat" @click="deleteWorklog" aria-label="Confirm deletion">
-            Delete
-          </VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
 
     <!-- Snackbar for notifications -->
     <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="5000" role="alert" aria-live="assertive">

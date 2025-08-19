@@ -78,15 +78,15 @@ class IvaUserTimeDoctorRecordsController extends Controller
         $total = $worklogs->count();
 
         // Log the activity
-        ActivityLogService::log(
-            'view_timedoctor_records',
-            'Viewed Time Doctor records for user: ' . $user->full_name,
-            [
-                'user_id'       => $id,
-                'total_records' => $total,
-                'filters'       => $request->only(['start_date', 'end_date', 'project_id', 'task_id', 'is_active', 'api_type']),
-            ]
-        );
+        // ActivityLogService::log(
+        //     'view_timedoctor_records',
+        //     'Viewed Time Doctor records for user: ' . $user->full_name,
+        //     [
+        //         'user_id'       => $id,
+        //         'total_records' => $total,
+        //         'filters'       => $request->only(['start_date', 'end_date', 'project_id', 'task_id', 'is_active', 'api_type']),
+        //     ]
+        // );
 
         return response()->json([
             'success'  => true,
@@ -98,287 +98,6 @@ class IvaUserTimeDoctorRecordsController extends Controller
             ],
             'user'     => $user,
         ]);
-    }
-
-    /**
-     * Store a newly created Time Doctor record.
-     */
-    public function store(Request $request, $id)
-    {
-        $user = IvaUser::findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'start_time' => 'required|date',
-            'end_time'   => 'required|date|after:start_time',
-            'project_id' => 'required|exists:projects,id',
-            'task_id'    => 'required|exists:tasks,id',
-            'comment'    => 'nullable|string|max:1000',
-            'work_mode'  => 'required|string|in:manual,automatic',
-            'api_type'   => 'required|string|in:manual,timedoctor',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Check for overlapping time entries
-        $startTime = $request->start_time;
-        $endTime   = $request->end_time;
-
-        $overlap = WorklogsData::where('iva_id', $id)
-            ->where('is_active', true)
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->whereBetween('start_time', [$startTime, $endTime])
-                    ->orWhereBetween('end_time', [$startTime, $endTime])
-                    ->orWhere(function ($q) use ($startTime, $endTime) {
-                        $q->where('start_time', '<=', $startTime)
-                            ->where('end_time', '>=', $endTime);
-                    });
-            })
-            ->exists();
-
-        if ($overlap) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This time entry overlaps with an existing active record.',
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
-        try {
-            // Calculate duration in seconds
-            $duration = strtotime($endTime) - strtotime($startTime);
-
-            $worklog = WorklogsData::create([
-                'iva_id'                => $id,
-                'project_id'            => $request->project_id,
-                'task_id'               => $request->task_id,
-                'work_mode'             => $request->work_mode,
-                'start_time'            => $startTime,
-                'end_time'              => $endTime,
-                'duration'              => $duration,
-                'comment'               => $request->comment,
-                'api_type'              => $request->api_type,
-                'is_active'             => true,
-                'timedoctor_version'    => $user->timedoctor_version,
-                'tm_user_id'            => $user->email, // Using email as TM user ID for manual entries
-                'timedoctor_project_id' => null,         // Set to null to avoid data truncation
-                'timedoctor_task_id'    => null,         // Set to null to avoid data truncation
-            ]);
-
-            // Log the activity
-            ActivityLogService::log(
-                'create_timedoctor_record',
-                'Created Time Doctor record for user: ' . $user->full_name,
-                array_merge($worklog->toArray(), [
-                    'project_name' => $request->project_id ? Project::find($request->project_id)?->project_name : null,
-                    'task_name'    => $request->task_id ? Task::find($request->task_id)?->task_name : null,
-                ])
-            );
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Time Doctor record created successfully',
-                'worklog' => $worklog->load(['project', 'task']),
-            ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create Time Doctor record',
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Update the specified Time Doctor record.
-     */
-    public function update(Request $request, $id, $worklogId)
-    {
-        $user    = IvaUser::findOrFail($id);
-        $worklog = WorklogsData::where('iva_id', $id)->findOrFail($worklogId);
-
-        $validator = Validator::make($request->all(), [
-            'start_time' => 'required|date',
-            'end_time'   => 'required|date|after:start_time',
-            'project_id' => 'required|exists:projects,id',
-            'task_id'    => 'required|exists:tasks,id',
-            'comment'    => 'nullable|string|max:1000',
-            'is_active'  => 'boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Check for overlapping time entries (excluding current record)
-        $startTime = $request->start_time;
-        $endTime   = $request->end_time;
-
-        $overlap = WorklogsData::where('iva_id', $id)
-            ->where('id', '!=', $worklogId)
-            ->where('is_active', true)
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->whereBetween('start_time', [$startTime, $endTime])
-                    ->orWhereBetween('end_time', [$startTime, $endTime])
-                    ->orWhere(function ($q) use ($startTime, $endTime) {
-                        $q->where('start_time', '<=', $startTime)
-                            ->where('end_time', '>=', $endTime);
-                    });
-            })
-            ->exists();
-
-        if ($overlap) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This time entry overlaps with an existing active record.',
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $oldValues = $worklog->toArray();
-
-            // Calculate new duration in seconds
-            $duration = strtotime($endTime) - strtotime($startTime);
-
-            $worklog->update([
-                'project_id'            => $request->project_id,
-                'task_id'               => $request->task_id,
-                'start_time'            => $startTime,
-                'end_time'              => $endTime,
-                'duration'              => $duration,
-                'comment'               => $request->comment,
-                'is_active'             => $request->is_active ?? $worklog->is_active,
-                'update_comment'        => 'Updated via web interface',
-                'timedoctor_project_id' => null, // Set to null to avoid data truncation
-                'timedoctor_task_id'    => null, // Set to null to avoid data truncation
-            ]);
-
-            // Log the activity
-            ActivityLogService::log(
-                'update_timedoctor_record',
-                'Updated Time Doctor record for user: ' . $user->full_name,
-                [
-                    'worklog_id'   => $worklogId,
-                    'old_values'   => $oldValues,
-                    'new_values'   => $worklog->fresh()->toArray(),
-                    'project_name' => $request->project_id ? Project::find($request->project_id)?->project_name : null,
-                    'task_name'    => $request->task_id ? Task::find($request->task_id)?->task_name : null,
-                ]
-            );
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Time Doctor record updated successfully',
-                'worklog' => $worklog->fresh(['project', 'task']),
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update Time Doctor record',
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Remove the specified Time Doctor record.
-     */
-    public function destroy(Request $request, $id, $worklogId)
-    {
-        $user    = IvaUser::findOrFail($id);
-        $worklog = WorklogsData::where('iva_id', $id)->findOrFail($worklogId);
-
-        DB::beginTransaction();
-
-        try {
-            // Log the activity before deletion
-            ActivityLogService::log(
-                'delete_timedoctor_record',
-                'Deleted Time Doctor record for user: ' . $user->full_name,
-                array_merge($worklog->toArray(), [
-                    'project_name' => $worklog->project?->project_name,
-                    'task_name'    => $worklog->task?->task_name,
-                ])
-            );
-
-            $worklog->delete();
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Time Doctor record deleted successfully',
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete Time Doctor record',
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Toggle the status of a Time Doctor record.
-     */
-    public function toggleStatus(Request $request, $id, $worklogId)
-    {
-        $user    = IvaUser::findOrFail($id);
-        $worklog = WorklogsData::where('iva_id', $id)->findOrFail($worklogId);
-
-        DB::beginTransaction();
-
-        try {
-            $oldStatus          = $worklog->is_active;
-            $worklog->is_active = ! $worklog->is_active;
-            $worklog->save();
-
-            // Log the activity
-            ActivityLogService::log(
-                'toggle_timedoctor_record_status',
-                ($oldStatus ? 'Deactivated' : 'Activated') . ' Time Doctor record for user: ' . $user->full_name,
-                [
-                    'worklog_id'     => $worklogId,
-                    'old_status'     => $oldStatus,
-                    'new_status'     => $worklog->is_active,
-                    'project_name'   => $worklog->project?->project_name,
-                    'task_name'      => $worklog->task?->task_name,
-                    'start_time'     => $worklog->start_time,
-                    'end_time'       => $worklog->end_time,
-                    'duration_hours' => round($worklog->duration / 3600, 2),
-                ]
-            );
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Time Doctor record status updated successfully',
-                'worklog' => $worklog->fresh(['project', 'task']),
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update Time Doctor record status',
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
     }
 
     /**
@@ -498,13 +217,21 @@ class IvaUserTimeDoctorRecordsController extends Controller
             ], 500);
         }
 
-        $syncedCount  = 0;
-        $updatedCount = 0;
-        $errorCount   = 0;
+        $syncedCount = 0;
+        $errorCount  = 0;
 
         DB::beginTransaction();
 
         try {
+            // Remove existing TimeDoctor records for the date range
+            $deletedCount = WorklogsData::where('iva_id', $user->id)
+                ->where('api_type', 'timedoctor')
+                ->where('timedoctor_version', 1)
+                ->whereBetween('start_time', [$startDate, $endDate])
+                ->delete();
+
+            Log::info("Removed {$deletedCount} existing V1 records for user {$user->full_name} in date range");
+
             $currentDate = $startDate->copy();
 
             while ($currentDate->lte($endDate)) {
@@ -575,47 +302,32 @@ class IvaUserTimeDoctorRecordsController extends Controller
                                 }
                             }
 
-                            // Check if worklog already exists
-                            $existingWorklog = WorklogsData::where('timedoctor_worklog_id', $worklog['id'])
-                                ->where('api_type', 'timedoctor')
-                                ->where('timedoctor_version', 1)
-                                ->first();
-
-                            if ($existingWorklog) {
-                                // Update existing worklog
-                                $existingWorklog->update([
-                                    'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                                    'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                                    'project_id'            => $projectId,
-                                    'task_id'               => $taskId,
-                                    'work_mode'             => $worklog['work_mode'] ?? '0',
-                                    'end_time'              => $worklogEndTime,
-                                    'duration'              => $duration,
-                                    'is_active'             => true,
-                                ]);
-                                $updatedCount++;
-                            } else {
-                                // Create new worklog
-                                WorklogsData::create([
-                                    'iva_id'                => $user->id,
-                                    'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                                    'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                                    'project_id'            => $projectId,
-                                    'task_id'               => $taskId,
-                                    'work_mode'             => $worklog['work_mode'] ?? '0',
-                                    'start_time'            => $worklogStartTime,
-                                    'end_time'              => $worklogEndTime,
-                                    'duration'              => $duration,
-                                    'device_id'             => null,
-                                    'comment'               => null,
-                                    'api_type'              => 'timedoctor',
-                                    'timedoctor_worklog_id' => $worklog['id'],
-                                    'timedoctor_version'    => 1,
-                                    'tm_user_id'            => $worklog['user_id'] ?? null,
-                                    'is_active'             => true,
-                                ]);
-                                $syncedCount++;
+                            // Determine comment based on edited status
+                            $comment = null;
+                            if (isset($worklog['edited']) && $worklog['edited'] == '1') {
+                                $comment = 'Manually Added/Edited time';
                             }
+
+                            // Create new worklog (we already deleted existing ones)
+                            WorklogsData::create([
+                                'iva_id'                => $user->id,
+                                'timedoctor_project_id' => $worklog['project_id'] ?? null,
+                                'timedoctor_task_id'    => $worklog['task_id'] ?? null,
+                                'project_id'            => $projectId,
+                                'task_id'               => $taskId,
+                                'work_mode'             => $worklog['work_mode'] ?? '0',
+                                'start_time'            => $worklogStartTime,
+                                'end_time'              => $worklogEndTime,
+                                'duration'              => $duration,
+                                'device_id'             => null,
+                                'comment'               => $comment,
+                                'api_type'              => 'timedoctor',
+                                'timedoctor_worklog_id' => $worklog['id'],
+                                'timedoctor_version'    => 1,
+                                'tm_user_id'            => $worklog['user_id'] ?? null,
+                                'is_active'             => true,
+                            ]);
+                            $syncedCount++;
                         } catch (\Exception $e) {
                             Log::error("Error processing V1 worklog item for user {$user->full_name}", [
                                 'worklog' => $worklog,
@@ -647,9 +359,9 @@ class IvaUserTimeDoctorRecordsController extends Controller
                     'end_date'           => $endDate->format('Y-m-d'),
                     'timedoctor_version' => 1,
                     'synced_count'       => $syncedCount,
-                    'updated_count'      => $updatedCount,
+                    'deleted_count'      => $deletedCount,
                     'error_count'        => $errorCount,
-                    'total_processed'    => $syncedCount + $updatedCount,
+                    'total_processed'    => $syncedCount,
                 ]
             );
 
@@ -657,9 +369,9 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 'success'       => true,
                 'message'       => 'TimeDoctor V1 records sync completed successfully',
                 'synced_count'  => $syncedCount,
-                'updated_count' => $updatedCount,
+                'deleted_count' => $deletedCount,
                 'error_count'   => $errorCount,
-                'total_records' => $syncedCount + $updatedCount,
+                'total_records' => $syncedCount,
                 'date_range'    => [
                     'start' => $startDate->format('Y-m-d'),
                     'end'   => $endDate->format('Y-m-d'),
@@ -683,13 +395,21 @@ class IvaUserTimeDoctorRecordsController extends Controller
             ], 422);
         }
 
-        $syncedCount  = 0;
-        $updatedCount = 0;
-        $errorCount   = 0;
+        $syncedCount = 0;
+        $errorCount  = 0;
 
         DB::beginTransaction();
 
         try {
+            // Remove existing TimeDoctor records for the date range
+            $deletedCount = WorklogsData::where('iva_id', $user->id)
+                ->where('api_type', 'timedoctor')
+                ->where('timedoctor_version', 2)
+                ->whereBetween('start_time', [$startDate, $endDate])
+                ->delete();
+
+            Log::info("Removed {$deletedCount} existing V2 records for user {$user->full_name} in date range");
+
             $currentDate = $startDate->copy();
 
             while ($currentDate->lte($endDate)) {
@@ -764,47 +484,32 @@ class IvaUserTimeDoctorRecordsController extends Controller
                         // Create unique identifier for V2 worklogs
                         $worklogId = $worklog['userId'] . '_' . $worklog['start'] . '_' . $worklog['time'];
 
-                        // Check if worklog already exists
-                        $existingWorklog = WorklogsData::where('timedoctor_worklog_id', $worklogId)
-                            ->where('api_type', 'timedoctor')
-                            ->where('timedoctor_version', 2)
-                            ->first();
-
-                        if ($existingWorklog) {
-                            // Update existing worklog
-                            $existingWorklog->update([
-                                'timedoctor_project_id' => $worklog['projectId'] ?? null,
-                                'timedoctor_task_id'    => $worklog['taskId'] ?? null,
-                                'project_id'            => $projectId,
-                                'task_id'               => $taskId,
-                                'work_mode'             => $worklog['mode'] ?? 'computer',
-                                'end_time'              => $endTime,
-                                'duration'              => $duration,
-                                'is_active'             => true,
-                            ]);
-                            $updatedCount++;
-                        } else {
-                            // Create new worklog
-                            WorklogsData::create([
-                                'iva_id'                => $user->id,
-                                'timedoctor_project_id' => $worklog['projectId'] ?? null,
-                                'timedoctor_task_id'    => $worklog['taskId'] ?? null,
-                                'project_id'            => $projectId,
-                                'task_id'               => $taskId,
-                                'work_mode'             => $worklog['mode'] ?? 'computer',
-                                'start_time'            => $startTime,
-                                'end_time'              => $endTime,
-                                'duration'              => $duration,
-                                'device_id'             => $worklog['deviceId'] ?? null,
-                                'comment'               => null,
-                                'api_type'              => 'timedoctor',
-                                'timedoctor_worklog_id' => $worklogId,
-                                'timedoctor_version'    => 2,
-                                'tm_user_id'            => $worklog['userId'] ?? null,
-                                'is_active'             => true,
-                            ]);
-                            $syncedCount++;
+                        // Determine comment based on edited status
+                        $comment = null;
+                        if (isset($worklog['edited']) && $worklog['edited'] == '1') {
+                            $comment = 'Manually Added/Edited time';
                         }
+
+                        // Create new worklog (we already deleted existing ones)
+                        WorklogsData::create([
+                            'iva_id'                => $user->id,
+                            'timedoctor_project_id' => $worklog['projectId'] ?? null,
+                            'timedoctor_task_id'    => $worklog['taskId'] ?? null,
+                            'project_id'            => $projectId,
+                            'task_id'               => $taskId,
+                            'work_mode'             => $worklog['mode'] ?? 'computer',
+                            'start_time'            => $startTime,
+                            'end_time'              => $endTime,
+                            'duration'              => $duration,
+                            'device_id'             => $worklog['deviceId'] ?? null,
+                            'comment'               => $comment,
+                            'api_type'              => 'timedoctor',
+                            'timedoctor_worklog_id' => $worklogId,
+                            'timedoctor_version'    => 2,
+                            'tm_user_id'            => $worklog['userId'] ?? null,
+                            'is_active'             => true,
+                        ]);
+                        $syncedCount++;
                     } catch (\Exception $e) {
                         Log::error("Error processing V2 worklog item for user {$user->full_name}", [
                             'worklog' => $worklog,
@@ -829,9 +534,9 @@ class IvaUserTimeDoctorRecordsController extends Controller
                     'end_date'           => $endDate->format('Y-m-d'),
                     'timedoctor_version' => 2,
                     'synced_count'       => $syncedCount,
-                    'updated_count'      => $updatedCount,
+                    'deleted_count'      => $deletedCount,
                     'error_count'        => $errorCount,
-                    'total_processed'    => $syncedCount + $updatedCount,
+                    'total_processed'    => $syncedCount,
                 ]
             );
 
@@ -839,9 +544,9 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 'success'       => true,
                 'message'       => 'TimeDoctor V2 records sync completed successfully',
                 'synced_count'  => $syncedCount,
-                'updated_count' => $updatedCount,
+                'deleted_count' => $deletedCount,
                 'error_count'   => $errorCount,
-                'total_records' => $syncedCount + $updatedCount,
+                'total_records' => $syncedCount,
                 'date_range'    => [
                     'start' => $startDate->format('Y-m-d'),
                     'end'   => $endDate->format('Y-m-d'),
