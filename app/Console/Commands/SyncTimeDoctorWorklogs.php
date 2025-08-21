@@ -3,6 +3,7 @@ namespace App\Console\Commands;
 
 use App\Models\IvaUser;
 use App\Services\ActivityLogService;
+use App\Services\DailyWorklogSummaryService;
 use App\Services\TimeDoctor\TimeDoctorService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -28,15 +29,19 @@ class SyncTimeDoctorWorklogs extends Command
     protected $description = 'Sync TimeDoctor v1 worklog data for all IVA users within a date range';
 
     protected $timeDoctorService;
+    protected $dailyWorklogSummaryService;
 
     const BATCH_SIZE       = 100;
     const MAX_RETRIES      = 3;
     const PAGINATION_LIMIT = 250;
 
-    public function __construct(TimeDoctorService $timeDoctorService)
-    {
+    public function __construct(
+        TimeDoctorService $timeDoctorService,
+        DailyWorklogSummaryService $dailyWorklogSummaryService
+    ) {
         parent::__construct();
         $this->timeDoctorService = $timeDoctorService;
+        $this->dailyWorklogSummaryService = $dailyWorklogSummaryService;
         set_time_limit(0); // Allow script to run indefinitely
         ini_set('memory_limit', '1024M');
     }
@@ -104,6 +109,30 @@ class SyncTimeDoctorWorklogs extends Command
                     'users_processed' => $users->count(),
                     'command'         => 'artisan',
                 ]);
+
+                // Auto-calculate daily worklog summaries for all affected users
+                $this->info('📊 Calculating daily worklog summaries...');
+                try {
+                    $userIds = $users->pluck('id')->toArray();
+                    $params = [
+                        'start_date' => $startDate->format('Y-m-d'),
+                        'end_date' => $endDate->format('Y-m-d'),
+                        'calculate_all' => false,
+                        'iva_user_ids' => $userIds
+                    ];
+
+                    $summaryResult = $this->dailyWorklogSummaryService->calculateSummaries($params);
+                    
+                    if ($summaryResult['success']) {
+                        $this->info('✅ Daily summaries calculated successfully! ' . 
+                            'Processed: ' . $summaryResult['summary']['total_processed'] . 
+                            ', Errors: ' . $summaryResult['summary']['total_errors']);
+                    } else {
+                        $this->warn('⚠️  Daily summaries calculation had issues: ' . $summaryResult['message']);
+                    }
+                } catch (\Exception $e) {
+                    $this->error('❌ Failed to calculate daily summaries: ' . $e->getMessage());
+                }
             }
 
             $this->info('✅ Sync completed successfully!');

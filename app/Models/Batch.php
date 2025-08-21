@@ -20,7 +20,7 @@ class Batch extends Model
     protected $casts = [
         'is_active'   => 'boolean',
         'batch_order' => 'integer',
-        'start_date'  => 'date',
+        'start_date'  => 'date:Y-m-d',
     ];
 
     /**

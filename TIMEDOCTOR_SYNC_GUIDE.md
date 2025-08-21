@@ -1,3 +1,4 @@
+sudo crontab -u www-data -l
 # TimeDoctor v1 Worklog Sync Guide
 
 This guide provides detailed instructions for running the TimeDoctor v1 worklog sync command on your server using Putty and setting up automated daily sync via cron jobs.
@@ -152,7 +153,7 @@ For better error handling and logging:
 # Save the crontab (in nano: Ctrl+X, then Y, then Enter)
 # Verify the cron job was added
 crontab -l
-
+sudo crontab -u www-data -l
 # You should see your new cron job listed
 ```
 

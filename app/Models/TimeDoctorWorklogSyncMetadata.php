@@ -22,9 +22,9 @@ class TimeDoctorWorklogSyncMetadata extends Model
     ];
 
     protected $casts = [
-        'sync_date'      => 'date',
-        'started_at'     => 'datetime',
-        'completed_at'   => 'datetime',
+        'sync_date'      => 'date:Y-m-d',
+        'started_at'     => 'datetime:Y-m-d\TH:i:s',
+        'completed_at'   => 'datetime:Y-m-d\TH:i:s',
         'is_synced'      => 'boolean',
         'total_records'  => 'integer',
         'synced_records' => 'integer',

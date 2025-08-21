@@ -23,8 +23,8 @@ class TimedoctorV1User extends Model
 
     protected $casts = [
         'is_active'      => 'boolean',
-        'last_synced_at' => 'datetime',
-        'last_login'     => 'datetime',
+        'last_synced_at' => 'datetime:Y-m-d\TH:i:s',
+        'last_login'     => 'datetime:Y-m-d\TH:i:s',
     ];
 
     public function ivaUser(): BelongsTo

@@ -223,6 +223,20 @@ export const routes = [
         },
       },
       {
+        path: '/admin/iva-users/daily-worklog-summary-calculation',
+        name: 'daily-worklog-summary-calculation',
+        component: () => import('@/pages/iva-users/DailyWorklogSummaryCalculation.vue'),
+        meta: {
+          requiresAuth: true,
+          layout: 'admin',
+          breadcrumb: [
+            { title: 'Home', url: '/' },
+            { title: 'IVA Users', url: '/admin/iva-users' },
+            { title: 'Daily Summary Calculation', active: true },
+          ],
+        },
+      },
+      {
         path: '/admin/iva-users/:id',
         name: 'iva-user-detail',
         component: () => import('@/pages/iva-users/IvaUserDetail.vue'),

@@ -22,8 +22,8 @@ class IvaUserCustomize extends Model
     protected $casts = [
         'iva_user_id' => 'integer',
         'setting_id'  => 'integer',
-        'start_date'  => 'date',
-        'end_date'    => 'date',
+        'start_date'  => 'date:Y-m-d',
+        'end_date'    => 'date:Y-m-d',
     ];
 
     /**

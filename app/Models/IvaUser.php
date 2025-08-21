@@ -27,8 +27,8 @@ class IvaUser extends Model
     ];
 
     protected $casts = [
-        'hire_date'          => 'date',
-        'end_date'           => 'date',
+        'hire_date'          => 'date:Y-m-d',
+        'end_date'           => 'date:Y-m-d',
         'is_active'          => 'boolean',
         'timedoctor_version' => 'integer',
     ];

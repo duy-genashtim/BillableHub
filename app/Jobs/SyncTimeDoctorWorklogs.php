@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\TimeDoctorWorklogSyncMetadata;
 use App\Models\WorklogsData;
 use App\Services\ActivityLogService;
+use App\Services\DailyWorklogSummaryService;
 use App\Services\TimeDoctor\TimeDoctorService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -37,7 +38,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
         $this->endDate   = $endDate;
     }
 
-    public function handle(TimeDoctorService $timeDoctorService): void
+    public function handle(TimeDoctorService $timeDoctorService, DailyWorklogSummaryService $dailyWorklogSummaryService): void
     {
         $startDate = Carbon::parse($this->startDate);
         $endDate   = Carbon::parse($this->endDate);
@@ -152,6 +153,36 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                 'total_synced' => $totalSynced,
                 'total_days'   => $totalDays,
             ]);
+
+            // Auto-calculate daily worklog summaries for all affected users
+            Log::info('Starting daily worklog summaries calculation after TimeDoctor sync');
+            try {
+                $userIds = $users->pluck('id')->toArray();
+                $params = [
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
+                    'calculate_all' => false,
+                    'iva_user_ids' => $userIds
+                ];
+
+                $summaryResult = $dailyWorklogSummaryService->calculateSummaries($params);
+                
+                if ($summaryResult['success']) {
+                    Log::info('Daily summaries calculated successfully after TimeDoctor sync', [
+                        'processed' => $summaryResult['summary']['total_processed'],
+                        'errors' => $summaryResult['summary']['total_errors']
+                    ]);
+                } else {
+                    Log::warning('Daily summaries calculation had issues after TimeDoctor sync', [
+                        'message' => $summaryResult['message']
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to calculate daily summaries after TimeDoctor sync', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
 
         } catch (\Exception $e) {
             Log::error('TimeDoctor worklog sync job failed', [
