@@ -23,7 +23,6 @@ const timeDoctorVersion = ref('');
 const searchQuery = ref('');
 const selectedProject = ref(null);
 const selectedTask = ref(null);
-const selectedStatus = ref(null);
 const selectedDateRange = ref({
   start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
   end: new Date().toISOString().split('T')[0] // today
@@ -49,6 +48,13 @@ const syncConfirmDialog = ref(false);
 
 const syncing = ref(false);
 
+// Tab state
+const activeTab = ref('worklogs');
+
+// Daily summaries data
+const dailySummaries = ref([]);
+const loadingSummaries = ref(false);
+
 // Table headers
 const headers = computed(() => {
   if (isMobile.value) {
@@ -66,7 +72,26 @@ const headers = computed(() => {
       { title: 'Task', key: 'task.task_name', sortable: true },
       { title: 'Comment', key: 'comment', sortable: false },
       { title: 'API Type', key: 'api_type', sortable: true, width: '100px' },
-      { title: 'Status', key: 'is_active', sortable: true, width: '100px' },
+    ];
+  }
+});
+
+// Summary table headers
+const summaryHeaders = computed(() => {
+  if (isMobile.value) {
+    return [
+      { title: 'Date', key: 'report_date', sortable: true },
+      { title: 'Category', key: 'category_name', sortable: true },
+      { title: 'Duration', key: 'duration_hours', sortable: true },
+    ];
+  } else {
+    return [
+      { title: 'Date', key: 'report_date', sortable: true, width: '120px' },
+      { title: 'Category Name', key: 'category_name', sortable: true, width: '250px' },
+      { title: 'Type', key: 'category_type', sortable: true, width: '120px' },
+      { title: 'Duration', key: 'formatted_duration', sortable: false, width: '120px' },
+      { title: 'Hours', key: 'duration_hours', sortable: true, width: '100px' },
+      { title: 'Entries', key: 'entries_count', sortable: true, width: '100px' },
     ];
   }
 });
@@ -93,9 +118,6 @@ const filteredAndSortedWorklogs = computed(() => {
     filtered = filtered.filter(worklog => worklog.task_id === selectedTask.value);
   }
 
-  if (selectedStatus.value !== null) {
-    filtered = filtered.filter(worklog => worklog.is_active === selectedStatus.value);
-  }
 
   // Apply sorting
   if (sortBy.value.length > 0) {
@@ -152,7 +174,6 @@ const activeFiltersCount = computed(() => {
   if (searchQuery.value) count++;
   if (selectedProject.value) count++;
   if (selectedTask.value) count++;
-  if (selectedStatus.value !== null) count++;
   return count;
 });
 
@@ -167,12 +188,14 @@ const activeFiltersText = computed(() => {
     const task = tasks.value.find(t => t.id === selectedTask.value);
     filters.push(`Task: ${task?.task_name || 'Unknown'}`);
   }
-  if (selectedStatus.value !== null) {
-    filters.push(`Status: ${selectedStatus.value ? 'Active' : 'Inactive'}`);
-  }
   return filters.join(' • ');
 });
 
+// Watchers
+watch(() => selectedDateRange.value, () => {
+  fetchWorklogs();
+  fetchDailySummaries();
+}, { deep: true });
 
 // Lifecycle
 onMounted(() => {
@@ -181,6 +204,7 @@ onMounted(() => {
   fetchProjects();
   fetchTasks();
   fetchWorklogs();
+  fetchDailySummaries();
   window.addEventListener('resize', handleResize);
 });
 
@@ -270,6 +294,33 @@ async function fetchWorklogs() {
   }
 }
 
+async function fetchDailySummaries() {
+  loadingSummaries.value = true;
+
+  try {
+    const params = {
+      start_date: selectedDateRange.value.start,
+      end_date: selectedDateRange.value.end
+    };
+
+    const response = await axios.get(`/api/admin/iva-users/${userId}/timedoctor-records/daily-summaries`, { params });
+
+    if (response.data.success) {
+      dailySummaries.value = response.data.summaries;
+    } else {
+      throw new Error(response.data.message || 'Failed to fetch daily summaries');
+    }
+  } catch (error) {
+    console.error('Error fetching daily summaries:', error);
+    snackbarText.value = 'Failed to load daily summaries';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+    dailySummaries.value = [];
+  } finally {
+    loadingSummaries.value = false;
+  }
+}
+
 function openSyncConfirmDialog() {
   if (!timeDoctorConnected.value) {
     snackbarText.value = 'Time Doctor is not connected. Please connect first.';
@@ -300,6 +351,7 @@ async function syncTimeDoctorRecords() {
       snackbarColor.value = 'success';
       snackbar.value = true;
       await fetchWorklogs();
+      await fetchDailySummaries(); // Refresh daily summaries after sync
     } else {
       snackbarText.value = response.data.message || 'Sync failed';
       snackbarColor.value = 'error';
@@ -374,7 +426,6 @@ function clearFilters() {
   searchQuery.value = '';
   selectedProject.value = null;
   selectedTask.value = null;
-  selectedStatus.value = null;
   fetchWorklogs();
 }
 
@@ -497,16 +548,9 @@ function debounce(fn, delay) {
                 label="Filter by Task" density="comfortable" variant="outlined" clearable aria-label="Filter by task" />
             </VCol>
 
-            <VCol cols="12" md="3">
-              <VSelect v-model="selectedStatus" :items="[
-                { title: 'Active', value: true },
-                { title: 'Inactive', value: false }
-              ]" item-title="title" item-value="value" label="Filter by Status" density="comfortable"
-                variant="outlined" clearable aria-label="Filter by status" />
-            </VCol>
 
             <VCol cols="12" md="3" class="d-flex align-center">
-              <VBtn v-if="searchQuery || selectedProject || selectedTask || selectedStatus !== null" color="secondary"
+              <VBtn v-if="searchQuery || selectedProject || selectedTask" color="secondary"
                 variant="outlined" prepend-icon="ri-filter-off-line" @click="clearFilters"
                 aria-label="Clear all filters" class="w-100">
                 Clear Filters
@@ -516,22 +560,36 @@ function debounce(fn, delay) {
         </VCardText>
       </VCard>
 
-      <!-- Worklogs Table -->
+      <!-- Tabbed Content -->
       <VCard>
-        <VCardText>
-          <div class="d-flex align-center mb-4">
-            <div class="mr-auto">
-              <h2 class="text-h6 font-weight-medium" tabindex="0">
-                {{ pagination.total }} records ({{ selectedDateRange.start }} to {{ selectedDateRange.end }})
-              </h2>
-              <div v-if="activeFiltersCount > 0" class="text-caption text-secondary mt-1">
-                <VIcon icon="ri-filter-line" size="12" class="mr-1" />
-                Filtered by: {{ activeFiltersText }}
+        <VTabs v-model="activeTab" bg-color="grey-lighten-5" color="primary" align-tabs="start">
+          <VTab value="worklogs">
+            <VIcon icon="mdi-clock-outline" class="me-2" />
+            Time Entries
+          </VTab>
+          <VTab value="summaries">
+            <VIcon icon="mdi-chart-bar" class="me-2" />
+            Daily Summaries
+          </VTab>
+        </VTabs>
+
+        <VTabsWindow v-model="activeTab">
+          <!-- Worklogs Tab -->
+          <VTabsWindowItem value="worklogs">
+            <VCardText>
+              <div class="d-flex align-center mb-4">
+                <div class="mr-auto">
+                  <h2 class="text-h6 font-weight-medium" tabindex="0">
+                    {{ pagination.total }} records ({{ selectedDateRange.start }} to {{ selectedDateRange.end }})
+                  </h2>
+                  <div v-if="activeFiltersCount > 0" class="text-caption text-secondary mt-1">
+                    <VIcon icon="ri-filter-line" size="12" class="mr-1" />
+                    Filtered by: {{ activeFiltersText }}
+                  </div>
+                </div>
+                <VBtn variant="text" density="compact" icon="ri-refresh-line" @click="fetchWorklogs"
+                  :loading="loadingWorklogs" aria-label="Refresh worklog records" />
               </div>
-            </div>
-            <VBtn variant="text" density="compact" icon="ri-refresh-line" @click="fetchWorklogs"
-              :loading="loadingWorklogs" aria-label="Refresh worklog records" />
-          </div>
 
           <VDataTable v-model:sort-by="sortBy" :headers="headers" :items="filteredAndSortedWorklogs"
             :loading="loadingWorklogs" density="comfortable" hover class="elevation-1 rounded"
@@ -602,7 +660,7 @@ function debounce(fn, delay) {
                 <VIcon size="48" color="secondary" icon="ri-time-line" class="mb-4" aria-hidden="true" />
                 <h3 class="text-h6 font-weight-regular mb-2">No worklog records found</h3>
                 <p class="text-secondary text-center mb-4">
-                  <span v-if="searchQuery || selectedProject || selectedTask || selectedStatus !== null">
+                  <span v-if="searchQuery || selectedProject || selectedTask">
                     Try changing your filters or date range.
                   </span>
                   <span v-else>
@@ -610,7 +668,7 @@ function debounce(fn, delay) {
                   </span>
                 </p>
                 <div class="d-flex gap-2 flex-wrap">
-                  <VBtn v-if="searchQuery || selectedProject || selectedTask || selectedStatus !== null"
+                  <VBtn v-if="searchQuery || selectedProject || selectedTask"
                     color="secondary" @click="clearFilters" aria-label="Clear all filters">
                     Clear Filters
                   </VBtn>
@@ -621,8 +679,80 @@ function debounce(fn, delay) {
                 </div>
               </div>
             </template>
-          </VDataTable>
-        </VCardText>
+              </VDataTable>
+            </VCardText>
+          </VTabsWindowItem>
+
+          <!-- Daily Summaries Tab -->
+          <VTabsWindowItem value="summaries">
+            <VCardText>
+              <div class="d-flex align-center mb-4">
+                <div class="mr-auto">
+                  <h2 class="text-h6 font-weight-medium" tabindex="0">
+                    Daily Summaries ({{ selectedDateRange.start }} to {{ selectedDateRange.end }})
+                  </h2>
+                  <p class="text-caption text-secondary mt-1 mb-0">
+                    Aggregated by task categories (independent of project/task filters)
+                  </p>
+                </div>
+                <VBtn variant="text" density="compact" icon="ri-refresh-line" @click="fetchDailySummaries"
+                  :loading="loadingSummaries" aria-label="Refresh daily summaries" />
+              </div>
+
+              <VDataTable
+                :headers="summaryHeaders"
+                :items="dailySummaries"
+                :loading="loadingSummaries"
+                density="comfortable"
+                hover
+                class="elevation-1 rounded"
+                aria-label="Daily summaries table"
+                :items-per-page="20"
+                :page="1"
+              >
+                <!-- Category Type Column -->
+                <template #[`item.category_type`]="{ item }">
+                  <VChip 
+                    size="small" 
+                    :color="item.category_type === 'billable' ? 'success' : 'warning'" 
+                    variant="flat" 
+                    text-color="white"
+                  >
+                    {{ item.category_type }}
+                  </VChip>
+                </template>
+
+                <!-- Duration Column -->
+                <template #[`item.formatted_duration`]="{ item }">
+                  <VChip size="small" color="info" variant="outlined">
+                    {{ item.formatted_duration }}
+                  </VChip>
+                </template>
+
+                <!-- Duration Hours Column -->
+                <template #[`item.duration_hours`]="{ item }">
+                  <span class="font-weight-medium">{{ item.duration_hours }}h</span>
+                </template>
+
+                <!-- Empty state -->
+                <template #no-data>
+                  <div class="d-flex flex-column align-center pa-6" role="alert" aria-live="polite">
+                    <VIcon size="48" color="secondary" icon="mdi-chart-bar" class="mb-4" aria-hidden="true" />
+                    <h3 class="text-h6 font-weight-regular mb-2">No daily summaries found</h3>
+                    <p class="text-secondary text-center mb-4">
+                      No summary data available for the selected date range. 
+                      Try selecting a different date range or sync Time Doctor records first.
+                    </p>
+                    <VBtn v-if="timeDoctorConnected" color="primary" @click="openSyncConfirmDialog"
+                      aria-label="Sync from Time Doctor">
+                      Sync Time Doctor Records
+                    </VBtn>
+                  </div>
+                </template>
+              </VDataTable>
+            </VCardText>
+          </VTabsWindowItem>
+        </VTabsWindow>
       </VCard>
     </div>
 

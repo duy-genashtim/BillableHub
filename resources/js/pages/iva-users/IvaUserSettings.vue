@@ -1,5 +1,5 @@
 <script setup>
-import { formatDate } from '@/@core/utils/helpers';
+import { formatDateRangeTimezoneSafe } from '@/@core/utils/helpers';
 import axios from 'axios';
 import { computed, ref } from 'vue';
 
@@ -47,17 +47,13 @@ const editCustomizationForm = ref({
 const availableCustomizationSettings = computed(() => {
   if (!props.customizationTypes) return [];
 
-  // Get all existing customization setting IDs for this user
-  const existingSettingIds = props.user?.customizations?.map(c => c.setting_id) || [];
-
+  // Allow all settings to be customized multiple times (with different date ranges)
   return props.customizationTypes.flatMap(type =>
-    type.settings
-      .filter(setting => !existingSettingIds.includes(setting.id))
-      .map(setting => ({
-        value: setting.id,
-        title: `${type.name}: ${setting.setting_value}`,
-        subtitle: setting.description
-      }))
+    type.settings.map(setting => ({
+      value: setting.id,
+      title: `${type.name}: ${setting.setting_value}`,
+      subtitle: setting.description
+    }))
   );
 });
 
@@ -129,7 +125,26 @@ function getSelectedSettingHint() {
     setting => setting.value === customizationForm.value.setting_id
   );
 
-  return selectedSetting?.subtitle || 'Enter your custom value for this setting';
+  // Check if there are existing customizations for this setting
+  const existingCustomizations = props.user?.customizations?.filter(
+    c => c.setting_id === customizationForm.value.setting_id
+  ) || [];
+
+  let hint = selectedSetting?.subtitle || 'Enter your custom value for this setting';
+
+  if (existingCustomizations.length > 0) {
+    hint += '. Note: This setting already has ' + existingCustomizations.length +
+      ' existing customization' + (existingCustomizations.length > 1 ? 's' : '') +
+      '. Ensure your date range doesn\'t overlap with existing periods.';
+  }
+
+  return hint;
+}
+
+function getExistingPeriodsForSetting(settingId) {
+  if (!settingId) return [];
+
+  return props.user?.customizations?.filter(c => c.setting_id === settingId) || [];
 }
 
 function getEditSettingHint() {
@@ -137,14 +152,6 @@ function getEditSettingHint() {
   return customizationToEdit.value.setting?.description || 'Enter your custom value for this setting';
 }
 
-function formatDateRange(startDate, endDate) {
-  if (!startDate && !endDate) return 'No date restrictions';
-
-  const start = startDate ? formatDate(startDate) : 'No start';
-  const end = endDate ? formatDate(endDate) : 'No end';
-
-  return `${start} - ${end}`;
-}
 
 function isCustomizationActive(customization) {
   const now = new Date();
@@ -187,7 +194,7 @@ function isCustomizationActive(customization) {
                     </h3>
                     <VChip :color="isCustomizationActive(customization) ? 'success' : 'warning'" size="small"
                       variant="flat" text-color="white">
-                      {{ isCustomizationActive(customization) ? 'Active' : 'Inactive' }}
+                      Active
                     </VChip>
                   </div>
                   <VMenu>
@@ -210,7 +217,8 @@ function isCustomizationActive(customization) {
                 <div class="text-body-2">
                   <p class="mb-2"><strong>Custom Value:</strong> {{ customization.custom_value }}</p>
                   <p class="mb-2"><strong>Period:</strong></p>
-                  <p class="text-caption mb-2">{{ formatDateRange(customization.start_date, customization.end_date) }}
+                  <p class="text-caption mb-2">{{ formatDateRangeTimezoneSafe(customization.start_date,
+                    customization.end_date) }}
                   </p>
                   <p v-if="customization.setting?.description" class="text-caption text-secondary mb-0">
                     {{ customization.setting.description }}
@@ -234,9 +242,9 @@ function isCustomizationActive(customization) {
         </VBtn>
       </div>
 
-      <div v-if="availableCustomizationSettings.length === 0 && user.customizations?.length > 0" class="mt-4">
-        <VAlert type="info" variant="tonal" density="compact">
-          All available settings have been customized for this user.
+      <div v-if="availableCustomizationSettings.length === 0" class="mt-4">
+        <VAlert type="warning" variant="tonal" density="compact">
+          No customizable settings are available in the system configuration.
         </VAlert>
       </div>
     </VCardText>
@@ -262,7 +270,7 @@ function isCustomizationActive(customization) {
               </template>
             </VSelect>
             <p v-if="availableCustomizationSettings.length === 0" class="text-caption text-warning mt-2">
-              All available settings have been customized for this user.
+              No customizable settings are available in the system configuration.
             </p>
           </VCol>
 
@@ -271,14 +279,42 @@ function isCustomizationActive(customization) {
               variant="outlined" required :hint="getSelectedSettingHint()" persistent-hint />
           </VCol>
 
+          <!-- Show existing periods for selected setting -->
+          <VCol
+            v-if="customizationForm.setting_id && getExistingPeriodsForSetting(customizationForm.setting_id).length > 0"
+            cols="12">
+            <VAlert type="info" variant="tonal" density="compact" class="mb-3">
+              <template #title>
+                <VIcon icon="ri-information-line" class="me-2" />
+                Existing Periods for This Setting
+              </template>
+              <div class="mt-2">
+                <div v-for="existing in getExistingPeriodsForSetting(customizationForm.setting_id)" :key="existing.id"
+                  class="text-caption mb-1 d-flex align-center">
+                  <VChip :color="isCustomizationActive(existing) ? 'success' : 'warning'" size="x-small" class="me-2">
+                    Active
+                  </VChip>
+                  <span class="me-2"><strong>{{ existing.custom_value }}</strong></span>
+                  <span class="text-secondary">
+                    {{ formatDateRangeTimezoneSafe(existing.start_date, existing.end_date) }}
+                  </span>
+                </div>
+              </div>
+            </VAlert>
+          </VCol>
+
           <VCol cols="12" md="6">
             <VTextField v-model="customizationForm.start_date" label="Start Date" type="date" density="comfortable"
-              variant="outlined" required hint="When this setting becomes effective" persistent-hint />
+              variant="outlined" required :hint="getExistingPeriodsForSetting(customizationForm.setting_id).length > 0 ?
+                'Start date - ensure no overlap with existing periods' :
+                'When this setting becomes effective'" persistent-hint />
           </VCol>
 
           <VCol cols="12" md="6">
             <VTextField v-model="customizationForm.end_date" label="End Date" type="date" density="comfortable"
-              variant="outlined" hint="Optional - when this setting expires" persistent-hint />
+              variant="outlined" :hint="getExistingPeriodsForSetting(customizationForm.setting_id).length > 0 ?
+                'End date (optional) - ensure no overlap with existing periods' :
+                'Optional - when this setting expires'" persistent-hint />
           </VCol>
         </VRow>
       </VCardText>
@@ -332,7 +368,8 @@ function isCustomizationActive(customization) {
         <VBtn color="secondary" variant="outlined" @click="editCustomizationDialog = false">
           Cancel
         </VBtn>
-        <VBtn color="info" @click="updateCustomization" :disabled="!editCustomizationForm.custom_value || !editCustomizationForm.start_date">
+        <VBtn color="info" @click="updateCustomization"
+          :disabled="!editCustomizationForm.custom_value || !editCustomizationForm.start_date">
           Update Setting
         </VBtn>
       </VCardActions>

@@ -66,7 +66,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Prevent duplicate customizations for the same user and setting
-            $table->unique(['iva_user_id', 'setting_id']);
+            // $table->unique(['iva_user_id', 'setting_id']);
 
             // Add indexes for better query performance
             $table->index('iva_user_id');

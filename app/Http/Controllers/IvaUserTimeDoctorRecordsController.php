@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\WorklogsData;
 use App\Services\ActivityLogService;
+use App\Services\DailyWorklogSummaryService;
 use App\Services\TimeDoctor\TimeDoctorService;
 use App\Services\TimeDoctor\TimeDoctorV2Service;
 use Carbon\Carbon;
@@ -18,12 +19,17 @@ class IvaUserTimeDoctorRecordsController extends Controller
 {
     protected $timeDoctorService;
     protected $timeDoctorV2Service;
+    protected $dailyWorklogSummaryService;
     const BATCH_SIZE = 100;
 
-    public function __construct(TimeDoctorService $timeDoctorService, TimeDoctorV2Service $timeDoctorV2Service)
-    {
-        $this->timeDoctorService   = $timeDoctorService;
+    public function __construct(
+        TimeDoctorService $timeDoctorService, 
+        TimeDoctorV2Service $timeDoctorV2Service,
+        DailyWorklogSummaryService $dailyWorklogSummaryService
+    ) {
+        $this->timeDoctorService = $timeDoctorService;
         $this->timeDoctorV2Service = $timeDoctorV2Service;
+        $this->dailyWorklogSummaryService = $dailyWorklogSummaryService;
     }
 
     /**
@@ -39,10 +45,16 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
         // Apply date filters
         if ($request->has('start_date') && ! empty($request->start_date)) {
-            $query->whereDate('start_time', '>=', $request->start_date);
+            if ($request->has('end_date') && ! empty($request->end_date) && $request->start_date !== $request->end_date) {
+                // Date range filtering
+                $query->whereDate('start_time', '>=', $request->start_date);
+            } else {
+                // Single date filtering
+                $query->whereDate('start_time', $request->start_date);
+            }
         }
 
-        if ($request->has('end_date') && ! empty($request->end_date)) {
+        if ($request->has('end_date') && ! empty($request->end_date) && $request->start_date !== $request->end_date) {
             $query->whereDate('start_time', '<=', $request->end_date);
         }
 
@@ -56,10 +68,6 @@ class IvaUserTimeDoctorRecordsController extends Controller
             $query->where('task_id', $request->task_id);
         }
 
-        // Apply status filter
-        if ($request->has('is_active') && $request->is_active !== null) {
-            $query->where('is_active', $request->is_active === 'true' || $request->is_active === '1');
-        }
 
         // Apply API type filter
         if ($request->has('api_type') && ! empty($request->api_type)) {
@@ -196,6 +204,76 @@ class IvaUserTimeDoctorRecordsController extends Controller
             'success' => true,
             'tasks'   => $tasks,
         ]);
+    }
+
+    /**
+     * Get daily worklog summaries for a specific user and date range
+     */
+    public function getDailySummaries(Request $request, $id)
+    {
+        $user = IvaUser::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        try {
+            $summaries = \App\Models\DailyWorklogSummary::with(['reportCategory'])
+                ->where('iva_id', $id)
+                ->whereBetween('report_date', [$startDate, $endDate])
+                ->orderBy('report_date', 'desc')
+                ->orderBy('category_type', 'desc') // billable first
+                ->get()
+                ->map(function ($summary) {
+                    return [
+                        'id' => $summary->id,
+                        'category_id' => $summary->report_category_id,
+                        'category_name' => $summary->reportCategory->cat_name,
+                        'category_type' => $summary->category_type,
+                        'total_duration' => $summary->total_duration,
+                        'duration_hours' => $summary->duration_hours,
+                        'formatted_duration' => $summary->formatted_duration,
+                        'entries_count' => $summary->entries_count,
+                        'report_date' => $summary->report_date->format('Y-m-d'),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'summaries' => $summaries,
+                'user' => $user,
+                'date_range' => [
+                    'start' => $startDate,
+                    'end' => $endDate,
+                ],
+                'total_summaries' => $summaries->count(),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching daily summaries for user', [
+                'user_id' => $id,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch daily summaries: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     private function syncTimeDoctorV1Records($user, $startDate, $endDate)
@@ -364,6 +442,20 @@ class IvaUserTimeDoctorRecordsController extends Controller
                     'total_processed'    => $syncedCount,
                 ]
             );
+
+            // Auto-calculate daily worklog summaries for the synced date range
+            try {
+                $this->calculateDailySummariesAfterSync($user->id, $startDate, $endDate);
+                Log::info('Daily worklog summaries calculated after TimeDoctor V1 sync', [
+                    'user_id' => $user->id,
+                    'date_range' => [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to calculate daily summaries after TimeDoctor V1 sync', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
 
             return response()->json([
                 'success'       => true,
@@ -540,6 +632,20 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 ]
             );
 
+            // Auto-calculate daily worklog summaries for the synced date range
+            try {
+                $this->calculateDailySummariesAfterSync($user->id, $startDate, $endDate);
+                Log::info('Daily worklog summaries calculated after TimeDoctor V2 sync', [
+                    'user_id' => $user->id,
+                    'date_range' => [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to calculate daily summaries after TimeDoctor V2 sync', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
             return response()->json([
                 'success'       => true,
                 'message'       => 'TimeDoctor V2 records sync completed successfully',
@@ -557,5 +663,26 @@ class IvaUserTimeDoctorRecordsController extends Controller
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Calculate daily worklog summaries after successful sync
+     */
+    private function calculateDailySummariesAfterSync($userId, $startDate, $endDate)
+    {
+        $params = [
+            'start_date' => $startDate->format('Y-m-d'),
+            'end_date' => $endDate->format('Y-m-d'),
+            'calculate_all' => false,
+            'iva_user_ids' => [$userId]
+        ];
+
+        $result = $this->dailyWorklogSummaryService->calculateSummaries($params);
+        
+        if (!$result['success']) {
+            throw new \Exception('Failed to calculate daily summaries: ' . $result['message']);
+        }
+
+        return $result;
     }
 }

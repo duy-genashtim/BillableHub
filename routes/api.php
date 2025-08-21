@@ -23,6 +23,7 @@ use App\Http\Controllers\TimeDoctorV2AuthController;
 use App\Http\Controllers\TimeDoctorV2Controller;
 use App\Http\Controllers\TimeDoctorV2LongOperationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DailyWorklogSummaryController;
 use App\Http\Controllers\WorklogDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -119,6 +120,7 @@ Route::middleware('auth.jwt')->group(function () {
             // Time Doctor Records Management Routes
             Route::get('/{id}/timedoctor-records', [IvaUserTimeDoctorRecordsController::class, 'index']);
             Route::post('/{id}/timedoctor-records/sync', [IvaUserTimeDoctorRecordsController::class, 'syncTimeDoctorRecords']);
+            Route::get('/{id}/timedoctor-records/daily-summaries', [IvaUserTimeDoctorRecordsController::class, 'getDailySummaries']);
 
             // Helper routes for dropdowns
             Route::get('/timedoctor-records/projects', [IvaUserTimeDoctorRecordsController::class, 'getProjects']);
@@ -126,6 +128,14 @@ Route::middleware('auth.jwt')->group(function () {
 
             // Working Hours Dashboard
             Route::get('/{id}/worklog-dashboard', [WorklogDashboardController::class, 'getDashboardData']);
+        });
+
+        // Daily Worklog Summary Calculation Routes
+        Route::prefix('daily-worklog-summaries')->name('daily-worklog-summaries.')->group(function () {
+            Route::get('/calculation-options', [DailyWorklogSummaryController::class, 'getCalculationOptions']);
+            Route::post('/validate-calculation', [DailyWorklogSummaryController::class, 'validateCalculation']);
+            Route::post('/start-calculation', [DailyWorklogSummaryController::class, 'startCalculation']);
+            Route::get('/calculation-progress', [DailyWorklogSummaryController::class, 'getCalculationProgress']);
         });
 
         // IVA Manager Management Routes (require manage_ivas permission)

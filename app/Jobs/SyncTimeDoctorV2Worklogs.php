@@ -3,6 +3,7 @@ namespace App\Jobs;
 
 use App\Http\Controllers\TimeDoctorV2LongOperationController;
 use App\Models\IvaUser;
+use App\Services\DailyWorklogSummaryService;
 use App\Services\TimeDoctor\TimeDoctorV2Service;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -28,7 +29,7 @@ class SyncTimeDoctorV2Worklogs implements ShouldQueue
         $this->endDate   = $endDate;
     }
 
-    public function handle(TimeDoctorV2Service $timeDoctorV2Service)
+    public function handle(TimeDoctorV2Service $timeDoctorV2Service, DailyWorklogSummaryService $dailyWorklogSummaryService)
     {
         Log::info('Starting TimeDoctor V2 worklog sync job', [
             'start_date' => $this->startDate,
@@ -72,6 +73,36 @@ class SyncTimeDoctorV2Worklogs implements ShouldQueue
                 'end_date'     => $this->endDate,
                 'total_synced' => $totalSynced,
             ]);
+
+            // Auto-calculate daily worklog summaries for all affected users
+            Log::info('Starting daily worklog summaries calculation after TimeDoctor V2 sync');
+            try {
+                $userIds = $users->pluck('id')->toArray();
+                $params = [
+                    'start_date' => $this->startDate,
+                    'end_date' => $this->endDate,
+                    'calculate_all' => false,
+                    'iva_user_ids' => $userIds
+                ];
+
+                $summaryResult = $dailyWorklogSummaryService->calculateSummaries($params);
+                
+                if ($summaryResult['success']) {
+                    Log::info('Daily summaries calculated successfully after TimeDoctor V2 sync', [
+                        'processed' => $summaryResult['summary']['total_processed'],
+                        'errors' => $summaryResult['summary']['total_errors']
+                    ]);
+                } else {
+                    Log::warning('Daily summaries calculation had issues after TimeDoctor V2 sync', [
+                        'message' => $summaryResult['message']
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to calculate daily summaries after TimeDoctor V2 sync', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
 
         } catch (\Exception $e) {
             Log::error('TimeDoctor V2 worklog sync job failed', [

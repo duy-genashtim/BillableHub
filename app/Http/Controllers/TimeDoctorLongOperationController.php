@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\WorklogsData;
 use App\Services\ActivityLogService;
+use App\Services\DailyWorklogSummaryService;
 use App\Services\TimeDoctor\TimeDoctorService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -17,14 +18,18 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class TimeDoctorLongOperationController extends Controller
 {
     protected $timeDoctorService;
+    protected $dailyWorklogSummaryService;
 
     const BATCH_SIZE       = 100;
     const MAX_RETRIES      = 3;
     const PAGINATION_LIMIT = 250;
 
-    public function __construct(TimeDoctorService $timeDoctorService)
-    {
+    public function __construct(
+        TimeDoctorService $timeDoctorService,
+        DailyWorklogSummaryService $dailyWorklogSummaryService
+    ) {
         $this->timeDoctorService = $timeDoctorService;
+        $this->dailyWorklogSummaryService = $dailyWorklogSummaryService;
         set_time_limit(0); // Allow script to run indefinitely
         ini_set('memory_limit', '1024M');
     }
@@ -163,6 +168,49 @@ class TimeDoctorLongOperationController extends Controller
                     'total_synced' => $totalSynced,
                     'total_days'   => $totalDays,
                 ]);
+
+                // Auto-calculate daily worklog summaries for all affected users
+                echo "data: " . json_encode([
+                    'type'     => 'progress',
+                    'message'  => 'Calculating daily worklog summaries...',
+                    'progress' => 95,
+                ]) . "\n\n";
+                flush();
+
+                try {
+                    $userIds = $users->pluck('id')->toArray();
+                    $params = [
+                        'start_date' => $startDate->format('Y-m-d'),
+                        'end_date' => $endDate->format('Y-m-d'),
+                        'calculate_all' => false,
+                        'iva_user_ids' => $userIds
+                    ];
+
+                    $summaryResult = $this->dailyWorklogSummaryService->calculateSummaries($params);
+                    
+                    if ($summaryResult['success']) {
+                        echo "data: " . json_encode([
+                            'type'     => 'progress',
+                            'message'  => 'Daily summaries calculated successfully! Processed: ' . $summaryResult['summary']['total_processed'],
+                            'progress' => 98,
+                        ]) . "\n\n";
+                        flush();
+                    } else {
+                        echo "data: " . json_encode([
+                            'type'     => 'warning',
+                            'message'  => 'Daily summaries calculation had issues: ' . $summaryResult['message'],
+                            'progress' => 98,
+                        ]) . "\n\n";
+                        flush();
+                    }
+                } catch (\Exception $e) {
+                    echo "data: " . json_encode([
+                        'type'     => 'warning',
+                        'message'  => 'Failed to calculate daily summaries: ' . $e->getMessage(),
+                        'progress' => 98,
+                    ]) . "\n\n";
+                    flush();
+                }
 
                 echo "data: " . json_encode([
                     'type'     => 'complete',

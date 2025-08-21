@@ -122,6 +122,10 @@ function syncUsers() {
   router.push({ name: 'iva-user-sync' });
 }
 
+function calculateDailySummary() {
+  router.push({ name: 'daily-worklog-summary-calculation' });
+}
+
 function viewUser(user) {
   router.push({ name: 'iva-user-detail', params: { id: user.id } });
 }
@@ -233,6 +237,11 @@ function debounce(fn, delay) {
             <VBtn color="info" prepend-icon="ri-refresh-line" :size="isMobile ? 'small' : 'default'" @click="syncUsers"
               aria-label="Sync IVA users from API">
               Sync IVA Users
+            </VBtn>
+
+            <VBtn color="warning" prepend-icon="ri-calculator-line" :size="isMobile ? 'small' : 'default'"
+              @click="calculateDailySummary" aria-label="Calculate daily worklog summaries">
+              Calculate Daily Summary
             </VBtn>
 
             <VBtn color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="createUser"
@@ -414,6 +423,10 @@ function debounce(fn, delay) {
                 </VBtn>
                 <VBtn color="info" @click="syncUsers" aria-label="Sync users from API">
                   Sync Users
+                </VBtn>
+                <VBtn color="warning" prepend-icon="mdi-function" @click="calculateDailySummary"
+                  aria-label="Calculate daily worklog summaries">
+                  Calculate Daily Summary
                 </VBtn>
                 <VBtn color="primary" @click="createUser" aria-label="Create first user">
                   Create IVA User

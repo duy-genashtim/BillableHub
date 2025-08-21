@@ -20,7 +20,7 @@ class Cohort extends Model
     protected $casts = [
         'is_active'    => 'boolean',
         'cohort_order' => 'integer',
-        'start_date'   => 'date',
+        'start_date'   => 'date:Y-m-d',
     ];
 
     /**

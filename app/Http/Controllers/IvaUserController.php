@@ -13,6 +13,7 @@ use App\Models\Region;
 use App\Models\TimedoctorV1User;
 use App\Models\TimedoctorV2User;
 use App\Services\ActivityLogService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -759,14 +760,19 @@ class IvaUserController extends Controller
                     ], 422);
                 }
 
-                // Check if user already has a customization for this setting
-                $existingCustomization = IvaUserCustomize::where('iva_user_id', $user->id)
-                    ->where('setting_id', $customizationData['setting_id'])
-                    ->first();
+                // Check for overlapping date ranges for the same setting
+                $overlappingCustomization = $this->checkDateOverlap(
+                    $user->id,
+                    $customizationData['setting_id'],
+                    $customizationData['start_date'],
+                    $customizationData['end_date'] ?? null
+                );
 
-                if ($existingCustomization) {
+                if ($overlappingCustomization) {
                     return response()->json([
-                        'message' => 'User already has a customization for setting: ' . $setting->setting_value,
+                        'message' => 'Date range overlaps with existing customization for setting: ' . $setting->setting_value . 
+                                   '. Existing period: ' . $overlappingCustomization['start_date'] . 
+                                   ' to ' . ($overlappingCustomization['end_date'] ?? 'ongoing'),
                     ], 422);
                 }
 
@@ -775,8 +781,8 @@ class IvaUserController extends Controller
                     'iva_user_id'  => $user->id,
                     'setting_id'   => $customizationData['setting_id'],
                     'custom_value' => $customizationData['custom_value'],
-                    'start_date'   => $customizationData['start_date'],
-                    'end_date'     => $customizationData['end_date'] ?? null,
+                    'start_date'   => $customizationData['start_date'] ? Carbon::parse($customizationData['start_date'])->format('Y-m-d') : null,
+                    'end_date'     => $customizationData['end_date'] ? Carbon::parse($customizationData['end_date'])->format('Y-m-d') : null,
                 ]);
 
                 $addedCustomizations[] = $customization->load(['setting.settingType']);
@@ -1103,6 +1109,23 @@ class IvaUserController extends Controller
             ], 422);
         }
 
+        // Check for overlapping date ranges for the same setting (excluding current customization)
+        $overlappingCustomization = $this->checkDateOverlap(
+            $user->id,
+            $customization->setting_id,
+            $request->start_date ?? $customization->start_date,
+            $request->end_date ?? $customization->end_date,
+            $customizationId // Exclude current customization from overlap check
+        );
+
+        if ($overlappingCustomization) {
+            return response()->json([
+                'message' => 'Date range overlaps with existing customization for setting: ' . $setting->setting_value . 
+                           '. Existing period: ' . $overlappingCustomization['start_date'] . 
+                           ' to ' . ($overlappingCustomization['end_date'] ?? 'ongoing'),
+            ], 422);
+        }
+
         DB::beginTransaction();
 
         try {
@@ -1112,8 +1135,8 @@ class IvaUserController extends Controller
 
             $customization->update([
                 'custom_value' => $request->custom_value,
-                'start_date'   => $request->start_date ?? null,
-                'end_date'     => $request->end_date ?? null,
+                'start_date'   => $request->start_date ? Carbon::parse($request->start_date)->format('Y-m-d') : null,
+                'end_date'     => $request->end_date ? Carbon::parse($request->end_date)->format('Y-m-d') : null,
             ]);
 
             // Log the update
@@ -1515,5 +1538,70 @@ class IvaUserController extends Controller
         return response()->json([
             'managers' => $availableManagers,
         ]);
+    }
+
+    /**
+     * Check if a date range overlaps with existing customizations for the same setting
+     */
+    private function checkDateOverlap($userId, $settingId, $startDate, $endDate = null, $excludeCustomizationId = null)
+    {
+        $query = IvaUserCustomize::where('iva_user_id', $userId)
+            ->where('setting_id', $settingId);
+
+        // Exclude current customization when updating
+        if ($excludeCustomizationId) {
+            $query->where('id', '!=', $excludeCustomizationId);
+        }
+
+        $existingCustomizations = $query->get();
+
+        foreach ($existingCustomizations as $existing) {
+            $existingStart = $existing->start_date;
+            $existingEnd = $existing->end_date;
+
+            // Check for overlap
+            if ($this->dateRangesOverlap($startDate, $endDate, $existingStart, $existingEnd)) {
+                return [
+                    'id' => $existing->id,
+                    'start_date' => $existingStart,
+                    'end_date' => $existingEnd,
+                    'custom_value' => $existing->custom_value
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if two date ranges overlap
+     */
+    private function dateRangesOverlap($start1, $end1, $start2, $end2)
+    {
+        // Convert to Carbon instances for easier comparison
+        $start1 = Carbon::parse($start1);
+        $end1 = $end1 ? Carbon::parse($end1) : null;
+        $start2 = Carbon::parse($start2);
+        $end2 = $end2 ? Carbon::parse($end2) : null;
+
+        // If either range is open-ended (no end date), treat as extending indefinitely
+        if (!$end1 && !$end2) {
+            // Both ranges are open-ended, they overlap if start dates are different
+            return true;
+        }
+
+        if (!$end1) {
+            // First range is open-ended, overlaps if start1 <= end2
+            return $start1->lte($end2);
+        }
+
+        if (!$end2) {
+            // Second range is open-ended, overlaps if start2 <= end1
+            return $start2->lte($end1);
+        }
+
+        // Both ranges have end dates
+        // Ranges overlap if: start1 <= end2 AND start2 <= end1
+        return $start1->lte($end2) && $start2->lte($end1);
     }
 }

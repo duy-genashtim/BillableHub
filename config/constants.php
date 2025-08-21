@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'start_year'           => 2024,
+    'week_start'           => '2024-01-15',
+    'week_per_year'        => 52,
     'roles'                => [
         'admin' => 'Admin (Developer)',
         'hr'    => 'HR',

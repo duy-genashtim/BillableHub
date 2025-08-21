@@ -39,12 +39,14 @@ export const formatDateForInput = dateString => {
   }
 }
 
-// 👉 Format Date for Display
+// 👉 Format Date for Display (timezone-safe)
 export const formatDate = dateString => {
   if (!dateString) return 'N/A'
 
   try {
-    const date = new Date(dateString)
+    // Extract just the date part to avoid timezone conversion issues
+    const dateOnly = dateString.split('T')[0]
+    const date = new Date(dateOnly + 'T00:00:00')
     if (isNaN(date.getTime())) return 'N/A'
 
     return date.toLocaleDateString('en-US', {
@@ -59,12 +61,50 @@ export const formatDate = dateString => {
   }
 }
 
-// 👉 Format DateTime for Display
+// 👉 Format Date Only (no timezone conversion)
+export const formatDateOnly = dateString => {
+  if (!dateString) return ''
+
+  try {
+    // Extract just the date part, ignore time/timezone
+    const dateOnly = dateString.split('T')[0]
+    const date = new Date(dateOnly + 'T00:00:00')
+    if (isNaN(date.getTime())) return ''
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  } catch (error) {
+    console.warn('Invalid date format:', dateString)
+    return ''
+  }
+}
+
+// 👉 Format Date Range (timezone-safe)
+export const formatDateRangeTimezoneSafe = (startDate, endDate) => {
+  if (!startDate && !endDate) return 'No date restrictions'
+
+  const start = startDate ? formatDateOnly(startDate) : 'No start'
+  const end = endDate ? formatDateOnly(endDate) : 'No end'
+
+  return `${start} - ${end}`
+}
+
+// 👉 Format DateTime for Display (timezone-safe)
 export const formatDateTime = dateTimeString => {
   if (!dateTimeString) return 'N/A'
 
   try {
-    const date = new Date(dateTimeString)
+    // Extract date and time parts to avoid timezone conversion
+    const parts = dateTimeString.split('T')
+    if (parts.length !== 2) return 'N/A'
+    
+    const datePart = parts[0] // 2025-08-07
+    const timePart = parts[1].split('.')[0] // 09:42:02 (remove milliseconds)
+    
+    const date = new Date(datePart + 'T' + timePart)
     if (isNaN(date.getTime())) return 'N/A'
 
     return date.toLocaleString('en-US', {
