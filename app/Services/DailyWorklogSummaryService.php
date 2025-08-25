@@ -4,7 +4,6 @@ namespace App\Services;
 use App\Models\DailyWorklogSummary;
 use App\Models\IvaUser;
 use App\Models\WorklogsData;
-use App\Models\ReportCategory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,29 +15,29 @@ class DailyWorklogSummaryService
      */
     public function calculateSummaries(array $params): array
     {
-        $startDate = $params['start_date'];
-        $endDate = $params['end_date'];
-        $ivaUserIds = $params['iva_user_ids'] ?? [];
+        $startDate    = $params['start_date'];
+        $endDate      = $params['end_date'];
+        $ivaUserIds   = $params['iva_user_ids'] ?? [];
         $calculateAll = $params['calculate_all'] ?? false;
 
-        $results = [];
+        $results        = [];
         $totalProcessed = 0;
-        $totalErrors = 0;
+        $totalErrors    = 0;
 
         try {
             // Get IVA users to process
-            $ivaUsers = $this->getIvaUsersToProcess($ivaUserIds, $calculateAll);
+            $ivaUsers  = $this->getIvaUsersToProcess($ivaUserIds, $calculateAll);
             $dateRange = $this->getDateRange($startDate, $endDate, $calculateAll);
 
             foreach ($ivaUsers as $ivaUser) {
                 $userResult = [
-                    'iva_id' => $ivaUser->id,
-                    'iva_name' => $ivaUser->full_name,
+                    'iva_id'          => $ivaUser->id,
+                    'iva_name'        => $ivaUser->full_name,
                     'dates_processed' => [],
-                    'dates_failed' => [],
-                    'total_dates' => count($dateRange),
-                    'success_count' => 0,
-                    'error_count' => 0,
+                    'dates_failed'    => [],
+                    'total_dates'     => count($dateRange),
+                    'success_count'   => 0,
+                    'error_count'     => 0,
                 ];
 
                 foreach ($dateRange as $date) {
@@ -50,8 +49,8 @@ class DailyWorklogSummaryService
                     } catch (\Exception $e) {
                         Log::error("Failed to calculate summary for IVA {$ivaUser->id} on {$date}: " . $e->getMessage());
                         $userResult['dates_failed'][] = [
-                            'date' => $date,
-                            'error' => $e->getMessage()
+                            'date'  => $date,
+                            'error' => $e->getMessage(),
                         ];
                         $userResult['error_count']++;
                         $totalErrors++;
@@ -65,10 +64,10 @@ class DailyWorklogSummaryService
                 'success' => true,
                 'message' => 'Calculation completed',
                 'summary' => [
-                    'total_ivas' => count($ivaUsers),
-                    'total_dates' => count($dateRange),
+                    'total_ivas'      => count($ivaUsers),
+                    'total_dates'     => count($dateRange),
                     'total_processed' => $totalProcessed,
-                    'total_errors' => $totalErrors,
+                    'total_errors'    => $totalErrors,
                 ],
                 'details' => $results,
             ];
@@ -79,10 +78,10 @@ class DailyWorklogSummaryService
                 'success' => false,
                 'message' => 'Calculation failed: ' . $e->getMessage(),
                 'summary' => [
-                    'total_ivas' => 0,
-                    'total_dates' => 0,
+                    'total_ivas'      => 0,
+                    'total_dates'     => 0,
                     'total_processed' => $totalProcessed,
-                    'total_errors' => $totalErrors,
+                    'total_errors'    => $totalErrors,
                 ],
                 'details' => $results,
             ];
@@ -107,33 +106,42 @@ class DailyWorklogSummaryService
                 ->with(['task.reportCategories.categoryType'])
                 ->get();
 
+
             if ($worklogs->isEmpty()) {
                 return; // No worklogs for this date
             }
 
             // Group worklogs by category
-            $categoryGroups = [];
+            $categoryGroups        = [];
+            $uncategorizedDuration = 0;
+            $uncategorizedCount    = 0;
 
             foreach ($worklogs as $worklog) {
-                if (!$worklog->task) {
-                    continue; // Skip worklogs without tasks
+                if (! $worklog->task) {
+                    // Handle worklogs without tasks - add to uncategorized
+                    $uncategorizedDuration += $worklog->duration;
+                    $uncategorizedCount++;
+                    continue;
                 }
 
                 // Get the first report category for this task
                 $reportCategory = $worklog->task->reportCategories->first();
-                if (!$reportCategory) {
-                    continue; // Skip tasks without categories
+                if (! $reportCategory) {
+                    // Handle tasks without categories - add to uncategorized
+                    $uncategorizedDuration += $worklog->duration;
+                    $uncategorizedCount++;
+                    continue;
                 }
 
-                $categoryId = $reportCategory->id;
+                $categoryId   = $reportCategory->id;
                 $categoryType = $reportCategory->categoryType->setting_value ?? 'unknown';
 
-                if (!isset($categoryGroups[$categoryId])) {
+                if (! isset($categoryGroups[$categoryId])) {
                     $categoryGroups[$categoryId] = [
                         'report_category_id' => $categoryId,
-                        'category_type' => $categoryType,
-                        'total_duration' => 0,
-                        'entries_count' => 0,
+                        'category_type'      => $categoryType,
+                        'total_duration'     => 0,
+                        'entries_count'      => 0,
                     ];
                 }
 
@@ -141,16 +149,32 @@ class DailyWorklogSummaryService
                 $categoryGroups[$categoryId]['entries_count']++;
             }
 
+            // Add uncategorized group if there are any uncategorized worklogs
+            if ($uncategorizedCount > 0) {
+                $categoryGroups['uncategorized'] = [
+                    'report_category_id' => null,
+                    'category_type'      => 'uncategorized',
+                    'total_duration'     => $uncategorizedDuration,
+                    'entries_count'      => $uncategorizedCount,
+                ];
+            }
+
             // Insert summary records
             foreach ($categoryGroups as $categoryData) {
-                DailyWorklogSummary::create([
-                    'iva_id' => $ivaUserId,
-                    'report_category_id' => $categoryData['report_category_id'],
-                    'report_date' => $date,
-                    'total_duration' => $categoryData['total_duration'],
-                    'entries_count' => $categoryData['entries_count'],
-                    'category_type' => $categoryData['category_type'],
-                ]);
+                try {
+                    DailyWorklogSummary::create([
+                        'iva_id'             => $ivaUserId,
+                        'report_category_id' => $categoryData['report_category_id'],
+                        'report_date'        => $date,
+                        'total_duration'     => $categoryData['total_duration'],
+                        'entries_count'      => $categoryData['entries_count'],
+                        'category_type'      => $categoryData['category_type'],
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error("DailyWorklogSummary: Failed to insert summary for user {$ivaUserId} on {$date}, category: " . ($categoryData['category_type'] ?? 'unknown') . " - Error: " . $e->getMessage());
+                    throw $e; // Re-throw to maintain transaction rollback behavior
+                }
             }
         });
     }
@@ -179,11 +203,11 @@ class DailyWorklogSummaryService
                 ->first();
 
             $startDate = $earliestWorklog ? $earliestWorklog->start_time->toDateString() : Carbon::now()->subYear()->toDateString();
-            $endDate = Carbon::now()->toDateString();
+            $endDate   = Carbon::now()->toDateString();
         }
 
         $start = Carbon::parse($startDate);
-        $end = Carbon::parse($endDate);
+        $end   = Carbon::parse($endDate);
         $dates = [];
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
@@ -201,9 +225,9 @@ class DailyWorklogSummaryService
         // This could be implemented with Redis or database if needed
         // For now, return basic status
         return [
-            'status' => 'completed',
+            'status'   => 'completed',
             'progress' => 100,
-            'message' => 'Calculation completed'
+            'message'  => 'Calculation completed',
         ];
     }
 
@@ -215,9 +239,9 @@ class DailyWorklogSummaryService
         $errors = [];
 
         // Validate date range
-        if (!empty($params['start_date']) && !empty($params['end_date'])) {
+        if (! empty($params['start_date']) && ! empty($params['end_date'])) {
             $startDate = Carbon::parse($params['start_date']);
-            $endDate = Carbon::parse($params['end_date']);
+            $endDate   = Carbon::parse($params['end_date']);
 
             if ($startDate->gt($endDate)) {
                 $errors[] = 'Start date cannot be later than end date';
@@ -229,14 +253,14 @@ class DailyWorklogSummaryService
         }
 
         // Validate IVA user IDs
-        if (!empty($params['iva_user_ids'])) {
+        if (! empty($params['iva_user_ids'])) {
             $validIds = IvaUser::whereIn('id', $params['iva_user_ids'])
                 ->where('is_active', true)
                 ->pluck('id')
                 ->toArray();
 
             $invalidIds = array_diff($params['iva_user_ids'], $validIds);
-            if (!empty($invalidIds)) {
+            if (! empty($invalidIds)) {
                 $errors[] = 'Invalid IVA user IDs: ' . implode(', ', $invalidIds);
             }
         }

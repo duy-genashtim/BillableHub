@@ -1,10 +1,19 @@
 <?php
 
 return [
-    'start_year'           => 2024,
-    'week_start'           => '2024-01-15',
-    'week_per_year'        => 52,
-    'roles'                => [
+    'start_year'                        => 2024,
+    'week_start'                        => '2024-01-15',
+    'week_per_year'                     => 52,
+    'performance_status'                => [
+        'BELOW'    => 'BELOW',
+        'MEET'     => 'MEET',
+        'EXCEEDED' => 'EXCEEDED',
+    ],
+    'performance_percentage_thresholds' => [
+        'EXCEEDED' => 101,
+        'MEET'     => 99,
+    ],
+    'roles'                             => [
         'admin' => 'Admin (Developer)',
         'hr'    => 'HR',
         // 'finance' => 'Finance',
@@ -13,7 +22,7 @@ return [
         // 'iva'     => 'IVA',
     ],
 
-    'permissions'          => [
+    'permissions'                       => [
         // System Management
         'manage_users'         => 'Manage Users',
         'manage_roles'         => 'Manage Roles',
@@ -40,7 +49,7 @@ return [
         'view_team_data'       => 'View Team Data',
     ],
 
-    'role_permissions'     => [
+    'role_permissions'                  => [
         'admin' => [
             'manage_users',
             'manage_roles',
@@ -82,7 +91,7 @@ return [
         // ],
     ],
 
-    'activity_log_actions' => [
+    'activity_log_actions'              => [
         'create'                            => 'Role Created',
         'update'                            => 'Role Updated',
         'delete'                            => 'Role Deleted',
@@ -177,7 +186,7 @@ return [
         'sync_timedoctor_v2_data'           => 'Sync TimeDoctor V2 Data',
     ],
 
-    'pagination'           => [
+    'pagination'                        => [
         'default_per_page'            => 20,
         'max_per_page'                => 100,
         'users_per_page'              => 15,
@@ -193,7 +202,7 @@ return [
         'worklog_dashboard_per_page'  => 30,
     ],
 
-    'setting_categories'   => [
+    'setting_categories'                => [
         'site'        => 'Site Settings',
         'user'        => 'IVA User Settings',
         'report_time' => 'Report Time Settings',
