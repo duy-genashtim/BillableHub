@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Test;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use App\Http\Controllers\Controller;
+use App\Services\DailyWorklogSummaryService;
 
 class DateTimeHelperTestController extends Controller
 {
@@ -189,5 +190,51 @@ class DateTimeHelperTestController extends Controller
                 'success' => false
             ], 500);
         }
+    }
+
+    /**
+     * Test DailyWorklogSummaryService calculateSummaries method
+     */
+    public function testDailyWorklogSummary(Request $request)
+    {
+        $userId = $request->get('user_id');
+        $startDate = $request->get('start_date', Carbon::now()->subDays(7)->format('Y-m-d'));
+        $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
+        $calculateAll = $request->get('calculate_all', false);
+
+        $testResult = [];
+
+        try {
+            $summaryService = new DailyWorklogSummaryService();
+            
+            $params = [
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'calculate_all' => $calculateAll
+            ];
+
+            if ($userId && !$calculateAll) {
+                $params['iva_user_ids'] = [$userId];
+            }
+
+            $result = $summaryService->calculateSummaries($params);
+
+            $testResult = [
+                'function' => 'DailyWorklogSummaryService::calculateSummaries',
+                'parameters' => $params,
+                'result' => $result,
+                'success' => $result['success'] ?? false
+            ];
+
+        } catch (\Exception $e) {
+            $testResult = [
+                'function' => 'DailyWorklogSummaryService::calculateSummaries',
+                'parameters' => $params ?? [],
+                'error' => $e->getMessage(),
+                'success' => false
+            ];
+        }
+
+        return response()->json($testResult);
     }
 }

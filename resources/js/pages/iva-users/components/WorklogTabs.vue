@@ -32,6 +32,8 @@ const emit = defineEmits(['show-snackbar']);
 const activeTab = ref('overview');
 const expandedCategories = ref({});
 const expandedTasks = ref({});
+const categoryTasks = ref({});
+const loadingCategoryTasks = ref({});
 
 // Chart refs and scrolling
 const chartContainer = ref(null);
@@ -265,8 +267,48 @@ function getLogTypeDisplay(logType) {
   return type ? type.label : logType.charAt(0).toUpperCase() + logType.slice(1);
 }
 
-function toggleCategory(categoryName) {
+async function toggleCategory(categoryName, categoryId = null) {
   expandedCategories.value[categoryName] = !expandedCategories.value[categoryName];
+  
+  // If expanding and category has ID, fetch tasks
+  if (expandedCategories.value[categoryName] && categoryId && !categoryTasks.value[categoryId]) {
+    await fetchTasksByCategory(categoryId, categoryName);
+  }
+}
+
+async function fetchTasksByCategory(categoryId, categoryName) {
+  loadingCategoryTasks.value[categoryId] = true;
+  
+  try {
+    const params = {
+      category_id: categoryId,
+      start_date: props.dashboardData.date_range?.start,
+      end_date: props.dashboardData.date_range?.end
+    };
+
+    // Handle different date range sources
+    if (props.dashboardData.bimonthly_data) {
+      params.start_date = props.dashboardData.bimonthly_data.first_half?.date_range?.start;
+      params.end_date = props.dashboardData.bimonthly_data.second_half?.date_range?.end;
+    } else if (props.dashboardData.weekly_summary_data) {
+      params.start_date = props.dashboardData.weekly_summary_data.date_range?.start;
+      params.end_date = props.dashboardData.weekly_summary_data.date_range?.end;
+    } else if (props.dashboardData.monthly_summary_data) {
+      params.start_date = props.dashboardData.monthly_summary_data.date_range?.start;
+      params.end_date = props.dashboardData.monthly_summary_data.date_range?.end;
+    }
+
+    const response = await axios.get(`/api/admin/iva-users/${props.userId}/worklog-dashboard/tasks-by-category`, { params });
+    
+    categoryTasks.value[categoryId] = response.data.data;
+    
+  } catch (error) {
+    console.error('Error fetching tasks for category:', error);
+    emit('show-snackbar', 'Failed to load tasks for category', 'error');
+    categoryTasks.value[categoryId] = [];
+  } finally {
+    loadingCategoryTasks.value[categoryId] = false;
+  }
 }
 
 function toggleTask(categoryName, taskKey) {
@@ -491,14 +533,14 @@ watch(() => activeTab.value, (newTab) => {
           <VCardText>
             <h2 class="text-h6 font-weight-medium mb-4">Work Category Breakdown</h2>
 
-            <div v-if="!dashboardData?.category_breakdown?.length" class="text-center py-8">
+            <div v-if="!dashboardData?.category_breakdown_cat?.length" class="text-center py-8">
               <VIcon size="48" icon="ri-folder-open-line" color="grey-lighten-1" class="mb-2" />
               <p class="text-body-2">No work entries found for the selected period</p>
             </div>
 
             <div v-else class="category-breakdown">
               <!-- Main Category Level (Billable/Non-Billable) -->
-              <div v-for="mainCategory in dashboardData.category_breakdown" :key="mainCategory.type"
+              <div v-for="mainCategory in dashboardData.category_breakdown_cat" :key="mainCategory.type"
                 class="main-category-section mb-6">
                 <!-- Main Category Header -->
                 <VCard variant="elevated" class="mb-3"
@@ -520,7 +562,7 @@ watch(() => activeTab.value, (newTab) => {
                       </VChip>
                       <VChip size="small" variant="outlined" class="ml-2"
                         :text-color="mainCategory.type.includes('Billable') ? 'success' : 'info'">
-                        {{ mainCategory.categories.length }} {{ mainCategory.categories.length === 1 ? 'category' :
+                        {{ mainCategory.categories_count }} {{ mainCategory.categories_count === 1 ? 'category' :
                           'categories' }}
                       </VChip>
                     </VCardTitle>
@@ -541,7 +583,7 @@ watch(() => activeTab.value, (newTab) => {
                       <!-- Category Header -->
                       <VCard variant="outlined" class="mb-2">
                         <VCardItem class="cursor-pointer"
-                          @click="toggleCategory(mainCategory.type + '-' + category.category_name)">
+                          @click="toggleCategory(mainCategory.type + '-' + category.category_name, category.category_id)">
                           <template v-slot:prepend>
                             <VAvatar color="primary" variant="tonal" size="24">
                               <VIcon icon="ri-folder-line" size="12" />
@@ -554,7 +596,7 @@ watch(() => activeTab.value, (newTab) => {
                               {{ formatHours(category.total_hours) }}
                             </VChip>
                             <VChip color="info" size="small" variant="outlined" class="ml-2">
-                              {{ category.tasks.length }} {{ category.tasks.length === 1 ? 'task' : 'tasks' }}
+                              {{ category.entries_count }} {{ category.entries_count === 1 ? 'entry' : 'entries' }}
                             </VChip>
                           </VCardTitle>
 
@@ -568,11 +610,25 @@ watch(() => activeTab.value, (newTab) => {
                       <!-- Tasks in Category -->
                       <VExpandTransition>
                         <div v-show="expandedCategories[mainCategory.type + '-' + category.category_name]" class="ml-4">
-                          <div v-for="task in category.tasks" :key="task.task_name" class="task-section mb-3">
+                          <!-- Loading State -->
+                          <div v-if="loadingCategoryTasks[category.category_id]" class="text-center py-4">
+                            <VProgressCircular indeterminate color="primary" size="24" width="3" />
+                            <p class="text-body-2 mt-2">Loading tasks...</p>
+                          </div>
+                          
+                          <!-- No Tasks Found -->
+                          <div v-else-if="categoryTasks[category.category_id] && categoryTasks[category.category_id].length === 0" class="text-center py-4">
+                            <VIcon size="32" icon="ri-task-line" color="grey-lighten-1" class="mb-2" />
+                            <p class="text-body-2">No tasks found for this category</p>
+                          </div>
+
+                          <!-- Tasks List -->
+                          <div v-else-if="categoryTasks[category.category_id]">
+                            <div v-for="task in categoryTasks[category.category_id]" :key="task.task_id" class="task-section mb-3">
                             <!-- Task Header -->
                             <VCard variant="tonal" color="grey-lighten-4" class="mb-2">
                               <VCardItem class="cursor-pointer"
-                                @click="toggleTask(mainCategory.type + '-' + category.category_name, task.task_name)">
+                                @click="toggleTask(mainCategory.type + '-' + category.category_name, task.task_id)">
                                 <template v-slot:prepend>
                                   <VAvatar color="secondary" variant="tonal" size="20">
                                     <VIcon icon="ri-task-line" size="10" />
@@ -589,11 +645,11 @@ watch(() => activeTab.value, (newTab) => {
                                       {{ formatHours(task.total_hours) }}
                                     </VChip>
                                     <VChip color="info" size="small" variant="outlined">
-                                      {{ task.entries.length }} {{ task.entries.length === 1 ? 'entry' : 'entries'
+                                      {{ task.entries_count }} {{ task.entries_count === 1 ? 'entry' : 'entries'
                                       }}
                                     </VChip>
                                     <VIcon
-                                      :icon="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_name] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"
+                                      :icon="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_id] ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"
                                       size="14" />
                                   </div>
                                 </template>
@@ -603,7 +659,7 @@ watch(() => activeTab.value, (newTab) => {
                             <!-- Task Entries -->
                             <VExpandTransition>
                               <div
-                                v-show="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_name]"
+                                v-show="expandedTasks[mainCategory.type + '-' + category.category_name + '-' + task.task_id]"
                                 class="ml-4">
                                 <div class="entries-list">
                                   <VCard v-for="entry in task.entries" :key="entry.id" variant="outlined"
@@ -639,6 +695,7 @@ watch(() => activeTab.value, (newTab) => {
                                 </div>
                               </div>
                             </VExpandTransition>
+                            </div>
                           </div>
                         </div>
                       </VExpandTransition>

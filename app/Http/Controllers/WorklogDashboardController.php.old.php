@@ -166,11 +166,9 @@ class WorklogDashboardController extends Controller
             // Regular mode (weeks, monthly, custom)
             $nadDataResult = fetchNADDataForPeriod($user, $startDate, $endDate);
 
-            $dashboardData['basic_metrics']     = calculateBasicMetricsFromDailySummaries($user->id, $startDate, $endDate);
-            $dashboardData['basic_metrics_old'] = $this->calculateOptimizedBasicMetrics($worklogData);
-            // related to calculateOptimizedPeriodMetrics function. check that later.
-            $dashboardData['nad_data']   = $nadDataResult['nad_data'];
-            $dashboardData['date_range'] = [
+            $dashboardData['basic_metrics'] = $this->calculateOptimizedBasicMetrics($worklogData);
+            $dashboardData['nad_data']      = $nadDataResult['nad_data'];
+            $dashboardData['date_range']    = [
                 'start'               => $startDate,
                 'end'                 => $endDate,
                 'original_start'      => $originalStartDate,
@@ -178,20 +176,8 @@ class WorklogDashboardController extends Controller
                 'days_count'          => $daysDiff + 1,
                 'mode'                => $dateMode,
             ];
-            $dashboardData['daily_breakdown']        = calculateDailyBreakdownFromSummaries($user->id, $startDate, $endDate);
-            $dashboardData['category_breakdown_cat'] = calculateCategoryBreakdownFromSummaries(
-
-                $user->id,
-                $startDate,
-                $endDate
-            );
-            // $dashboardData['category_breakdown_task'] = getTasksByReportCategory(
-            //     6,
-            //     $user->id,
-            //     $startDate,
-            //     $endDate
-            // );
-            // $dashboardData['category_breakdown'] = $this->calculateOptimizedCategoryBreakdown($worklogData, $taskCategories);
+            $dashboardData['daily_breakdown']    = $this->calculateOptimizedDailyBreakdown($worklogData, $startDate, $endDate);
+            $dashboardData['category_breakdown'] = $this->calculateOptimizedCategoryBreakdown($worklogData, $taskCategories);
 
             // Add performance data for weeks mode
             if ($dateMode === 'weeks') {
@@ -206,21 +192,14 @@ class WorklogDashboardController extends Controller
                         'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
                     ], 422);
                 }
-                $billableTotal                        = $dashboardData['basic_metrics']['billable_hours'] ?? null;
-                $dashboardData['target_performances'] = calculatePerformanceMetricsDailySummaries(
-                    $user,
-                    $startDate,
-                    $endDate,
-                    $billableTotal
-                );
-                $dashboardData['target_performances_old'] = calculateTargetPerformancesForUser(
+
+                $dashboardData['target_performances'] = calculateTargetPerformancesForUser(
                     $user,
                     $worklogData['all_worklogs'],
                     $startDate,
                     $endDate,
                     $workStatusChanges
                 );
-
             }
         }
 
@@ -239,6 +218,7 @@ class WorklogDashboardController extends Controller
                 'days_span'           => $daysDiff + 1,
             ]
         );
+        $dashboardData['worklogs'] = $worklogData;
 
         return response()->json([
             'success'   => true,
@@ -435,6 +415,117 @@ class WorklogDashboardController extends Controller
     }
 
     /**
+     * Calculate optimized daily breakdown
+     */
+    private function calculateOptimizedDailyBreakdown($worklogData, $startDate, $endDate)
+    {
+        // $dailyData   = [];
+        // $currentDate = Carbon::parse($startDate);
+        // $endDate     = Carbon::parse($endDate);
+
+        // // Group worklogs by date for faster lookup
+        // $billableByDate = $worklogData['billable_worklogs']->groupBy(function ($worklog) {
+        //     return Carbon::parse($worklog->start_time)->toDateString();
+        // });
+
+        // $nonBillableByDate = $worklogData['non_billable_worklogs']->groupBy(function ($worklog) {
+        //     return Carbon::parse($worklog->start_time)->toDateString();
+        // });
+
+        // $uncategorizedByDate = $worklogData['uncategorized_worklogs']->groupBy(function ($worklog) {
+        //     return Carbon::parse($worklog->start_time)->toDateString();
+        // });
+
+        // while ($currentDate <= $endDate) {
+        //     $dateString = $currentDate->toDateString();
+
+        //     $dayBillableWorklogs      = $billableByDate->get($dateString, collect());
+        //     $dayNonBillableWorklogs   = $nonBillableByDate->get($dateString, collect());
+        //     $dayUncategorizedWorklogs = $uncategorizedByDate->get($dateString, collect());
+
+        //     $billableSeconds      = $dayBillableWorklogs->sum('duration');
+        //     $nonBillableSeconds   = $dayNonBillableWorklogs->sum('duration');
+        //     $uncategorizedSeconds = $dayUncategorizedWorklogs->sum('duration');
+        //     $totalSeconds         = $billableSeconds + $nonBillableSeconds + $uncategorizedSeconds;
+
+        //     $billableHours    = round($billableSeconds / 3600, 2);
+        //     $nonBillableHours = round($nonBillableSeconds / 3600, 2);
+        //     $totalHours       = round($totalSeconds / 3600, 2);
+
+        //     $dailyData[] = [
+        //         'date'                 => $dateString,
+        //         'day_name'             => $currentDate->format('l'),
+        //         'day_short'            => $currentDate->format('D'),
+        //         'is_weekend'           => $currentDate->isWeekend(),
+        //         'billable_hours'       => $billableHours,
+        //         'non_billable_hours'   => $nonBillableHours,
+        //         'total_hours'          => $totalHours,
+        //         'entries_count'        => $dayBillableWorklogs->count() + $dayNonBillableWorklogs->count() + $dayUncategorizedWorklogs->count(),
+        //         'billable_entries'     => $dayBillableWorklogs->count(),
+        //         'non_billable_entries' => $dayNonBillableWorklogs->count(),
+        //     ];
+
+        //     $currentDate->addDay();
+        // }
+
+        // return $dailyData;
+
+        $dateRange   = [];
+        $currentDate = Carbon::parse($startDate);
+        $endDate     = Carbon::parse($endDate);
+
+        while ($currentDate <= $endDate) {
+            $dateString             = $currentDate->toDateString();
+            $dateRange[$dateString] = [
+                'date'       => $dateString,
+                'day_name'   => $currentDate->format('l'),
+                'day_short'  => $currentDate->format('D'),
+                'is_weekend' => $currentDate->isWeekend(),
+            ];
+            $currentDate->addDay();
+        }
+
+        // Group all worklogs by date in one pass
+        $worklogsByDate = [
+            'billable'      => [],
+            'non_billable'  => [],
+            'uncategorized' => [],
+        ];
+
+        foreach (['billable_worklogs' => 'billable', 'non_billable_worklogs' => 'non_billable', 'uncategorized_worklogs' => 'uncategorized'] as $key => $type) {
+            foreach ($worklogData[$key] as $worklog) {
+                $date = Carbon::parse($worklog->start_time)->toDateString();
+                if (! isset($worklogsByDate[$type][$date])) {
+                    $worklogsByDate[$type][$date] = ['duration' => 0, 'count' => 0];
+                }
+                $worklogsByDate[$type][$date]['duration'] += $worklog->duration;
+                $worklogsByDate[$type][$date]['count']++;
+            }
+        }
+
+        // Build final array
+        $dailyData = [];
+        foreach ($dateRange as $dateString => $dateInfo) {
+            $billable      = $worklogsByDate['billable'][$dateString] ?? ['duration' => 0, 'count' => 0];
+            $nonBillable   = $worklogsByDate['non_billable'][$dateString] ?? ['duration' => 0, 'count' => 0];
+            $uncategorized = $worklogsByDate['uncategorized'][$dateString] ?? ['duration' => 0, 'count' => 0];
+
+            $totalSeconds = $billable['duration'] + $nonBillable['duration'] + $uncategorized['duration'];
+
+            $dailyData[] = array_merge($dateInfo, [
+                'billable_hours'       => round($billable['duration'] / 3600, 2),
+                'non_billable_hours'   => round($nonBillable['duration'] / 3600, 2),
+                'total_hours'          => round($totalSeconds / 3600, 2),
+                'entries_count'        => $billable['count'] + $nonBillable['count'] + $uncategorized['count'],
+                'billable_entries'     => $billable['count'],
+                'non_billable_entries' => $nonBillable['count'],
+            ]);
+        }
+
+        return $dailyData;
+    }
+
+    /**
      * Calculate optimized category breakdown
      */
     private function calculateOptimizedCategoryBreakdown($worklogData, $taskCategories)
@@ -592,32 +683,24 @@ class WorklogDashboardController extends Controller
 
         return [
             'first_half'  => [
-                'date_range'             => [
+                'date_range'         => [
                     'start' => $firstHalfStart->format('Y-m-d'),
                     'end'   => $firstHalfEnd->format('Y-m-d'),
                 ],
-                'nad_data'               => $firstHalfNAD['nad_data'],
-                'basic_metrics'          => calculateBasicMetricsFromDailySummaries($user->id, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d')),
-                'daily_breakdown'        => calculateDailyBreakdownFromSummaries($user->id, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d')),
-                // 'category_breakdown_cat' => $this->calculateOptimizedCategoryBreakdown($firstHalfWorklogData, $taskCategories),
-                'category_breakdown_cat' => calculateCategoryBreakdownFromSummaries(
-                    $user->id,
-                    $firstHalfStart->format('Y-m-d'),
-                    $firstHalfEnd->format('Y-m-d'), ),
+                'nad_data'           => $firstHalfNAD['nad_data'],
+                'basic_metrics'      => $this->calculateOptimizedBasicMetrics($firstHalfWorklogData),
+                'daily_breakdown'    => $this->calculateOptimizedDailyBreakdown($firstHalfWorklogData, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d')),
+                'category_breakdown' => $this->calculateOptimizedCategoryBreakdown($firstHalfWorklogData, $taskCategories),
             ],
             'second_half' => [
-                'date_range'             => [
+                'date_range'         => [
                     'start' => $secondHalfStart->format('Y-m-d'),
                     'end'   => $secondHalfEnd->format('Y-m-d'),
                 ],
-                'nad_data'               => $secondHalfNAD['nad_data'],
-                'basic_metrics'          => calculateBasicMetricsFromDailySummaries($user->id, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d')),
-                'daily_breakdown'        => calculateDailyBreakdownFromSummaries($user->id, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d')),
-                // 'category_breakdown' => $this->calculateOptimizedCategoryBreakdown($secondHalfWorklogData, $taskCategories),
-                'category_breakdown_cat' => calculateCategoryBreakdownFromSummaries(
-                    $user->id,
-                    $secondHalfStart->format('Y-m-d'),
-                    $secondHalfStart->format('Y-m-d'), ),
+                'nad_data'           => $secondHalfNAD['nad_data'],
+                'basic_metrics'      => $this->calculateOptimizedBasicMetrics($secondHalfWorklogData),
+                'daily_breakdown'    => $this->calculateOptimizedDailyBreakdown($secondHalfWorklogData, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d')),
+                'category_breakdown' => $this->calculateOptimizedCategoryBreakdown($secondHalfWorklogData, $taskCategories),
             ],
         ];
     }
@@ -1069,63 +1152,5 @@ class WorklogDashboardController extends Controller
             'start' => $startDate,
             'end'   => $endDate,
         ];
-    }
-
-    /**
-     * Get tasks by report category for worklog dashboard
-     */
-    public function getTasksByCategory(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'category_id' => 'required|integer|exists:report_categories,id',
-            'start_date'  => 'required|date',
-            'end_date'    => 'required|date|after_or_equal:start_date',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            // Verify the IVA user exists
-            $user = IvaUser::findOrFail($id);
-
-            $categoryId = $request->input('category_id');
-            $startDate  = $request->input('start_date');
-            $endDate    = $request->input('end_date');
-
-                                       // Apply start date adjustment logic (same as dashboard)
-            $isSetMonday       = true; // Default for category breakdown
-            $dateAdjustment    = ivaAdjustStartDate($user, $startDate, $endDate, $isSetMonday);
-            $adjustedStartDate = $dateAdjustment['adjusted_start_date'];
-
-            // Get tasks using the helper function
-            $tasks = getTasksByReportCategory($categoryId, $user->id, $adjustedStartDate, $endDate);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Tasks retrieved successfully',
-                'data'    => $tasks,
-                'meta'    => [
-                    'category_id'         => $categoryId,
-                    'iva_id'              => $user->id,
-                    'iva_name'            => $user->full_name,
-                    'start_date'          => $adjustedStartDate,
-                    'end_date'            => $endDate,
-                    'original_start_date' => $startDate,
-                ],
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve tasks: ' . $e->getMessage(),
-                'data'    => [],
-            ], 500);
-        }
     }
 }

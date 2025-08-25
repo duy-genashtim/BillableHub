@@ -128,6 +128,7 @@ Route::middleware('auth.jwt')->group(function () {
 
             // Working Hours Dashboard
             Route::get('/{id}/worklog-dashboard', [WorklogDashboardController::class, 'getDashboardData']);
+            Route::get('/{id}/worklog-dashboard/tasks-by-category', [WorklogDashboardController::class, 'getTasksByCategory']);
         });
 
         // Daily Worklog Summary Calculation Routes

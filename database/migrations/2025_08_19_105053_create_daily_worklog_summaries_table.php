@@ -14,11 +14,14 @@ return new class extends Migration
         Schema::create('daily_worklog_summaries', function (Blueprint $table) {
             $table->id();
             $table->foreignId('iva_id')->constrained('iva_user')->onDelete('cascade');
-            $table->foreignId('report_category_id')->constrained('report_categories')->onDelete('cascade');
+            $table->foreignId('report_category_id')
+                ->nullable() // allow null values
+                ->constrained('report_categories')
+                ->onDelete('cascade');
             $table->date('report_date');
             $table->integer('total_duration'); // Total duration in seconds
-            $table->integer('entries_count'); // Number of worklog entries
-            $table->string('category_type'); // billable, non-billable, or other types
+            $table->integer('entries_count');  // Number of worklog entries
+            $table->string('category_type');   // billable, non-billable, or other types
             $table->timestamps();
 
             // Unique constraint to prevent duplicate entries

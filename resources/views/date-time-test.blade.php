@@ -22,13 +22,35 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f2f2f2; }
         .count { color: #28a745; font-weight: bold; }
+        .tabs { display: flex; border-bottom: 2px solid #007bff; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; background: #f8f9fa; border: 1px solid #ddd; cursor: pointer; margin-right: 5px; border-bottom: none; }
+        .tab.active { background: #007bff; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .test-form { background: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .btn:hover { background: #0056b3; }
+        .loading { color: #007bff; font-style: italic; }
+        .success { color: #28a745; }
+        .error-result { color: #dc3545; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Date Time Helpers Test Results</h1>
         
-        <div class="controls">
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('datetime-helpers')">Date Time Helpers</div>
+            <div class="tab" onclick="switchTab('worklog-summary')">Daily Worklog Summary</div>
+        </div>
+
+        <!-- Date Time Helpers Tab -->
+        <div id="datetime-helpers" class="tab-content active">
+            <div class="controls">
             <form method="GET">
                 <label>Year: <input type="number" name="year" value="{{ $year }}" min="2024"></label>
                 <label>Week Number: <input type="number" name="week_number" value="{{ $weekNumber }}" min="1" max="52"></label>
@@ -109,6 +131,39 @@
                 </div>
             @endforeach
         @endif
+        </div>
+
+        <!-- Daily Worklog Summary Tab -->
+        <div id="worklog-summary" class="tab-content">
+            <div class="test-form">
+                <h2>Test DailyWorklogSummaryService::calculateSummaries</h2>
+                <form id="worklogSummaryForm">
+                    <div class="form-group">
+                        <label for="user_id">IVA User ID:</label>
+                        <input type="number" id="user_id" name="user_id" placeholder="Enter user ID (leave empty for all users)">
+                    </div>
+                    <div class="form-group">
+                        <label for="start_date">Start Date:</label>
+                        <input type="date" id="start_date" name="start_date" value="{{ Carbon\Carbon::now()->subDays(7)->format('Y-m-d') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="end_date">End Date:</label>
+                        <input type="date" id="end_date" name="end_date" value="{{ Carbon\Carbon::now()->format('Y-m-d') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="calculate_all">
+                            <input type="checkbox" id="calculate_all" name="calculate_all" value="1"> Calculate for all users
+                        </label>
+                    </div>
+                    <button type="button" class="btn" onclick="testWorklogSummary()">Run Test</button>
+                </form>
+            </div>
+
+            <div id="worklogResults" style="display:none;">
+                <h3>Test Results</h3>
+                <div id="worklogResultsContent"></div>
+            </div>
+        </div>
 
         <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666;">
             <p><strong>Test Info:</strong></p>
@@ -121,5 +176,89 @@
             </ul>
         </div>
     </div>
+
+    <script>
+        function switchTab(tabId) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        async function testWorklogSummary() {
+            const form = document.getElementById('worklogSummaryForm');
+            const formData = new FormData(form);
+            
+            // Show loading state
+            const resultsDiv = document.getElementById('worklogResults');
+            const resultsContent = document.getElementById('worklogResultsContent');
+            resultsDiv.style.display = 'block';
+            resultsContent.innerHTML = '<div class="loading">Running test...</div>';
+
+            try {
+                const response = await fetch('{{ route("api.test.daily-worklog-summary") }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+
+                const result = await response.json();
+                
+                let html = '<div class="function-block">';
+                html += '<h3>' + result.function + '</h3>';
+                
+                html += '<div class="parameters">';
+                html += '<strong>Parameters:</strong>';
+                html += '<pre>' + JSON.stringify(result.parameters, null, 2) + '</pre>';
+                html += '</div>';
+
+                if (result.success) {
+                    html += '<div class="success">✓ Test completed successfully</div>';
+                    html += '<div class="result">';
+                    html += '<strong>Result:</strong>';
+                    html += '<pre>' + JSON.stringify(result.result, null, 2) + '</pre>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="error-result">✗ Test failed</div>';
+                    if (result.error) {
+                        html += '<div class="error">';
+                        html += '<strong>Error:</strong>';
+                        html += '<pre>' + result.error + '</pre>';
+                        html += '</div>';
+                    }
+                }
+                
+                html += '</div>';
+                resultsContent.innerHTML = html;
+
+            } catch (error) {
+                resultsContent.innerHTML = '<div class="error">Failed to execute test: ' + error.message + '</div>';
+            }
+        }
+
+        // Handle calculate_all checkbox
+        document.getElementById('calculate_all').addEventListener('change', function() {
+            const userIdInput = document.getElementById('user_id');
+            if (this.checked) {
+                userIdInput.disabled = true;
+                userIdInput.value = '';
+                userIdInput.placeholder = 'Disabled - calculating for all users';
+            } else {
+                userIdInput.disabled = false;
+                userIdInput.placeholder = 'Enter user ID (leave empty for all users)';
+            }
+        });
+    </script>
 </body>
 </html>
