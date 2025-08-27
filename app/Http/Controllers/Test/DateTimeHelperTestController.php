@@ -14,7 +14,7 @@ class DateTimeHelperTestController extends Controller
      */
     public function index(Request $request)
     {
-        $year = $request->get('year', Carbon::now()->year);
+        $year = (int) $request->get('year', Carbon::now()->year);
         $testResults = [];
 
         try {
@@ -126,7 +126,7 @@ class DateTimeHelperTestController extends Controller
     public function api(Request $request)
     {
         $function = $request->get('function');
-        $year = $request->get('year', Carbon::now()->year);
+        $year = (int) $request->get('year', Carbon::now()->year);
         $result = [];
 
         try {
@@ -233,6 +233,85 @@ class DateTimeHelperTestController extends Controller
                 'error' => $e->getMessage(),
                 'success' => false
             ];
+        }
+
+        return response()->json($testResult);
+    }
+
+    /**
+     * Test fetchNADDataForUsers helper function
+     */
+    public function testNADData(Request $request)
+    {
+        $startDate = $request->get('start_date', Carbon::now()->subDays(7)->format('Y-m-d'));
+        $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
+
+        $testResult = [];
+        $debugLogs = [];
+        $executionStartTime = microtime(true);
+
+        // Capture current log level to restore later
+        $originalLogLevel = config('logging.level');
+        
+        try {
+            // Enable debug logging temporarily for this test
+            config(['logging.level' => 'debug']);
+            
+            $result = fetchNADDataForUsers($startDate, $endDate);
+            
+            $executionTime = round((microtime(true) - $executionStartTime) * 1000, 2);
+
+            // Extract debug information if available
+            $debugInfo = $result['debug_info'] ?? [];
+            
+            $testResult = [
+                'function' => 'fetchNADDataForUsers',
+                'parameters' => [
+                    'start_date' => $startDate,
+                    'end_date' => $endDate
+                ],
+                'result' => $result,
+                'execution_time_ms' => $executionTime,
+                'debug_summary' => [
+                    'api_called' => true,
+                    'api_url' => $debugInfo['nad_api_url'] ?? config('services.nad.url'),
+                    'api_response_status' => $debugInfo['api_response_status'] ?? 'unknown',
+                    'api_response_message' => $debugInfo['api_response_message'] ?? 'no message',
+                    'nad_count' => $result['nad_count'] ?? 0,
+                    'nad_hours' => $result['nad_hours'] ?? 0,
+                    'has_data' => !empty($result['nad_data']),
+                    'request_timestamp' => $debugInfo['api_called_at'] ?? now()->toIsoString(),
+                ],
+                'success' => true
+            ];
+
+            // If there are errors in the result, mark as partial success
+            if (isset($result['debug_info']['api_response_status']) && $result['debug_info']['api_response_status'] === false) {
+                $testResult['success'] = false;
+                $testResult['warning'] = 'API call failed but function returned gracefully';
+            }
+
+        } catch (\Exception $e) {
+            $executionTime = round((microtime(true) - $executionStartTime) * 1000, 2);
+            
+            $testResult = [
+                'function' => 'fetchNADDataForUsers',
+                'parameters' => [
+                    'start_date' => $startDate,
+                    'end_date' => $endDate
+                ],
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ],
+                'execution_time_ms' => $executionTime,
+                'success' => false
+            ];
+        } finally {
+            // Restore original log level
+            config(['logging.level' => $originalLogLevel]);
         }
 
         return response()->json($testResult);

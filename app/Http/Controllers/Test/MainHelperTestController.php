@@ -21,9 +21,7 @@ class MainHelperTestController extends Controller
         $userId = $request->get('user_id', 1);
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', Carbon::now()->endOfMonth()->format('Y-m-d'));
-        $weekNumber = $request->get('week_number', getCurrentWeekNumber());
-        $monthNumber = $request->get('month_number', getCurrentMonthNumber());
-        $year = $request->get('year', Carbon::now()->year);
+        $categoryId = $request->get('category_id', 1);
 
         // Try to get a test user
         $user = null;
@@ -39,6 +37,10 @@ class MainHelperTestController extends Controller
         if ($user) {
             try {
                 // Test calculateUserTargetHours
+                $startTime = microtime(true);
+                $result = calculateUserTargetHours($user, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
                 $testResults['calculateUserTargetHours'] = [
                     'function' => 'calculateUserTargetHours',
                     'parameters' => [
@@ -47,7 +49,8 @@ class MainHelperTestController extends Controller
                         'start_date' => $startDate,
                         'end_date' => $endDate
                     ],
-                    'result' => calculateUserTargetHours($user, $startDate, $endDate)
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
                 ];
             } catch (\Exception $e) {
                 $testResults['calculateUserTargetHours'] = [
@@ -57,168 +60,190 @@ class MainHelperTestController extends Controller
                         'start_date' => $startDate,
                         'end_date' => $endDate
                     ],
+                    'execution_time_ms' => 0,
                     'error' => $e->getMessage()
                 ];
             }
 
             try {
-                // Test getTargetHoursForCurrentWeek
-                $testResults['getTargetHoursForCurrentWeek'] = [
-                    'function' => 'getTargetHoursForCurrentWeek',
+                // Test calculateBasicMetricsFromDailySummaries
+                $startTime = microtime(true);
+                $result = calculateBasicMetricsFromDailySummaries($user->id, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
+                $testResults['calculateBasicMetricsFromDailySummaries'] = [
+                    'function' => 'calculateBasicMetricsFromDailySummaries',
                     'parameters' => [
-                        'user_id' => $user->id,
-                        'user_name' => $user->full_name ?? $user->email
-                    ],
-                    'result' => getTargetHoursForCurrentWeek($user)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursForCurrentWeek'] = [
-                    'function' => 'getTargetHoursForCurrentWeek',
-                    'parameters' => ['user_id' => $user->id],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test getTargetHoursForCurrentMonth
-                $testResults['getTargetHoursForCurrentMonth'] = [
-                    'function' => 'getTargetHoursForCurrentMonth',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'user_name' => $user->full_name ?? $user->email
-                    ],
-                    'result' => getTargetHoursForCurrentMonth($user)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursForCurrentMonth'] = [
-                    'function' => 'getTargetHoursForCurrentMonth',
-                    'parameters' => ['user_id' => $user->id],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test getTargetHoursForLastWeek
-                $testResults['getTargetHoursForLastWeek'] = [
-                    'function' => 'getTargetHoursForLastWeek',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'user_name' => $user->full_name ?? $user->email
-                    ],
-                    'result' => getTargetHoursForLastWeek($user)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursForLastWeek'] = [
-                    'function' => 'getTargetHoursForLastWeek',
-                    'parameters' => ['user_id' => $user->id],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test getTargetHoursForLastMonth
-                $testResults['getTargetHoursForLastMonth'] = [
-                    'function' => 'getTargetHoursForLastMonth',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'user_name' => $user->full_name ?? $user->email
-                    ],
-                    'result' => getTargetHoursForLastMonth($user)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursForLastMonth'] = [
-                    'function' => 'getTargetHoursForLastMonth',
-                    'parameters' => ['user_id' => $user->id],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test getTargetHoursForWeekNumber
-                $testResults['getTargetHoursForWeekNumber'] = [
-                    'function' => 'getTargetHoursForWeekNumber',
-                    'parameters' => [
-                        'user_id' => $user->id,
+                        'iva_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
-                        'week_number' => $weekNumber,
-                        'year' => $year
-                    ],
-                    'result' => getTargetHoursForWeekNumber($user, $weekNumber, $year)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursForWeekNumber'] = [
-                    'function' => 'getTargetHoursForWeekNumber',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'week_number' => $weekNumber,
-                        'year' => $year
-                    ],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test getTargetHoursForMonthNumber
-                $testResults['getTargetHoursForMonthNumber'] = [
-                    'function' => 'getTargetHoursForMonthNumber',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'user_name' => $user->full_name ?? $user->email,
-                        'month_number' => $monthNumber,
-                        'year' => $year
-                    ],
-                    'result' => getTargetHoursForMonthNumber($user, $monthNumber, $year)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursForMonthNumber'] = [
-                    'function' => 'getTargetHoursForMonthNumber',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'month_number' => $monthNumber,
-                        'year' => $year
-                    ],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test getTargetHoursSummaryForUser
-                $testResults['getTargetHoursSummaryForUser'] = [
-                    'function' => 'getTargetHoursSummaryForUser',
-                    'parameters' => [
-                        'user_id' => $user->id,
-                        'user_name' => $user->full_name ?? $user->email
-                    ],
-                    'result' => getTargetHoursSummaryForUser($user)
-                ];
-            } catch (\Exception $e) {
-                $testResults['getTargetHoursSummaryForUser'] = [
-                    'function' => 'getTargetHoursSummaryForUser',
-                    'parameters' => ['user_id' => $user->id],
-                    'error' => $e->getMessage()
-                ];
-            }
-
-            try {
-                // Test calculateTargetHoursForMultipleUsers
-                $multipleUsers = IvaUser::take(3)->get();
-                $testResults['calculateTargetHoursForMultipleUsers'] = [
-                    'function' => 'calculateTargetHoursForMultipleUsers',
-                    'parameters' => [
-                        'user_count' => $multipleUsers->count(),
-                        'user_ids' => $multipleUsers->pluck('id')->toArray(),
                         'start_date' => $startDate,
                         'end_date' => $endDate
                     ],
-                    'result' => calculateTargetHoursForMultipleUsers($multipleUsers, $startDate, $endDate)
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
                 ];
             } catch (\Exception $e) {
-                $testResults['calculateTargetHoursForMultipleUsers'] = [
-                    'function' => 'calculateTargetHoursForMultipleUsers',
+                $testResults['calculateBasicMetricsFromDailySummaries'] = [
+                    'function' => 'calculateBasicMetricsFromDailySummaries',
                     'parameters' => [
+                        'iva_id' => $user->id,
                         'start_date' => $startDate,
                         'end_date' => $endDate
                     ],
+                    'execution_time_ms' => 0,
+                    'error' => $e->getMessage()
+                ];
+            }
+
+            try {
+                // Test calculateDailyBreakdownFromSummaries
+                $startTime = microtime(true);
+                $result = calculateDailyBreakdownFromSummaries($user->id, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
+                $testResults['calculateDailyBreakdownFromSummaries'] = [
+                    'function' => 'calculateDailyBreakdownFromSummaries',
+                    'parameters' => [
+                        'iva_id' => $user->id,
+                        'user_name' => $user->full_name ?? $user->email,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
+                ];
+            } catch (\Exception $e) {
+                $testResults['calculateDailyBreakdownFromSummaries'] = [
+                    'function' => 'calculateDailyBreakdownFromSummaries',
+                    'parameters' => [
+                        'iva_id' => $user->id,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => 0,
+                    'error' => $e->getMessage()
+                ];
+            }
+
+            try {
+                // Test calculatePerformanceMetricsDailySummaries
+                $startTime = microtime(true);
+                $result = calculatePerformanceMetricsDailySummaries($user, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
+                $testResults['calculatePerformanceMetricsDailySummaries'] = [
+                    'function' => 'calculatePerformanceMetricsDailySummaries',
+                    'parameters' => [
+                        'user_id' => $user->id,
+                        'user_name' => $user->full_name ?? $user->email,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
+                ];
+            } catch (\Exception $e) {
+                $testResults['calculatePerformanceMetricsDailySummaries'] = [
+                    'function' => 'calculatePerformanceMetricsDailySummaries',
+                    'parameters' => [
+                        'user_id' => $user->id,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => 0,
+                    'error' => $e->getMessage()
+                ];
+            }
+
+            try {
+                // Test calculateCategoryBreakdownFromSummaries
+                $startTime = microtime(true);
+                $result = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
+                $testResults['calculateCategoryBreakdownFromSummaries'] = [
+                    'function' => 'calculateCategoryBreakdownFromSummaries',
+                    'parameters' => [
+                        'iva_id' => $user->id,
+                        'user_name' => $user->full_name ?? $user->email,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
+                ];
+            } catch (\Exception $e) {
+                $testResults['calculateCategoryBreakdownFromSummaries'] = [
+                    'function' => 'calculateCategoryBreakdownFromSummaries',
+                    'parameters' => [
+                        'iva_id' => $user->id,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => 0,
+                    'error' => $e->getMessage()
+                ];
+            }
+
+            try {
+                // Test getTasksByReportCategory - using first available category ID
+                $categoryId = $request->get('category_id', 1);
+                $startTime = microtime(true);
+                $result = getTasksByReportCategory($categoryId, $user->id, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
+                $testResults['getTasksByReportCategory'] = [
+                    'function' => 'getTasksByReportCategory',
+                    'parameters' => [
+                        'report_category_id' => $categoryId,
+                        'iva_id' => $user->id,
+                        'user_name' => $user->full_name ?? $user->email,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
+                ];
+            } catch (\Exception $e) {
+                $testResults['getTasksByReportCategory'] = [
+                    'function' => 'getTasksByReportCategory',
+                    'parameters' => [
+                        'report_category_id' => $request->get('category_id', 1),
+                        'iva_id' => $user->id,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => 0,
+                    'error' => $e->getMessage()
+                ];
+            }
+
+            try {
+                // Test calculateUserTargetHoursOptimized - Performance optimized version
+                $startTime = microtime(true);
+                $result = calculateUserTargetHoursOptimized($user, $startDate, $endDate);
+                $executionTime = microtime(true) - $startTime;
+                
+                $testResults['calculateUserTargetHoursOptimized'] = [
+                    'function' => 'calculateUserTargetHoursOptimized',
+                    'parameters' => [
+                        'user_id' => $user->id,
+                        'user_name' => $user->full_name ?? $user->email,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => round($executionTime * 1000, 2),
+                    'result' => $result
+                ];
+            } catch (\Exception $e) {
+                $testResults['calculateUserTargetHoursOptimized'] = [
+                    'function' => 'calculateUserTargetHoursOptimized',
+                    'parameters' => [
+                        'user_id' => $user->id,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ],
+                    'execution_time_ms' => 0,
                     'error' => $e->getMessage()
                 ];
             }
@@ -238,9 +263,7 @@ class MainHelperTestController extends Controller
             'userId', 
             'startDate', 
             'endDate', 
-            'weekNumber', 
-            'monthNumber', 
-            'year',
+            'categoryId',
             'availableUsers',
             'user'
         ));

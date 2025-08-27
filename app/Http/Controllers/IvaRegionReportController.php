@@ -2,7 +2,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
-use App\Models\WorklogsData;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -149,7 +148,7 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Generate region report data
+     * Generate region report data using optimized approach
      */
     private function generateRegionReportData(Request $request)
     {
@@ -168,10 +167,7 @@ class IvaRegionReportController extends Controller
         // Get all active users in the region during the period
         $users = $this->getActiveUsersInRegion($regionId, $startDate, $endDate);
 
-        // Get task categories mapping
-        $taskCategories = $this->getTaskCategoriesMapping();
-
-        // Process performance data based on mode
+        // Process performance data based on mode using optimized functions
         $reportData = [
             'region'     => [
                 'id'   => $region->id,
@@ -189,18 +185,18 @@ class IvaRegionReportController extends Controller
 
         switch ($mode) {
             case 'weekly':
-                $reportData = $this->processWeeklySummaryData($users, $startDate, $endDate, $taskCategories, $reportData);
+                $reportData = $this->processWeeklySummaryDataOptimized($users, $startDate, $endDate, $reportData);
                 break;
             case 'monthly':
-                $reportData = $this->processMonthlySummaryData($users, $startDate, $endDate, $taskCategories, $reportData);
+                $reportData = $this->processMonthlySummaryDataOptimized($users, $startDate, $endDate, $reportData);
                 break;
             case 'yearly':
-                $reportData = $this->processYearlyData($users, $startDate, $endDate, $taskCategories, $reportData);
+                $reportData = $this->processYearlyDataOptimized($users, $startDate, $endDate, $reportData);
                 break;
         }
 
-        // Add category summary - UPDATED to include ALL billable categories
-        $reportData['category_summary'] = $this->calculateCategorySummary($reportData['users_data'], $taskCategories);
+        // Add category summary using optimized approach
+        $reportData['category_summary'] = $this->calculateCategorySummaryOptimized($reportData['users_data']);
 
         return $reportData;
     }
@@ -241,114 +237,77 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Get task categories mapping (UPDATED)
+     * Process weekly summary data using optimized daily summaries
      */
-    private function getTaskCategoriesMapping()
-    {
-        $mappingData = DB::table('task_report_categories as trc')
-            ->join('report_categories as rc', 'trc.cat_id', '=', 'rc.id')
-            ->join('configuration_settings as cs', 'rc.category_type', '=', 'cs.id')
-            ->where('rc.is_active', true)
-            ->select([
-                'trc.task_id',
-                'rc.id as category_id',
-                'rc.cat_name',
-                'cs.setting_value as category_type',
-            ])
-            ->get();
-
-        $billableTaskIds       = [];
-        $nonBillableTaskIds    = [];
-        $fullMapping           = [];
-        $taskToCategoryMap     = [];
-        $allBillableCategories = [];
-
-        foreach ($mappingData as $mapping) {
-            $taskId = $mapping->task_id;
-
-            if (! isset($fullMapping[$taskId])) {
-                $fullMapping[$taskId] = collect();
-            }
-            $fullMapping[$taskId]->push($mapping);
-
-            // Map task to category
-            $taskToCategoryMap[$taskId] = $mapping->category_id;
-
-            if (stripos($mapping->category_type, 'billable') === 0) {
-                $billableTaskIds[] = $taskId;
-
-                // Store all billable categories with their info
-                $allBillableCategories[$mapping->category_id] = [
-                    'category_id'   => $mapping->category_id,
-                    'category_name' => $mapping->cat_name,
-                ];
-            } elseif (stripos($mapping->category_type, 'non-billable') !== false) {
-                $nonBillableTaskIds[] = $taskId;
-            }
-        }
-
-        return [
-            'billable_task_ids'       => array_unique($billableTaskIds),
-            'non_billable_task_ids'   => array_unique($nonBillableTaskIds),
-            'full_mapping'            => collect($fullMapping),
-            'category_mapping'        => $taskToCategoryMap,
-            'all_billable_categories' => $allBillableCategories, // NEW: All billable categories
-        ];
-    }
-
-    /**
-     * Process weekly summary data (FIXED)
-     */
-    private function processWeeklySummaryData($users, $startDate, $endDate, $taskCategories, $reportData)
+    private function processWeeklySummaryDataOptimized($users, $startDate, $endDate, $reportData)
     {
         $allUsersData  = [];
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
-        // Get week ranges
-        $weekRanges = getWeekRangeForDates($startDate, $endDate, 1);
+        // Fetch NAD data for all users once (optimized)
+        $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
+        $nadDataByEmail  = [];
+
+        if (isset($nadDataResponse['nad_data']) && is_array($nadDataResponse['nad_data'])) {
+            foreach ($nadDataResponse['nad_data'] as $nadUser) {
+                $nadDataByEmail[$nadUser['email']] = [
+                    'nad_count' => $nadUser['nad_count'] ?? 0,
+                    'nad_hours' => ($nadUser['nad_count'] ?? 0) * ($nadDataResponse['nad_hour_rate'] ?? 8),
+                    'requests'  => $nadUser['requests'] ?? 0,
+                ];
+            }
+        }
 
         foreach ($users as $user) {
-            // Get work status changes
-            $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
+            // Use optimized basic metrics from daily summaries for the single week
+            $weekMetrics = calculateBasicMetricsFromDailySummaries(
+                $user->id,
+                $startDate,
+                $endDate
+            );
 
-            // Get all worklogs for the entire period first
-            $allWorklogs = WorklogsData::where('iva_id', $user->id)
-                ->where('is_active', true)
-                ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-                ->get();
+            // Calculate performance using optimized function
+            $weekPerformance = calculatePerformanceMetricsDailySummaries(
+                $user,
+                $startDate,
+                $endDate,
+                $weekMetrics['billable_hours']
+            );
 
-            // Process each week
-            $weeklyData            = [];
-            $totalBillableHours    = 0;
-            $totalNonBillableHours = 0;
-            $totalTargetHours      = 0;
+            // Get NAD data from optimized lookup
+            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
 
-            foreach ($weekRanges as $week) {
-                $weekWorklogData = $this->getUserWorklogDataForPeriod(
-                    $user->id,
-                    $week['start_date'],
-                    $week['end_date'],
-                    $taskCategories
-                );
+            // Get categories breakdown using optimized helper
+            $categoriesResponse = calculateFullCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
-                // Calculate week metrics
-                $weekMetrics = $this->calculateWeekMetrics($user, $weekWorklogData, $week, $workStatusChanges);
-
-                $weeklyData[] = $weekMetrics;
-                $totalBillableHours += $weekMetrics['billable_hours'];
-                $totalNonBillableHours += $weekMetrics['non_billable_hours'];
-                $totalTargetHours += $weekMetrics['target_hours'];
+            // Transform nested category structure to flat array for frontend compatibility
+            $categoriesBreakdown = [];
+            if (is_array($categoriesResponse)) {
+                foreach ($categoriesResponse as $typeGroup) {
+                    if (isset($typeGroup['categories']) && is_array($typeGroup['categories'])) {
+                        foreach ($typeGroup['categories'] as $category) {
+                            $categoriesBreakdown[] = [
+                                'category_id'   => $category['category_id'],
+                                'category_name' => $category['category_name'],
+                                'hours'         => $category['total_hours'],
+                            ];
+                        }
+                    }
+                }
             }
 
-            // Calculate NAD data
-            $nadData = fetchNADDataForPeriod($user, $startDate, $endDate);
-
-            // Calculate performance using actual worklogs
-            $performance = calculatePerformanceMetrics($user, $allWorklogs, $startDate, $endDate, $workStatusChanges);
-
-            // Get categories breakdown
-            $categoriesBreakdown = $this->getUserCategoriesBreakdown($user->id, $startDate, $endDate, $taskCategories);
+            // Create single-week breakdown array
+            $weeklyData = [[
+                'week_number'        => $this->calculateWeekNumber($startDate),
+                'start_date'         => $startDate,
+                'end_date'           => $endDate,
+                'billable_hours'     => $weekMetrics['billable_hours'],
+                'non_billable_hours' => $weekMetrics['non_billable_hours'],
+                'total_hours'        => $weekMetrics['total_hours'],
+                'target_hours'       => $weekPerformance[0]['target_total_hours'] ?? 0,
+                'performance'        => $weekPerformance[0] ?? null,
+            ]];
 
             $userData = [
                 'id'                 => $user->id,
@@ -356,15 +315,16 @@ class IvaRegionReportController extends Controller
                 'email'              => $user->email,
                 'job_title'          => $user->job_title,
                 'work_status'        => $user->work_status,
-                'billable_hours'     => round($totalBillableHours, 2),
-                'non_billable_hours' => round($totalNonBillableHours, 2),
-                'total_hours'        => round($totalBillableHours + $totalNonBillableHours, 2),
-                'target_hours'       => round($totalTargetHours, 2),
-                'nad_count'          => $nadData['nad_count'],
-                'nad_hours'          => $nadData['nad_hours'],
-                'performance'        => $performance[0] ?? null,
+                'billable_hours'     => round($weekMetrics['billable_hours'], 2),
+                'non_billable_hours' => round($weekMetrics['non_billable_hours'], 2),
+                'total_hours'        => round($weekMetrics['total_hours'], 2),
+                'target_hours'       => round($weekPerformance[0]['target_total_hours'] ?? 0, 2),
+                'nad_count'          => $userNadData['nad_count'],
+                'nad_hours'          => round($userNadData['nad_hours'], 2),
+                'performance'        => $weekPerformance[0] ?? null,
                 'weekly_breakdown'   => $weeklyData,
                 'categories'         => $categoriesBreakdown,
+                'categoryresponse'   => $categoriesResponse, // For debugging only
             ];
 
             $allUsersData[] = $userData;
@@ -392,58 +352,79 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Process monthly summary data (FIXED)
+     * Process monthly summary data using optimized daily summaries
      */
-    private function processMonthlySummaryData($users, $startDate, $endDate, $taskCategories, $reportData)
+    private function processMonthlySummaryDataOptimized($users, $startDate, $endDate, $reportData)
     {
         $allUsersData  = [];
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
-        // Get month ranges
-        $monthRanges = getMonthRangeForDates($startDate, $endDate, 12, null);
+        // Fetch NAD data for all users once (optimized)
+        $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
+        $nadDataByEmail  = [];
+
+        if (isset($nadDataResponse['nad_data']) && is_array($nadDataResponse['nad_data'])) {
+            foreach ($nadDataResponse['nad_data'] as $nadUser) {
+                $nadDataByEmail[$nadUser['email']] = [
+                    'nad_count' => $nadUser['nad_count'] ?? 0,
+                    'nad_hours' => ($nadUser['nad_count'] ?? 0) * ($nadDataResponse['nad_hour_rate'] ?? 8),
+                    'requests'  => $nadUser['requests'] ?? 0,
+                ];
+            }
+        }
 
         foreach ($users as $user) {
-            // Get work status changes
-            $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
+            // Use optimized basic metrics from daily summaries for the single month
+            $monthMetrics = calculateBasicMetricsFromDailySummaries(
+                $user->id,
+                $startDate,
+                $endDate
+            );
 
-            // Get all worklogs for the entire period first
-            $allWorklogs = WorklogsData::where('iva_id', $user->id)
-                ->where('is_active', true)
-                ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-                ->get();
+            // Calculate performance using optimized function
+            $monthPerformance = calculatePerformanceMetricsDailySummaries(
+                $user,
+                $startDate,
+                $endDate,
+                $monthMetrics['billable_hours']
+            );
 
-            // Process each month
-            $monthlyData           = [];
-            $totalBillableHours    = 0;
-            $totalNonBillableHours = 0;
-            $totalTargetHours      = 0;
+            // Get NAD data from optimized lookup
+            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
 
-            foreach ($monthRanges as $month) {
-                $monthWorklogData = $this->getUserWorklogDataForPeriod(
-                    $user->id,
-                    $month['start_date'],
-                    $month['end_date'],
-                    $taskCategories
-                );
+            // Get categories breakdown using optimized helper
+            $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
-                // Calculate month metrics
-                $monthMetrics = $this->calculateMonthMetrics($user, $monthWorklogData, $month, $workStatusChanges);
-
-                $monthlyData[] = $monthMetrics;
-                $totalBillableHours += $monthMetrics['billable_hours'];
-                $totalNonBillableHours += $monthMetrics['non_billable_hours'];
-                $totalTargetHours += $monthMetrics['target_hours'];
+            // Transform nested category structure to flat array for frontend compatibility
+            $categoriesBreakdown = [];
+            if (is_array($categoriesResponse)) {
+                foreach ($categoriesResponse as $typeGroup) {
+                    if (isset($typeGroup['categories']) && is_array($typeGroup['categories'])) {
+                        foreach ($typeGroup['categories'] as $category) {
+                            $categoriesBreakdown[] = [
+                                'category_id'   => $category['category_id'],
+                                'category_name' => $category['category_name'],
+                                'hours'         => $category['total_hours'],
+                            ];
+                        }
+                    }
+                }
             }
 
-            // Calculate NAD data
-            $nadData = fetchNADDataForPeriod($user, $startDate, $endDate);
-
-            // Calculate performance using actual worklogs
-            $performance = calculatePerformanceMetrics($user, $allWorklogs, $startDate, $endDate, $workStatusChanges);
-
-            // Get categories breakdown
-            $categoriesBreakdown = $this->getUserCategoriesBreakdown($user->id, $startDate, $endDate, $taskCategories);
+            // Create single-month breakdown array
+            $monthName   = Carbon::parse($startDate)->format('F');
+            $monthlyData = [[
+                'month_number'       => Carbon::parse($startDate)->month,
+                'start_date'         => $startDate,
+                'end_date'           => $endDate,
+                'label'              => $monthName,
+                'billable_hours'     => $monthMetrics['billable_hours'],
+                'non_billable_hours' => $monthMetrics['non_billable_hours'],
+                'total_hours'        => $monthMetrics['total_hours'],
+                'target_hours'       => $monthPerformance[0]['target_total_hours'] ?? 0,
+                'performance'        => $monthPerformance[0] ?? null,
+            ]];
 
             $userData = [
                 'id'                 => $user->id,
@@ -451,13 +432,13 @@ class IvaRegionReportController extends Controller
                 'email'              => $user->email,
                 'job_title'          => $user->job_title,
                 'work_status'        => $user->work_status,
-                'billable_hours'     => round($totalBillableHours, 2),
-                'non_billable_hours' => round($totalNonBillableHours, 2),
-                'total_hours'        => round($totalBillableHours + $totalNonBillableHours, 2),
-                'target_hours'       => round($totalTargetHours, 2),
-                'nad_count'          => $nadData['nad_count'],
-                'nad_hours'          => $nadData['nad_hours'],
-                'performance'        => $performance[0] ?? null,
+                'billable_hours'     => round($monthMetrics['billable_hours'], 2),
+                'non_billable_hours' => round($monthMetrics['non_billable_hours'], 2),
+                'total_hours'        => round($monthMetrics['total_hours'], 2),
+                'target_hours'       => round($monthPerformance[0]['target_total_hours'] ?? 0, 2),
+                'nad_count'          => $userNadData['nad_count'],
+                'nad_hours'          => round($userNadData['nad_hours'], 2),
+                'performance'        => $monthPerformance[0] ?? null,
                 'monthly_breakdown'  => $monthlyData,
                 'categories'         => $categoriesBreakdown,
             ];
@@ -487,44 +468,65 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Process yearly data (52 weeks) - FIXED
+     * Process yearly data using optimized daily summaries
      */
-    private function processYearlyData($users, $startDate, $endDate, $taskCategories, $reportData)
+    private function processYearlyDataOptimized($users, $startDate, $endDate, $reportData)
     {
-        // For yearly view, we'll provide a summary for the entire year
         $allUsersData  = [];
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
-        foreach ($users as $user) {
-            // Get work status changes
-            $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
+        // Fetch NAD data for all users once (optimized)
+        $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
+        $nadDataByEmail  = [];
 
-            // Get all worklogs for the year
-            $yearWorklogData = $this->getUserWorklogDataForPeriod(
+        if (isset($nadDataResponse['nad_data']) && is_array($nadDataResponse['nad_data'])) {
+            foreach ($nadDataResponse['nad_data'] as $nadUser) {
+                $nadDataByEmail[$nadUser['email']] = [
+                    'nad_count' => $nadUser['nad_count'] ?? 0,
+                    'nad_hours' => ($nadUser['nad_count'] ?? 0) * ($nadDataResponse['nad_hour_rate'] ?? 8),
+                    'requests'  => $nadUser['requests'] ?? 0,
+                ];
+            }
+        }
+
+        foreach ($users as $user) {
+            // Use optimized basic metrics from daily summaries for the year
+            $yearMetrics = calculateBasicMetricsFromDailySummaries(
                 $user->id,
                 $startDate,
-                $endDate,
-                $taskCategories
+                $endDate
             );
 
-            // Calculate metrics
-            $billableHours    = $yearWorklogData['billable_hours'];
-            $nonBillableHours = $yearWorklogData['non_billable_hours'];
+            // Calculate performance using optimized function
+            $yearPerformance = calculatePerformanceMetricsDailySummaries(
+                $user,
+                $startDate,
+                $endDate,
+                $yearMetrics['billable_hours']
+            );
 
-            // Calculate NAD data
-            $nadData = fetchNADDataForPeriod($user, $startDate, $endDate);
+            // Get NAD data from optimized lookup
+            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
 
-            // Calculate performance
-            $worklogs = WorklogsData::where('iva_id', $user->id)
-                ->where('is_active', true)
-                ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-                ->get();
+            // Get categories breakdown using optimized helper
+            $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
-            $performance = calculatePerformanceMetrics($user, $worklogs, $startDate, $endDate, $workStatusChanges);
-
-            // Get categories breakdown
-            $categoriesBreakdown = $this->getUserCategoriesBreakdown($user->id, $startDate, $endDate, $taskCategories);
+            // Transform nested category structure to flat array for frontend compatibility
+            $categoriesBreakdown = [];
+            if (is_array($categoriesResponse)) {
+                foreach ($categoriesResponse as $typeGroup) {
+                    if (isset($typeGroup['categories']) && is_array($typeGroup['categories'])) {
+                        foreach ($typeGroup['categories'] as $category) {
+                            $categoriesBreakdown[] = [
+                                'category_id'   => $category['category_id'],
+                                'category_name' => $category['category_name'],
+                                'hours'         => $category['total_hours'],
+                            ];
+                        }
+                    }
+                }
+            }
 
             $userData = [
                 'id'                 => $user->id,
@@ -532,13 +534,13 @@ class IvaRegionReportController extends Controller
                 'email'              => $user->email,
                 'job_title'          => $user->job_title,
                 'work_status'        => $user->work_status,
-                'billable_hours'     => round($billableHours, 2),
-                'non_billable_hours' => round($nonBillableHours, 2),
-                'total_hours'        => round($billableHours + $nonBillableHours, 2),
-                'target_hours'       => $performance[0]['target_total_hours'] ?? 0,
-                'nad_count'          => $nadData['nad_count'],
-                'nad_hours'          => $nadData['nad_hours'],
-                'performance'        => $performance[0] ?? null,
+                'billable_hours'     => round($yearMetrics['billable_hours'], 2),
+                'non_billable_hours' => round($yearMetrics['non_billable_hours'], 2),
+                'total_hours'        => round($yearMetrics['total_hours'], 2),
+                'target_hours'       => round($yearPerformance[0]['target_total_hours'] ?? 0, 2),
+                'nad_count'          => $userNadData['nad_count'],
+                'nad_hours'          => round($userNadData['nad_hours'], 2),
+                'performance'        => $yearPerformance[0] ?? null,
                 'categories'         => $categoriesBreakdown,
             ];
 
@@ -567,148 +569,7 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Get user worklog data for a period (FIXED to handle null results)
-     */
-    private function getUserWorklogDataForPeriod($userId, $startDate, $endDate, $taskCategories)
-    {
-        $billableIds    = implode(',', array_merge([0], $taskCategories['billable_task_ids']));
-        $nonBillableIds = implode(',', array_merge([0], $taskCategories['non_billable_task_ids']));
-
-        $result = WorklogsData::select([
-            DB::raw("SUM(CASE WHEN task_id IN ({$billableIds}) THEN duration ELSE 0 END) / 3600 as billable_hours"),
-            DB::raw("SUM(CASE WHEN task_id IN ({$nonBillableIds}) THEN duration ELSE 0 END) / 3600 as non_billable_hours"),
-            DB::raw("SUM(duration) / 3600 as total_hours"),
-            DB::raw("COUNT(*) as entries_count"),
-        ])
-            ->where('iva_id', $userId)
-            ->where('is_active', true)
-            ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-            ->first();
-
-        return [
-            'billable_hours'     => (float) ($result->billable_hours ?? 0),
-            'non_billable_hours' => (float) ($result->non_billable_hours ?? 0),
-            'total_hours'        => (float) ($result->total_hours ?? 0),
-            'entries_count'      => (int) ($result->entries_count ?? 0),
-        ];
-    }
-
-    /**
-     * Get user categories breakdown (UPDATED to include all billable categories)
-     */
-    private function getUserCategoriesBreakdown($userId, $startDate, $endDate, $taskCategories)
-    {
-        $taskToCategoryMap     = $taskCategories['category_mapping'];
-        $allBillableCategories = $taskCategories['all_billable_categories'];
-
-        // Get all worklogs with task info for billable tasks only
-        $worklogs = WorklogsData::select(['task_id', 'duration'])
-            ->where('iva_id', $userId)
-            ->where('is_active', true)
-            ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-            ->whereIn('task_id', $taskCategories['billable_task_ids'])
-            ->get();
-
-        // Initialize all billable categories with 0 hours
-        $categoryHours = [];
-        foreach ($allBillableCategories as $categoryId => $categoryInfo) {
-            $categoryHours[$categoryId] = 0;
-        }
-
-        // Add actual worked hours
-        foreach ($worklogs as $worklog) {
-            $categoryId = $taskToCategoryMap[$worklog->task_id] ?? null;
-            if ($categoryId && isset($categoryHours[$categoryId])) {
-                $categoryHours[$categoryId] += $worklog->duration / 3600;
-            }
-        }
-
-        // Build result array with all categories (including those with 0 hours)
-        $result = [];
-        foreach ($allBillableCategories as $categoryId => $categoryInfo) {
-            $result[] = [
-                'category_id'   => $categoryId,
-                'category_name' => $categoryInfo['category_name'],
-                'hours'         => round($categoryHours[$categoryId], 2),
-            ];
-        }
-
-        // Sort by hours descending
-        usort($result, function ($a, $b) {
-            return $b['hours'] <=> $a['hours'];
-        });
-
-        return $result;
-    }
-
-    /**
-     * Calculate week metrics (FIXED)
-     */
-    private function calculateWeekMetrics($user, $worklogData, $week, $workStatusChanges)
-    {
-        // Calculate performance for this week
-        $worklogs = WorklogsData::where('iva_id', $user->id)
-            ->where('is_active', true)
-            ->whereBetween('start_time', [$week['start_date'] . ' 00:00:00', $week['end_date'] . ' 23:59:59'])
-            ->get();
-
-        $performance = calculatePerformanceMetrics(
-            $user,
-            $worklogs,
-            $week['start_date'],
-            $week['end_date'],
-            $workStatusChanges
-        );
-
-        return [
-            'week_number'        => $week['week_number'],
-            'start_date'         => $week['start_date'],
-            'end_date'           => $week['end_date'],
-            'billable_hours'     => $worklogData['billable_hours'],
-            'non_billable_hours' => $worklogData['non_billable_hours'],
-            'total_hours'        => $worklogData['total_hours'],
-            'target_hours'       => $performance[0]['target_total_hours'] ?? 0,
-            'performance'        => $performance[0] ?? null,
-        ];
-    }
-
-    /**
-     * Calculate month metrics (FIXED)
-     */
-    private function calculateMonthMetrics($user, $worklogData, $month, $workStatusChanges)
-    {
-        // Calculate performance for this month
-        $worklogs = WorklogsData::where('iva_id', $user->id)
-            ->where('is_active', true)
-            ->whereBetween('start_time', [$month['start_date'] . ' 00:00:00', $month['end_date'] . ' 23:59:59'])
-            ->get();
-
-        $performance = calculatePerformanceMetrics(
-            $user,
-            $worklogs,
-            $month['start_date'],
-            $month['end_date'],
-            $workStatusChanges
-        );
-
-        // Get the month name from the start date
-        $monthName = Carbon::parse($month['start_date'])->format('F');
-
-        return [
-            'month_number'       => $month['month_number'],
-            'start_date'         => $month['start_date'],
-            'end_date'           => $month['end_date'],
-            'label'              => $monthName,
-            'billable_hours'     => $worklogData['billable_hours'],
-            'non_billable_hours' => $worklogData['non_billable_hours'],
-            'total_hours'        => $worklogData['total_hours'],
-            'target_hours'       => $performance[0]['target_total_hours'] ?? 0,
-            'performance'        => $performance[0] ?? null,
-        ];
-    }
-
-    /**
-     * Calculate group summary
+     * Calculate group summary with optimized performance data structure
      */
     private function calculateGroupSummary($users)
     {
@@ -782,24 +643,12 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Calculate category summary across all users (UPDATED to include ALL billable categories)
+     * Calculate category summary across all users using optimized approach
      */
-    private function calculateCategorySummary($usersData, $taskCategories)
+    private function calculateCategorySummaryOptimized($usersData)
     {
-        $allBillableCategories = $taskCategories['all_billable_categories'];
-
-        // Initialize with all billable categories
         $categorySummary = [];
-        foreach ($allBillableCategories as $categoryId => $categoryInfo) {
-            $categorySummary[$categoryId] = [
-                'category_id'   => $categoryId,
-                'category_name' => $categoryInfo['category_name'],
-                'total_hours'   => 0,
-                'user_count'    => 0,
-            ];
-        }
 
-        // Add user data
         foreach ($usersData as $user) {
             if (! isset($user['categories'])) {
                 continue;
@@ -808,13 +657,20 @@ class IvaRegionReportController extends Controller
             foreach ($user['categories'] as $category) {
                 $categoryId = $category['category_id'];
 
-                if (isset($categorySummary[$categoryId])) {
-                    $categorySummary[$categoryId]['total_hours'] += $category['hours'];
+                if (! isset($categorySummary[$categoryId])) {
+                    $categorySummary[$categoryId] = [
+                        'category_id'   => $categoryId,
+                        'category_name' => $category['category_name'],
+                        'total_hours'   => 0,
+                        'user_count'    => 0,
+                    ];
+                }
 
-                    // Only count users who actually worked on this category
-                    if ($category['hours'] > 0) {
-                        $categorySummary[$categoryId]['user_count']++;
-                    }
+                $categorySummary[$categoryId]['total_hours'] += $category['hours'];
+
+                // Only count users who actually worked on this category
+                if ($category['hours'] > 0) {
+                    $categorySummary[$categoryId]['user_count']++;
                 }
             }
         }
@@ -834,6 +690,14 @@ class IvaRegionReportController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * Calculate week number for a given date
+     */
+    private function calculateWeekNumber($date)
+    {
+        return Carbon::parse($date)->weekOfYear;
     }
 
     /**
