@@ -50,6 +50,9 @@ if (! function_exists('calculateUserTargetHours')) {
                     $totalPeriodWeeks += $periodWeeks;
                     $totalPeriodDays += $periodDays;
 
+                    // Track hours per week for simple average calculation
+                    $periodHoursForAverage[] = $settingForPeriod['hours'];
+
                     // Collect work status for display
                     $statusDisplay = ucwords(str_replace('-', ' ', $workStatus));
                     if (! in_array($statusDisplay, $workStatusDisplay)) {
@@ -72,10 +75,15 @@ if (! function_exists('calculateUserTargetHours')) {
                     ];
                 }
 
+                // Calculate simple average of period-specific hours per week
+                $averageHoursPerWeek = ! empty($periodHoursForAverage)
+                ? round(array_sum($periodHoursForAverage) / count($periodHoursForAverage), 1)
+                : $combination['display_hours'];
+
                 $allTargetCalculations[] = [
                     'target_id'             => $combination['id'],
                     'work_status'           => implode(' + ', $workStatusDisplay),
-                    'target_hours_per_week' => $combination['display_hours'],
+                    'target_hours_per_week' => $averageHoursPerWeek,
                     'target_total_hours'    => round($targetTotalHours, 2),
                     'period_weeks'          => round($totalPeriodWeeks, 1),
                     'period_days'           => $totalPeriodDays,
@@ -104,222 +112,6 @@ if (! function_exists('calculateUserTargetHours')) {
                 'target_calculations' => [],
             ];
         }
-    }
-}
-
-if (! function_exists('getTargetHoursForCurrentWeek')) {
-    /**
-     * Get target hours for current week using date_time_helpers functions
-     *
-     * @param object $user The IvaUser model instance
-     * @return array|null Current week target hours or null if not found
-     */
-    function getTargetHoursForCurrentWeek($user)
-    {
-        $currentWeek = getCurrentWeek();
-        if (! $currentWeek) {
-            return null;
-        }
-
-        $result = calculateUserTargetHours(
-            $user,
-            $currentWeek['start_date'],
-            $currentWeek['end_date']
-        );
-
-        $result['week_info'] = $currentWeek;
-        return $result;
-    }
-}
-
-if (! function_exists('getTargetHoursForCurrentMonth')) {
-    /**
-     * Get target hours for current month using date_time_helpers functions
-     *
-     * @param object $user The IvaUser model instance
-     * @return array|null Current month target hours or null if not found
-     */
-    function getTargetHoursForCurrentMonth($user)
-    {
-        $currentMonth = getCurrentMonth();
-        if (! $currentMonth) {
-            return null;
-        }
-
-        $result = calculateUserTargetHours(
-            $user,
-            $currentMonth['start_date'],
-            $currentMonth['end_date']
-        );
-
-        $result['month_info'] = $currentMonth;
-        return $result;
-    }
-}
-
-if (! function_exists('getTargetHoursForLastWeek')) {
-    /**
-     * Get target hours for last week using date_time_helpers functions
-     *
-     * @param object $user The IvaUser model instance
-     * @return array|null Last week target hours or null if not found
-     */
-    function getTargetHoursForLastWeek($user)
-    {
-        $lastWeek = getLastWeek();
-        if (! $lastWeek) {
-            return null;
-        }
-
-        $result = calculateUserTargetHours(
-            $user,
-            $lastWeek['start_date'],
-            $lastWeek['end_date']
-        );
-
-        $result['week_info'] = $lastWeek;
-        return $result;
-    }
-}
-
-if (! function_exists('getTargetHoursForLastMonth')) {
-    /**
-     * Get target hours for last month using date_time_helpers functions
-     *
-     * @param object $user The IvaUser model instance
-     * @return array|null Last month target hours or null if not found
-     */
-    function getTargetHoursForLastMonth($user)
-    {
-        $lastMonth = getLastMonth();
-        if (! $lastMonth) {
-            return null;
-        }
-
-        $result = calculateUserTargetHours(
-            $user,
-            $lastMonth['start_date'],
-            $lastMonth['end_date']
-        );
-
-        $result['month_info'] = $lastMonth;
-        return $result;
-    }
-}
-
-if (! function_exists('getTargetHoursForWeekNumber')) {
-    /**
-     * Get target hours for specific week number using date_time_helpers functions
-     *
-     * @param object $user The IvaUser model instance
-     * @param int $weekNumber Week number
-     * @param int|null $year Year (defaults to current year)
-     * @return array|null Week target hours or null if not found
-     */
-    function getTargetHoursForWeekNumber($user, $weekNumber, $year = null)
-    {
-        $week = getWeekByNumber($weekNumber, $year);
-        if (! $week) {
-            return null;
-        }
-
-        $result = calculateUserTargetHours(
-            $user,
-            $week['start_date'],
-            $week['end_date']
-        );
-
-        $result['week_info'] = $week;
-        return $result;
-    }
-}
-
-if (! function_exists('getTargetHoursForMonthNumber')) {
-    /**
-     * Get target hours for specific month number using date_time_helpers functions
-     *
-     * @param object $user The IvaUser model instance
-     * @param int $monthNumber Month number
-     * @param int|null $year Year (defaults to current year)
-     * @return array|null Month target hours or null if not found
-     */
-    function getTargetHoursForMonthNumber($user, $monthNumber, $year = null)
-    {
-        $month = getMonthByNumber($monthNumber, $year);
-        if (! $month) {
-            return null;
-        }
-
-        $result = calculateUserTargetHours(
-            $user,
-            $month['start_date'],
-            $month['end_date']
-        );
-
-        $result['month_info'] = $month;
-        return $result;
-    }
-}
-
-if (! function_exists('getTargetHoursSummaryForUser')) {
-    /**
-     * Get comprehensive target hours summary for a user including current/last week/month
-     *
-     * @param object $user The IvaUser model instance
-     * @return array Comprehensive target hours summary
-     */
-    function getTargetHoursSummaryForUser($user)
-    {
-        return [
-            'user_id'       => $user->id,
-            'user_name'     => $user->full_name ?? $user->email,
-            'current_week'  => getTargetHoursForCurrentWeek($user),
-            'last_week'     => getTargetHoursForLastWeek($user),
-            'current_month' => getTargetHoursForCurrentMonth($user),
-            'last_month'    => getTargetHoursForLastMonth($user),
-            'generated_at'  => Carbon::now()->toDateTimeString(),
-        ];
-    }
-}
-
-if (! function_exists('calculateTargetHoursForMultipleUsers')) {
-    /**
-     * Calculate target hours for multiple users
-     *
-     * @param array|\Illuminate\Support\Collection $users Array of IvaUser model instances
-     * @param string $startDate Start date (Y-m-d format)
-     * @param string $endDate End date (Y-m-d format)
-     * @return array Target hours calculations for all users
-     */
-    function calculateTargetHoursForMultipleUsers($users, $startDate, $endDate)
-    {
-        $results = [];
-        $summary = [
-            'total_users'             => count($users),
-            'successful_calculations' => 0,
-            'failed_calculations'     => 0,
-        ];
-
-        foreach ($users as $user) {
-            $userResult = calculateUserTargetHours($user, $startDate, $endDate);
-            $results[]  = $userResult;
-
-            if ($userResult['success']) {
-                $summary['successful_calculations']++;
-            } else {
-                $summary['failed_calculations']++;
-            }
-        }
-
-        return [
-            'users'            => $results,
-            'summary'          => $summary,
-            'calculation_date' => Carbon::now()->toDateTimeString(),
-            'date_range'       => [
-                'start_date' => $startDate,
-                'end_date'   => $endDate,
-            ],
-        ];
     }
 }
 
@@ -557,7 +349,8 @@ if (! function_exists('calculatePerformanceMetricsDailySummaries')) {
         try {
 
             // Calculate target hours using existing helper function
-            $targetHoursResult = calculateUserTargetHours($user, $startDate, $endDate);
+            // $targetHoursResult = calculateUserTargetHours($user, $startDate, $endDate);
+            $targetHoursResult = calculateUserTargetHoursOptimized($user, $startDate, $endDate);
 
             if (! $targetHoursResult['success']) {
                 return [
@@ -895,4 +688,443 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
             }
         }
     }
+}
+
+if (! function_exists('calculateUserTargetHoursOptimized')) {
+    /**
+     * Optimized version of calculateUserTargetHours that maintains exact same logic
+     * but reduces database queries and improves performance
+     *
+     * Key optimizations:
+     * - Bulk fetch all user customizations for the date range
+     * - Pre-load configuration settings
+     * - Eliminate redundant helper function calls
+     * - Maintain exact same calculation logic as original
+     *
+     * @param object $user The IvaUser model instance
+     * @param string $startDate Start date (Y-m-d format)
+     * @param string $endDate End date (Y-m-d format)
+     * @return array Target hours calculation with detailed breakdown
+     */
+    function calculateUserTargetHoursOptimized($user, $startDate, $endDate)
+    {
+        try {
+            $userId = $user->id;
+
+            // OPTIMIZATION 1: Bulk fetch all user customizations for the entire date range
+            $userCustomizations = \Illuminate\Support\Facades\DB::table('iva_user_customize')
+                ->where('iva_user_id', $userId)
+                ->where(function ($query) use ($startDate, $endDate) {
+                    $query->where(function ($q) use ($startDate, $endDate) {
+                        // Customization overlaps with our period
+                        $q->where(function ($subQ) use ($startDate) {
+                            $subQ->whereNull('start_date')
+                                ->orWhere('start_date', '<=', $startDate);
+                        })->where(function ($subQ) use ($endDate) {
+                            $subQ->whereNull('end_date')
+                                ->orWhere('end_date', '>=', $endDate);
+                        });
+                    })->orWhere(function ($q) use ($startDate, $endDate) {
+                        // Customization intersects with period
+                        $q->where('start_date', '<=', $endDate)
+                            ->where('end_date', '>=', $startDate);
+                    });
+                })
+                ->get()
+                ->groupBy('setting_id');
+
+            // OPTIMIZATION 2: Pre-fetch all configuration settings
+            $configSettings = \Illuminate\Support\Facades\DB::table('configuration_settings as cs')
+                ->join('configuration_settings_type as cst', 'cs.setting_type_id', '=', 'cst.id')
+                ->whereIn('cst.key', ['fulltime_hours', 'parttime_hours'])
+                ->where('cs.is_active', 1)
+                ->select('cs.id', 'cs.setting_value', 'cst.key', 'cs.order')
+                ->orderBy('cs.order')
+                ->get()
+                ->keyBy('id');
+
+            // Helper function to get custom value for specific period (optimized)
+            $getCustomValueForPeriod = function ($settingId, $periodStart, $periodEnd) use ($userCustomizations) {
+                if (! isset($userCustomizations[$settingId])) {
+                    return null;
+                }
+
+                $periodStartDate = Carbon::parse($periodStart);
+                $periodEndDate   = Carbon::parse($periodEnd);
+
+                foreach ($userCustomizations[$settingId] as $customization) {
+                    $customStart = $customization->start_date ? Carbon::parse($customization->start_date) : null;
+                    $customEnd   = $customization->end_date ? Carbon::parse($customization->end_date) : null;
+
+                    // Check if customization overlaps with period
+                    $startsBeforeOrDuring = ! $customStart || $customStart->lte($periodEndDate);
+                    $endsAfterOrDuring    = ! $customEnd || $customEnd->gte($periodStartDate);
+
+                    if ($startsBeforeOrDuring && $endsAfterOrDuring) {
+                        return (float) $customization->custom_value;
+                    }
+                }
+
+                return null;
+            };
+
+            // Helper function to get work hour settings for period (optimized)
+            $getWorkHourSettings = function ($workStatus, $periodStart = null, $periodEnd = null) use ($configSettings, $getCustomValueForPeriod) {
+                $workStatus = $workStatus ?: 'full-time';
+                $settingKey = $workStatus === 'full-time' ? 'fulltime_hours' : 'parttime_hours';
+
+                $hourSettings = [];
+                foreach ($configSettings as $setting) {
+                    if ($setting->key === $settingKey) {
+                        $defaultHours = (float) $setting->setting_value;
+                        $customHours  = $getCustomValueForPeriod($setting->id, $periodStart, $periodEnd);
+                        $actualHours  = $customHours !== null ? $customHours : $defaultHours;
+
+                        $hourSettings[] = [
+                            'id'            => $setting->id,
+                            'setting_name'  => $setting->setting_value,
+                            'hours'         => $actualHours,
+                            'is_custom'     => $customHours !== null,
+                            'default_hours' => $defaultHours,
+                            'custom_hours'  => $customHours,
+                        ];
+                    }
+                }
+
+                return $hourSettings;
+            };
+
+            // OPTIMIZATION 3: Bulk fetch work status changes
+            $workStatusChanges = \Illuminate\Support\Facades\DB::table('iva_user_changelogs')
+                ->where('iva_user_id', $userId)
+                ->where('field_changed', 'work_status')
+                ->orderBy('effective_date')
+                ->get();
+
+            // Now replicate the exact same logic as original function
+            // but using our optimized data
+
+            // Calculate work status periods (same logic as calculateWorkStatusPeriods)
+            $periods     = [];
+            $startCarbon = Carbon::parse($startDate);
+            $endCarbon   = Carbon::parse($endDate);
+
+            $currentWeekStart = $startCarbon->copy()->startOfWeek(Carbon::MONDAY);
+            $finalWeekEnd     = $endCarbon->copy()->endOfWeek(Carbon::SUNDAY);
+
+                                              // Get initial work status (same as getInitialWorkStatus)
+            $currentWorkStatus = 'full-time'; // Default
+            $earliestChange    = $workStatusChanges->where('effective_date', '<=', $currentWeekStart->toDateString())->last();
+            if ($earliestChange) {
+                $currentWorkStatus = json_decode($earliestChange->new_value, true) ?: 'full-time';
+            }
+
+            while ($currentWeekStart->lte($finalWeekEnd)) {
+                $currentWeekEnd = $currentWeekStart->copy()->endOfWeek(Carbon::SUNDAY);
+
+                // Find changes in this week
+                $changesInWeek = $workStatusChanges->filter(function ($change) use ($currentWeekStart, $currentWeekEnd) {
+                    $changeDate = Carbon::parse($change->effective_date);
+                    return $changeDate->gte($currentWeekStart) && $changeDate->lte($currentWeekEnd);
+                })->sortBy('effective_date');
+
+                if ($changesInWeek->isNotEmpty()) {
+                    $lastChange        = $changesInWeek->last();
+                    $currentWorkStatus = json_decode($lastChange->new_value, true) ?: 'full-time';
+                }
+
+                // Calculate actual period dates
+                $periodStart = $currentWeekStart->lt($startCarbon) ? $startCarbon : $currentWeekStart;
+                $periodEnd   = $currentWeekEnd->gt($endCarbon) ? $endCarbon : $currentWeekEnd;
+
+                if ($periodStart->lte($endCarbon) && $periodEnd->gte($startCarbon)) {
+                    $startDateOnly = Carbon::parse($periodStart->toDateString());
+                    $endDateOnly   = Carbon::parse($periodEnd->toDateString());
+
+                    $periods[] = [
+                        'work_status' => $currentWorkStatus,
+                        'start_date'  => $periodStart->toDateString(),
+                        'end_date'    => $periodEnd->toDateString(),
+                        'days'        => $startDateOnly->diffInDays($endDateOnly) + 1,
+                        'week_start'  => $currentWeekStart->toDateString(),
+                        'week_end'    => $currentWeekEnd->toDateString(),
+                    ];
+                }
+
+                $currentWeekStart->addWeek();
+            }
+
+            // Determine setting combinations (same logic as determineSettingCombinations)
+            $uniqueStatuses = collect($periods)->pluck('work_status')->map(function ($status) {
+                return $status ?: 'full-time';
+            })->unique()->values()->toArray();
+
+            $combinations = [];
+
+            if (count($uniqueStatuses) === 1) {
+                $status   = $uniqueStatuses[0];
+                $settings = $getWorkHourSettings($status);
+
+                foreach ($settings as $setting) {
+                    $combinations[] = [
+                        'id'            => $setting['id'],
+                        'display_hours' => $setting['hours'],
+                        'details'       => [
+                            'type'       => 'single_status',
+                            'status'     => $status,
+                            'setting_id' => $setting['id'],
+                        ],
+                    ];
+                }
+            } else {
+                $fullTimeSettings = $getWorkHourSettings('full-time');
+
+                foreach ($fullTimeSettings as $setting) {
+                    $combinations[] = [
+                        'id'            => $setting['id'],
+                        'display_hours' => $setting['hours'],
+                        'details'       => [
+                            'type'               => 'mixed_status',
+                            'primary_setting_id' => $setting['id'],
+                            'statuses'           => $uniqueStatuses,
+                        ],
+                    ];
+                }
+            }
+
+            // Calculate target hours for each combination (same logic as original)
+            $allTargetCalculations = [];
+
+            foreach ($combinations as $combination) {
+                $targetTotalHours      = 0;
+                $totalPeriodWeeks      = 0;
+                $totalPeriodDays       = 0;
+                $workStatusDisplay     = [];
+                $periodBreakdown       = [];
+                $periodHoursForAverage = []; // Track hours per week for each period
+
+                foreach ($periods as $periodIndex => $period) {
+                    $workStatus  = $period['work_status'] ?: 'full-time';
+                    $periodDays  = $period['days'];
+                    $periodWeeks = $periodDays / 7;
+                    $periodStart = $period['start_date'];
+                    $periodEnd   = $period['end_date'];
+
+                    // Get setting for this period (same logic as getSettingForPeriod)
+                    $settingForPeriod = null;
+
+                    if ($combination['details']['type'] === 'single_status') {
+                        $periodHourSettings = $getWorkHourSettings($workStatus, $periodStart, $periodEnd);
+                        $settingForPeriod   = collect($periodHourSettings)->firstWhere('id', $combination['details']['setting_id']) ?? $periodHourSettings[0] ?? ['hours' => 0];
+                    } else {
+                        $periodHourSettings = $getWorkHourSettings($workStatus, $periodStart, $periodEnd);
+
+                        if ($workStatus === 'part-time') {
+                            $settingForPeriod = $periodHourSettings[0] ?? ['hours' => 20];
+                        } else {
+                            $settingForPeriod = collect($periodHourSettings)->firstWhere('id', $combination['details']['primary_setting_id']) ?? $periodHourSettings[0] ?? ['hours' => 40];
+                        }
+                    }
+
+                    $targetHoursForPeriod = $settingForPeriod['hours'] * $periodWeeks;
+                    $targetTotalHours += $targetHoursForPeriod;
+                    $totalPeriodWeeks += $periodWeeks;
+                    $totalPeriodDays += $periodDays;
+
+                    // Track hours per week for simple average calculation
+                    $periodHoursForAverage[] = $settingForPeriod['hours'];
+
+                    $statusDisplay = ucwords(str_replace('-', ' ', $workStatus));
+                    if (! in_array($statusDisplay, $workStatusDisplay)) {
+                        $workStatusDisplay[] = $statusDisplay;
+                    }
+
+                    $periodBreakdown[] = [
+                        'period_start'        => $periodStart,
+                        'period_end'          => $periodEnd,
+                        'work_status'         => $workStatus,
+                        'work_status_display' => $statusDisplay,
+                        'days'                => $periodDays,
+                        'weeks'               => round($periodWeeks, 2),
+                        'hours_per_week'      => $settingForPeriod['hours'],
+                        'target_hours'        => round($targetHoursForPeriod, 2),
+                        'setting_used'        => $settingForPeriod,
+                        'week_start'          => $period['week_start'],
+                        'week_end'            => $period['week_end'],
+                    ];
+                }
+
+                // Calculate simple average of period-specific hours per week
+                $averageHoursPerWeek = ! empty($periodHoursForAverage)
+                ? round(array_sum($periodHoursForAverage) / count($periodHoursForAverage), 1)
+                : $combination['display_hours'];
+
+                $allTargetCalculations[] = [
+                    'target_id'             => $combination['id'],
+                    'work_status'           => implode(' + ', $workStatusDisplay),
+                    'target_hours_per_week' => $averageHoursPerWeek,
+                    'target_total_hours'    => round($targetTotalHours, 2),
+                    'period_weeks'          => round($totalPeriodWeeks, 1),
+                    'period_days'           => $totalPeriodDays,
+                    'combination_details'   => $combination['details'],
+                    'period_breakdown'      => $periodBreakdown,
+                ];
+            }
+
+            return [
+                'success'                   => true,
+                'user_id'                   => $user->id,
+                'date_range'                => [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                ],
+                'has_work_status_changes'   => $workStatusChanges->isNotEmpty(),
+                'work_status_periods_count' => count($periods),
+                'target_calculations'       => $allTargetCalculations,
+                'calculation_date'          => Carbon::now()->toDateTimeString(),
+            ];
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to calculate optimized user target hours: ' . $e->getMessage(), [
+                'user_id'    => $user->id ?? null,
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
+            ]);
+
+            // Fallback to original function
+            if (function_exists('calculateUserTargetHours')) {
+                $fallbackResult                       = calculateUserTargetHours($user, $startDate, $endDate);
+                $fallbackResult['used_fallback']      = true;
+                $fallbackResult['optimization_error'] = $e->getMessage();
+                return $fallbackResult;
+            }
+
+            return [
+                'success'             => false,
+                'error'               => 'Optimized calculation failed: ' . $e->getMessage(),
+                'user_id'             => $user->id ?? null,
+                'target_calculations' => [],
+                'used_fallback'       => false,
+            ];
+        }
+    }
+}
+if (! function_exists('calculateFullCategoryBreakdownFromSummaries')) {
+    function calculateFullCategoryBreakdownFromSummaries($ivaId, $startDate, $endDate)
+    {
+        try {
+            $categoryData = \Illuminate\Support\Facades\DB::table('report_categories as rc')
+                ->leftJoin('daily_worklog_summaries as dws', function ($join) use ($ivaId, $startDate, $endDate) {
+                    $join->on('rc.id', '=', 'dws.report_category_id')
+                        ->where('dws.iva_id', '=', $ivaId)
+                        ->whereBetween('dws.report_date', [$startDate, $endDate]);
+                })
+                ->leftJoin('configuration_settings as cs', 'rc.category_type', '=', 'cs.id') // Join config
+                ->select([
+                    'rc.id as category_id',
+                    'rc.cat_name as category_name',
+                    'rc.category_order',
+                    \Illuminate\Support\Facades\DB::raw("COALESCE(cs.setting_value, 'Uncategorized') as category_type"), // ✅ FIXED HERE
+                    \Illuminate\Support\Facades\DB::raw('ROUND(COALESCE(SUM(dws.total_duration), 0) / 3600, 2) as total_hours'),
+                    \Illuminate\Support\Facades\DB::raw('COALESCE(SUM(dws.entries_count), 0) as entries_count'),
+                ])
+                ->where('rc.is_active', true)
+                ->groupBy('rc.id', 'rc.cat_name', 'rc.category_order', 'cs.setting_value') // ✅ FIXED HERE
+                ->orderBy('rc.category_order')
+                ->get();
+
+            if ($categoryData->isEmpty()) {
+                return [
+                    'success' => true,
+                    'message' => 'No category data found for the specified period',
+                    'data'    => [],
+                    'summary' => [
+                        'iva_id'                  => $ivaId,
+                        'start_date'              => $startDate,
+                        'end_date'                => $endDate,
+                        'total_categories'        => 0,
+                        'billable_categories'     => 0,
+                        'non_billable_categories' => 0,
+                    ],
+                ];
+            }
+
+            $billableCategories    = [];
+            $nonBillableCategories = [];
+            $billableTotalHours    = 0;
+            $nonBillableTotalHours = 0;
+
+            foreach ($categoryData as $category) {
+                $categoryInfo = [
+                    'category_id'   => $category->category_id,
+                    'category_name' => $category->category_name ?? 'Uncategorized',
+                    'total_hours'   => (float) $category->total_hours,
+                    'entries_count' => (int) $category->entries_count,
+                ];
+
+                $type = strtolower($category->category_type);
+
+                if (strpos($type, 'billable') === 0) {
+                    $billableCategories[] = $categoryInfo;
+                    $billableTotalHours += $categoryInfo['total_hours'];
+                } elseif (strpos($type, 'non-billable') !== false || $type === 'uncategorized') {
+                    $nonBillableCategories[] = $categoryInfo;
+                    $nonBillableTotalHours += $categoryInfo['total_hours'];
+                }
+            }
+
+            $categoryBreakdown = [];
+
+            if (! empty($billableCategories)) {
+                $categoryBreakdown[] = [
+                    'type'             => 'Billable',
+                    'total_hours'      => round($billableTotalHours, 2),
+                    'categories_count' => count($billableCategories),
+                    'categories'       => $billableCategories,
+                ];
+            }
+
+            if (! empty($nonBillableCategories)) {
+                $categoryBreakdown[] = [
+                    'type'             => 'Non-Billable',
+                    'total_hours'      => round($nonBillableTotalHours, 2),
+                    'categories_count' => count($nonBillableCategories),
+                    'categories'       => $nonBillableCategories,
+                ];
+            }
+
+            return $categoryBreakdown;
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to calculate category breakdown from summaries: ' . $e->getMessage(), [
+                'iva_id'     => $ivaId,
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success'       => false,
+                'message'       => 'Failed to calculate category breakdown: ' . $e->getMessage(),
+                'data'          => [],
+                'summary'       => [
+                    'iva_id'                  => $ivaId,
+                    'start_date'              => $startDate,
+                    'end_date'                => $endDate,
+                    'total_categories'        => 0,
+                    'billable_categories'     => 0,
+                    'non_billable_categories' => 0,
+                ],
+                'error_details' => [
+                    'error_message' => $e->getMessage(),
+                    'error_file'    => $e->getFile(),
+                    'error_line'    => $e->getLine(),
+                ],
+            ];
+        }
+    }
+
 }

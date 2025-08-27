@@ -337,62 +337,6 @@ function formatHours(hours) {
         </VCol>
       </VRow>
 
-      <!-- Additional Summary Stats -->
-      <VDivider class="my-6" />
-
-      <VRow>
-        <VCol cols="12" md="6">
-          <div class="text-center pa-4">
-            <div class="text-h6 font-weight-medium mb-2">Total Hours Summary</div>
-            <div class="d-flex justify-space-around">
-              <div class="text-center">
-                <div class="text-h6 font-weight-bold text-success">
-                  {{ props.fullTimeSummary?.total_hours || 0 }}h
-                </div>
-                <div class="text-caption">Full-Time Total</div>
-              </div>
-              <div class="text-center">
-                <div class="text-h6 font-weight-bold text-warning">
-                  {{ props.partTimeSummary?.total_hours || 0 }}h
-                </div>
-                <div class="text-caption">Part-Time Total</div>
-              </div>
-              <div class="text-center">
-                <div class="text-h6 font-weight-bold text-primary">
-                  {{ props.overallSummary?.total_hours || 0 }}h
-                </div>
-                <div class="text-caption">Overall Total</div>
-              </div>
-            </div>
-          </div>
-        </VCol>
-
-        <VCol cols="12" md="6">
-          <div class="text-center pa-4">
-            <div class="text-h6 font-weight-medium mb-2">Target vs Actual</div>
-            <div class="d-flex justify-space-around">
-              <div class="text-center">
-                <div class="text-h6 font-weight-bold text-info">
-                  {{ props.fullTimeSummary?.total_target_hours || 0 }}h
-                </div>
-                <div class="text-caption">Full-Time Target</div>
-              </div>
-              <div class="text-center">
-                <div class="text-h6 font-weight-bold text-info">
-                  {{ props.partTimeSummary?.total_target_hours || 0 }}h
-                </div>
-                <div class="text-caption">Part-Time Target</div>
-              </div>
-              <div class="text-center">
-                <div class="text-h6 font-weight-bold text-info">
-                  {{ props.overallSummary?.total_target_hours || 0 }}h
-                </div>
-                <div class="text-caption">Overall Target</div>
-              </div>
-            </div>
-          </div>
-        </VCol>
-      </VRow>
     </VCardText>
   </VCard>
 </template>

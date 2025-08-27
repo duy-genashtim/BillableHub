@@ -187,9 +187,13 @@ if (! function_exists('callNADApi')) {
     {
         try {
             $user = request()->user();
-            if (! $user) {
-                throw new \Exception('User not authenticated.');
-            }
+            // if (! $user) {
+            //     // For testing purposes, use user ID 1
+            //     $user = \App\Models\IvaUser::find(1);
+            //     if (! $user) {
+            //         throw new \Exception('Test user (ID: 1) not found.');
+            //     }
+            // }
 
             $formData = [
                 ['name' => 'email', 'contents' => $user->email],
@@ -246,6 +250,83 @@ if (! function_exists('fetchNADDataForPeriod')) {
         if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
             $nadUserData = collect($nadResponse['data'])->firstWhere('email', $user->email) ?? [];
             $nadCount    = $nadUserData['nad_count'] ?? 0;
+            $nadHours    = $nadCount * $nadHourRate;
+        }
+
+        return [
+            'nad_data'      => $nadUserData,
+            'nad_count'     => $nadCount,
+            'nad_hours'     => round($nadHours, 2),
+            'nad_hour_rate' => $nadHourRate,
+        ];
+    }
+}
+if (! function_exists('fetchNADDataByEmails')) {
+    /**
+     * Fetch NAD data for a specific period.
+     *
+     * @param array $emails The array of emails need to fetch
+     * @param string $startDate Start date (Y-m-d format)
+     * @param string $endDate End date (Y-m-d format)
+     * @return array NAD data with count, hours, and raw data
+     */
+    function fetchNADDataByEmails($emails, $startDate, $endDate)
+    {
+        $nadHourRate = config('services.nad.nad_hour_rate.rate', 8);
+
+        $nadData = [
+            'start_date' => $startDate,
+            'end_date'   => $endDate,
+            'blab_only'  => 1,
+            'email_list' => $emails,
+        ];
+
+        $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
+        $nadUserData = [];
+        $nadCount    = 0;
+        $nadHours    = 0;
+
+        if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
+            $nadUserData = $nadResponse['data'] ?? [];
+            $nadCount    = is_array($nadUserData) && isset($nadUserData['nad_count']) ? $nadUserData['nad_count'] : 0;
+            $nadHours    = $nadCount * $nadHourRate;
+        }
+
+        return [
+            'nad_data'      => $nadUserData,
+            'nad_count'     => $nadCount,
+            'nad_hours'     => round($nadHours, 2),
+            'nad_hour_rate' => $nadHourRate,
+        ];
+    }
+}
+if (! function_exists('fetchNADDataForUsers')) {
+    /**
+     * Fetch NAD data for a specific period.
+     *
+     * @param string $startDate Start date (Y-m-d format)
+     * @param string $endDate End date (Y-m-d format)
+     * @return array NAD data with count, hours, and raw data
+     */
+    function fetchNADDataForUsers($startDate, $endDate)
+    {
+        $nadHourRate = config('services.nad.nad_hour_rate.rate', 8);
+
+        $nadData = [
+            'start_date' => $startDate,
+            'end_date'   => $endDate,
+            'blab_only'  => 1,
+            'email_list' => [],
+        ];
+
+        $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
+        $nadUserData = [];
+        $nadCount    = 0;
+        $nadHours    = 0;
+
+        if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
+            $nadUserData = $nadResponse['data'] ?? [];
+            $nadCount    = is_array($nadUserData) && isset($nadUserData['nad_count']) ? $nadUserData['nad_count'] : 0;
             $nadHours    = $nadCount * $nadHourRate;
         }
 

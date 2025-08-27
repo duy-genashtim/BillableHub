@@ -351,7 +351,7 @@ const totalColumns = computed(() => {
                                 <VListItemTitle class="text-caption">Actual Hours</VListItemTitle>
                                 <template #append>
                                   <span class="font-weight-medium">{{ formatHours(user.performance?.actual_hours || 0)
-                                    }}</span>
+                                  }}</span>
                                 </template>
                               </VListItem>
                               <VListItem>
