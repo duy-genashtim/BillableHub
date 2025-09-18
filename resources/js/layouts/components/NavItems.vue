@@ -48,6 +48,12 @@ console.log(authStore.user);
     icon: 'ri-speed-line',
   }">
     <VerticalNavLink :item="{
+      title: 'NSH',
+      icon: 'ri-time-line',
+      to: '/admin/reports/nsh-performance',
+    }" />
+
+    <VerticalNavLink :item="{
       title: 'Daily',
       icon: 'ri-line-chart-line',
       to: '/admin/reports/daily-performance',
@@ -73,6 +79,12 @@ console.log(authStore.user);
       title: 'Overall',
       icon: 'ri-global-line',
       to: '/admin/reports/overall-performance',
+    }" />
+
+    <VerticalNavLink v-if="hasPermission('export_reports')" :item="{
+      title: 'Export',
+      icon: 'ri-download-line',
+      to: '/admin/reports/export',
     }" />
 
   </VerticalNavGroup>

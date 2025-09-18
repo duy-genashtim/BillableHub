@@ -50,7 +50,7 @@ function handleViewEntry(entryId) {
         <div class="d-flex align-center justify-space-between">
           <div class="d-flex align-center">
             <VIcon icon="ri-time-line" color="success" class="mr-2" />
-            Recent Activity
+            Non Stop Hour (TBA)
           </div>
           <VChip color="info" size="small" variant="tonal">
             Highest Hours - Last 7 Days

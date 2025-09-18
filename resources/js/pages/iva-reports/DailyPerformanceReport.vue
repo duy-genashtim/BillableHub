@@ -1,6 +1,7 @@
 <script setup>
 import { formatDate } from '@/@core/utils/helpers';
 import { getPerformanceColor, getPerformanceIcon } from '@/@core/utils/siteConsts';
+import { getMaxSelectableDate } from '@/@core/utils/dateValidation';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -32,7 +33,7 @@ const snackbarColor = ref('success');
 const dateLabel = computed(() => {
   if (!selectedDate.value) return '';
   const date = new Date(selectedDate.value);
-  const formattedDate = formatDate(date);
+  const formattedDate = formatDate(selectedDate.value);
 
   if (isYesterday.value) {
     return `Yesterday (${formattedDate})`;
@@ -68,6 +69,8 @@ const filteredWorkStatusOptions = computed(() => {
     }))
   ];
 });
+
+const maxSelectableDate = computed(() => getMaxSelectableDate());
 
 function getWorkStatusDescription(value, options) {
   if (!value || !Array.isArray(options)) return 'Unknown'
@@ -276,7 +279,7 @@ onMounted(() => {
           <!-- Date -->
           <VCol cols="12" md="3">
             <VTextField v-model="selectedDate" label="Select Date" type="date" density="comfortable" variant="outlined"
-              prepend-inner-icon="ri-calendar-line" @update:model-value="onDateChange" />
+              prepend-inner-icon="ri-calendar-line" :max="maxSelectableDate" @update:model-value="onDateChange" />
             <div class="d-flex gap-2 mt-2">
               <VBtn size="small" variant="tonal" :color="isYesterday ? 'primary' : 'secondary'" @click="goToYesterday">
                 Yesterday

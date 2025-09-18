@@ -9,6 +9,7 @@ use App\Http\Controllers\ConfigurationSettingsController;
 use App\Http\Controllers\ConfigurationSettingTypeController;
 use App\Http\Controllers\IvaDailyReportController;
 use App\Http\Controllers\IvaManagerController;
+use App\Http\Controllers\IvaNshReportController;
 use App\Http\Controllers\IvaOverallReportController;
 use App\Http\Controllers\IvaRegionReportController;
 use App\Http\Controllers\IvaUserController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\TimeDoctorV2Controller;
 use App\Http\Controllers\TimeDoctorV2LongOperationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyWorklogSummaryController;
+use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\WorklogDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -240,6 +242,8 @@ Route::middleware('auth.jwt')->group(function () {
     });
 
     Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/nsh-performance', [IvaNshReportController::class, 'getNshReport'])
+            ->name('nsh-performance');
         Route::get('/daily-performance', [IvaDailyReportController::class, 'getDailyPerformanceReport'])
             ->name('daily-performance');
         Route::get('/weekly-performance', [IvaWeeklyReportController::class, 'getWeeklyPerformanceReport'])
@@ -258,6 +262,12 @@ Route::middleware('auth.jwt')->group(function () {
             ->name('overall-performance');
         Route::post('/overall-performance/clear-cache', [IvaOverallReportController::class, 'clearOverallReportCache'])
             ->name('overall-performance.clear-cache');
+
+        // Export routes
+        Route::post('/export', [ReportExportController::class, 'exportReport'])
+            ->name('export');
+        Route::get('/available-regions', [ReportExportController::class, 'getAvailableRegions'])
+            ->name('available-regions');
     });
 
 });

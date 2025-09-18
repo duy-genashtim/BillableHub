@@ -1128,3 +1128,65 @@ if (! function_exists('calculateFullCategoryBreakdownFromSummaries')) {
     }
 
 }
+
+if (! function_exists('getReportCategories')) {
+    /**
+     * Get report categories filtered by type.
+     *
+     * @param  string  $type  'all' | 'billable' | 'non-billable'
+     * @return array<int, array{id:int, name:string, order:int|null, type:string}>
+     */
+    function getReportCategories(string $type = 'all'): array
+    {
+        try {
+            $type = strtolower(trim($type));
+            if (! in_array($type, ['all', 'billable', 'non-billable'], true)) {
+                return [
+                    'success' => false,
+                    'message' => "Invalid type '{$type}'. Use 'all', 'billable', or 'non-billable'.",
+                    'data'    => [],
+                ];
+            }
+            $query = DB::table('report_categories as rc')
+                ->join('configuration_settings as cs', 'rc.category_type', '=', 'cs.id')
+                ->where('rc.is_active', true)
+                ->select([
+                    'rc.id',
+                    'rc.cat_name as name',
+                    'rc.category_order as category_order',
+                    'cs.setting_value as category_type',
+                ]);
+
+            if ($type !== 'all') {
+                $query->where('cs.setting_value', $type); // exact match
+            }
+
+            $rows = $query
+                ->orderBy('rc.category_order')
+                ->orderBy('rc.cat_name')
+                ->get()
+                ->map(function ($r) {
+                    return [
+                        'id'    => (int) $r->id,
+                        'name'  => $r->name,
+                        'order' => $r->category_order !== null ? (int) $r->category_order : null,
+                        'type'  => $r->category_type,
+                    ];
+                })
+                ->toArray();
+
+            return [
+                'success' => true,
+                'message' => 'Categories retrieved successfully.',
+                'data'    => $rows,
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to get report categories: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to get report categories.',
+                'data'    => [],
+            ];
+        }
+    }
+}

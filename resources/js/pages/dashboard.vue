@@ -3,7 +3,7 @@ import { useAuthStore } from '@/@core/stores/auth'
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import CategoriesPerformanceCard from './dashboard/components/CategoriesPerformanceCard.vue'
+import CohortBreakdownCard from './dashboard/components/CohortBreakdownCard.vue'
 import PerformanceMetricsCards from './dashboard/components/PerformanceMetricsCards.vue'
 import PerformanceTrendsChart from './dashboard/components/PerformanceTrendsChart.vue'
 import QuickActionsCard from './dashboard/components/QuickActionsCard.vue'
@@ -154,11 +154,15 @@ function handleViewUser(userId) {
   })
 }
 
-function handleViewCategory(categoryId) {
-  router.push({
-    name: 'category-detail',
-    params: { id: categoryId }
-  })
+function handleViewCohort(cohortId) {
+  if (cohortId === 'all') {
+    router.push({ name: 'cohorts-list' })
+  } else {
+    router.push({
+      name: 'cohort-detail',
+      params: { id: cohortId }
+    })
+  }
 }
 </script>
 
@@ -198,7 +202,7 @@ function handleViewCategory(categoryId) {
               Refresh
             </VBtn>
             <VBtn color="success" variant="flat" prepend-icon="ri-bar-chart-line"
-              @click="router.push('/admin/reports/daily-performance')">
+              @click="router.push('/admin/reports/overall-performance')">
               View Reports
             </VBtn>
           </div>
@@ -237,10 +241,10 @@ function handleViewCategory(categoryId) {
                 class="mb-6" />
             </VCol>
 
-            <!-- Categories Performance -->
+            <!-- Cohort Breakdown -->
             <VCol cols="12" md="6">
-              <CategoriesPerformanceCard :categories-data="dashboardData.categories_performance" :is-mobile="isMobile"
-                @view-category="handleViewCategory" />
+              <CohortBreakdownCard :cohort-data="dashboardData.cohort_breakdown" :is-mobile="isMobile"
+                @view-cohort="handleViewCohort" />
             </VCol>
 
             <!-- Regional Breakdown -->

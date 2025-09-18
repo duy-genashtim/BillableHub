@@ -2,6 +2,7 @@
 import { formatShortDate, getPerformanceColor, getPerformanceIcon, getProgressColor } from '@/@core/utils/helpers';
 import { WORKLOG_CONFIG } from '@/@core/utils/worklogConfig';
 import { formatDate, getCurrentWeekNumber, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
+import { filterFutureWeeks } from '@/@core/utils/dateValidation';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -39,7 +40,10 @@ const snackbarColor = ref('success');
 
 // Computed properties
 const weekOptions = computed(() => {
-  return availableWeeks.value.map(week => ({
+  // Filter future weeks based on selected year
+  const filteredWeeks = filterFutureWeeks(availableWeeks.value, selectedYear.value);
+
+  return filteredWeeks.map(week => ({
     title: `Week ${week.week_number} (${formatShortDate(week.start_date)} - ${formatShortDate(week.end_date)})`,
     value: week.week_number,
     subtitle: week.is_current ? 'Current Week' : '',
@@ -253,6 +257,17 @@ async function clearCache() {
 
 function onYearChange() {
   fetchAvailableWeeks();
+
+  // When year changes, ensure selected week is valid for the new year
+  // If switching to current year and selected week is beyond current week, reset to current week
+  const currentYear = new Date().getFullYear();
+  if (selectedYear.value === currentYear) {
+    const currentWeek = getCurrentWeekNumber();
+    if (selectedWeekNumber.value > currentWeek) {
+      selectedWeekNumber.value = currentWeek;
+    }
+  }
+
   fetchPerformanceData();
 }
 

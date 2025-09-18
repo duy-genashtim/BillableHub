@@ -24,8 +24,8 @@ const searchQuery = ref('');
 const selectedProject = ref(null);
 const selectedTask = ref(null);
 const selectedDateRange = ref({
-  start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
-  end: new Date().toISOString().split('T')[0] // today
+  start: '', // Will be set by initializeDateFromURL()
+  end: ''    // Will be set by initializeDateFromURL()
 });
 
 // Pagination
@@ -199,6 +199,7 @@ watch(() => selectedDateRange.value, () => {
 
 // Lifecycle
 onMounted(() => {
+  initializeDateFromURL();
   checkTimeDoctorConnection();
   fetchUserDetails();
   fetchProjects();
@@ -207,6 +208,43 @@ onMounted(() => {
   fetchDailySummaries();
   window.addEventListener('resize', handleResize);
 });
+
+function initializeDateFromURL() {
+  const { start_date, end_date } = route.query;
+
+  // Default values (7 days ago to today)
+  const defaultStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const defaultEnd = new Date().toISOString().split('T')[0];
+
+  if (start_date && end_date) {
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (dateRegex.test(start_date) && dateRegex.test(end_date)) {
+      const startDateObj = new Date(start_date);
+      const endDateObj = new Date(end_date);
+
+      // Validate that dates are valid and start_date <= end_date
+      if (startDateObj.getTime() && endDateObj.getTime() && startDateObj <= endDateObj) {
+        // Use URL parameters
+        selectedDateRange.value.start = start_date;
+        selectedDateRange.value.end = end_date;
+
+        console.log('TimeDoctor Records initialized from URL:', { start_date, end_date });
+        return;
+      } else {
+        console.warn('Invalid date range in URL parameters:', { start_date, end_date });
+      }
+    } else {
+      console.warn('Invalid date format in URL parameters:', { start_date, end_date });
+    }
+  }
+
+  // Fall back to default values
+  selectedDateRange.value.start = defaultStart;
+  selectedDateRange.value.end = defaultEnd;
+  console.log('TimeDoctor Records using default date range:', { start: defaultStart, end: defaultEnd });
+}
 
 function handleResize() {
   isMobile.value = window.innerWidth < 768;

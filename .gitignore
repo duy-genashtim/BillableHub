@@ -64,3 +64,5 @@ public/mockServiceWorker.js
 # Env files
 .env*
 !.env.example
+
+data.zip

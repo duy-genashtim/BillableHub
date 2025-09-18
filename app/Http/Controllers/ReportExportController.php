@@ -1,34 +1,33 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Exports\PerformanceReportExport;
 use App\Models\IvaUser;
+use App\Services\ActivityLogService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
-class IvaRegionReportController extends Controller
+class ReportExportController extends Controller
 {
     /**
-     * Get region performance report for specified date range
+     * Export performance report to Excel
+     * Based on IvaRegionReportController and IvaOverallReportController but without caching
      */
-    public function getRegionPerformanceReport(Request $request)
+    public function exportReport(Request $request)
     {
-        $request->merge([
-            'force_reload' => filter_var($request->query('force_reload'), FILTER_VALIDATE_BOOLEAN),
-            'show_details' => filter_var($request->query('show_details'), FILTER_VALIDATE_BOOLEAN),
-        ]);
-
         $validator = Validator::make($request->all(), [
-            'region_id'    => 'required|exists:regions,id',
-            'year'         => 'required|integer|min:2024',
-            'start_date'   => 'required|date|date_format:Y-m-d',
-            'end_date'     => 'required|date|date_format:Y-m-d|after_or_equal:start_date',
-            'mode'         => 'required|in:weekly,monthly,yearly',
-            'show_details' => 'nullable|boolean',
-            'force_reload' => 'nullable|boolean',
+            'report_type'    => 'required|in:region,overall',
+            'report_period'  => 'required|in:weekly_summary,monthly_summary,yearly_summary,calendar_month,bimonthly,custom',
+            'region_id'      => 'required_if:report_type,region|exists:regions,id',
+            'year'           => 'required|integer|min:2024',
+            'month'          => 'nullable|integer|min:1|max:12',
+            'bimonthly_date' => 'nullable|integer|min:1|max:28',
+            'start_date'     => 'nullable|date|required_if:report_period,custom',
+            'end_date'       => 'nullable|date|after_or_equal:start_date|required_if:report_period,custom',
         ]);
 
         if ($validator->fails()) {
@@ -39,124 +38,83 @@ class IvaRegionReportController extends Controller
             ], 422);
         }
 
-        // Validate date range (must be Monday to Sunday)
-        $startDate = Carbon::parse($request->input('start_date'));
-        $endDate   = Carbon::parse($request->input('end_date'));
+        try {
+            $reportData = $this->generateReportData($request);
+            $filename   = $this->generateFilename($reportData);
 
-        if (! $startDate->isMonday()) {
+            ActivityLogService::log(
+                'export_report',
+                "Exported {$reportData['report_type']} report for {$reportData['date_range']['start']} to {$reportData['date_range']['end']}",
+                [
+                    'report_type' => $reportData['report_type'],
+                    'date_range'  => $reportData['date_range'],
+                    'region'      => $reportData['region'] ?? null,
+                    'summary'     => $reportData['summary'] ?? null,
+                ]
+            );
+
+            $export = Excel::raw(new PerformanceReportExport($reportData), \Maatwebsite\Excel\Excel::XLSX);
+            
+            return response($export, 200, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'X-Filename' => $filename, // Custom header for easier frontend access
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to export report', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Start date must be a Monday',
-            ], 422);
+                'message' => 'Failed to export report',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-
-        if (! $endDate->isSunday()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'End date must be a Sunday',
-            ], 422);
-        }
-
-        // Validate date range based on mode
-        $daysDiff = $startDate->diffInDays($endDate);
-
-        switch ($request->input('mode')) {
-            case 'weekly':
-                if ($daysDiff < 6) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Weekly mode requires at least 7 days',
-                    ], 422);
-                }
-                break;
-            case 'monthly':
-                if ($daysDiff < 27) { // At least 4 weeks
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Monthly mode requires at least 4 weeks',
-                    ], 422);
-                }
-                break;
-            case 'yearly':
-                if ($daysDiff < 363) { // At least 52 weeks
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Yearly mode requires at least 52 weeks',
-                    ], 422);
-                }
-                break;
-        }
-
-        // Cache key
-        $cacheKey    = $this->generateCacheKey($request->all());
-        $forceReload = $request->boolean('force_reload');
-
-        // Try to get cached data
-        if (! $forceReload) {
-            $cachedData = Cache::get($cacheKey);
-            if ($cachedData !== null) {
-                Log::info('Region report served from cache', ['cache_key' => $cacheKey]);
-                return response()->json([
-                    'success'   => true,
-                    'cached'    => true,
-                    'cached_at' => $cachedData['cached_at'] ?? null,
-                    ...$cachedData['data'],
-                ]);
-            }
-        }
-
-        // Generate fresh data
-        $reportData = $this->generateRegionReportData($request);
-
-        // Cache the data (60 minutes TTL)
-        $wrappedData = [
-            'data'      => $reportData,
-            'cached_at' => now()->toISOString(),
-        ];
-        Cache::put($cacheKey, $wrappedData, 60);
-
-        Log::info('Region report generated fresh', [
-            'cache_key'   => $cacheKey,
-            'region_id'   => $request->input('region_id'),
-            'users_count' => count($reportData['users_data'] ?? [])
-        ]);
-
-        return response()->json([
-            'success'      => true,
-            'cached'       => false,
-            'generated_at' => now()->toISOString(),
-            ...$reportData,
-        ]);
     }
 
     /**
-     * Generate cache key for region report
+     * Generate report data using same logic as IvaRegionReportController and IvaOverallReportController
+     * but optimized and without caching
      */
-    private function generateCacheKey($params)
+    private function generateReportData(Request $request)
     {
-        $keyParts = [
-            'region_performance_report',
-            'region_' . $params['region_id'],
-            'year_' . $params['year'],
-            'mode_' . $params['mode'],
-            'start_' . $params['start_date'],
-            'end_' . $params['end_date'],
-            'details_' . ($params['show_details'] ?? false ? '1' : '0'),
+        $reportType = $request->input('report_type');
+        $period     = $request->input('report_period');
+        $year       = $request->input('year');
+
+        // Resolve date range and mode based on period
+        $dateInfo  = $this->resolveDateRangeAndMode($period, $year, $request);
+        $startDate = $dateInfo['start_date'];
+        $endDate   = $dateInfo['end_date'];
+        $mode      = $dateInfo['mode'];
+
+        // Base report structure
+        $reportData = [
+            'report_type'   => $reportType,
+            'report_period' => $period, // Add report_period to the data passed to export
+            'year'          => $year,
+            'mode'          => $mode,
+            'date_range'    => [
+                'start' => $startDate,
+                'end'   => $endDate,
+            ],
         ];
 
-        return implode(':', $keyParts);
+        if ($reportType === 'region') {
+            return $this->generateRegionReportData($request, $reportData, $startDate, $endDate, $mode);
+        } else {
+            return $this->generateOverallReportData($request, $reportData, $startDate, $endDate, $mode);
+        }
     }
 
     /**
-     * Generate region report data using optimized approach
+     * Generate region report data (mirrors IvaRegionReportController logic)
      */
-    private function generateRegionReportData(Request $request)
+    private function generateRegionReportData(Request $request, array $reportData, string $startDate, string $endDate, string $mode)
     {
-        $regionId  = $request->input('region_id');
-        $startDate = $request->input('start_date');
-        $endDate   = $request->input('end_date');
-        $mode      = $request->input('mode');
-        $year      = $request->input('year');
+        $regionId = $request->input('region_id');
 
         // Get region info
         $region = DB::table('regions')->find($regionId);
@@ -164,25 +122,15 @@ class IvaRegionReportController extends Controller
             throw new \Exception('Region not found');
         }
 
+        $reportData['region'] = [
+            'id'   => $region->id,
+            'name' => $region->name,
+        ];
+
         // Get all active users in the region during the period
         $users = $this->getActiveUsersInRegion($regionId, $startDate, $endDate);
 
-        // Process performance data based on mode using optimized functions
-        $reportData = [
-            'region'     => [
-                'id'   => $region->id,
-                'name' => $region->name,
-            ],
-            'year'       => $year,
-            'mode'       => $mode,
-            'date_range' => [
-                'start' => $startDate,
-                'end'   => $endDate,
-            ],
-            'users_data' => [],
-            'summary'    => [],
-        ];
-
+        // Process performance data based on mode
         switch ($mode) {
             case 'weekly':
                 $reportData = $this->processWeeklySummaryDataOptimized($users, $startDate, $endDate, $reportData);
@@ -195,14 +143,143 @@ class IvaRegionReportController extends Controller
                 break;
         }
 
-        // Add category summary using optimized approach
+        // Add category summary
         $reportData['category_summary'] = $this->calculateCategorySummaryOptimized($reportData['users_data']);
+        // remove users_data to make output smaller
+        unset($reportData['users_data']);
+        return $reportData;
+    }
+
+    /**
+     * Generate overall report data (mirrors IvaOverallReportController logic)
+     */
+    private function generateOverallReportData(Request $request, array $reportData, string $startDate, string $endDate, string $mode)
+    {
+        // Get all active regions
+        $regions = DB::table('regions')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        // Get all active users during the period
+        $allUsers = $this->getAllActiveUsers($startDate, $endDate);
+
+        // Process performance data based on mode using optimized functions
+        $reportData['regions_data'] = [];
+        $reportData['users_data']   = [];
+
+        $allFullTimeUsers = [];
+        $allPartTimeUsers = [];
+        $allUsersData     = [];
+
+        foreach ($regions as $region) {
+            $regionUsers = $allUsers->where('region_id', $region->id);
+
+            if ($regionUsers->isEmpty()) {
+                continue;
+            }
+
+            // Process region users using optimized functions
+            $regionData = $this->processRegionUsersOptimized($regionUsers, $startDate, $endDate, $mode, $region);
+
+            if (! empty($regionData['users_data'])) {
+                $reportData['regions_data'][] = $regionData;
+
+                // Add to overall collections
+                $allUsersData     = array_merge($allUsersData, $regionData['users_data']);
+                $allFullTimeUsers = array_merge($allFullTimeUsers, $regionData['full_time_users']);
+                $allPartTimeUsers = array_merge($allPartTimeUsers, $regionData['part_time_users']);
+            }
+        }
+
+        // Calculate overall summaries using collected data (no need to store duplicate arrays)
+        $reportData['summary'] = [
+            'full_time' => $this->calculateGroupSummary($allFullTimeUsers),
+            'part_time' => $this->calculateGroupSummary($allPartTimeUsers),
+            'overall'   => $this->calculateGroupSummary($allUsersData),
+        ];
+
+        // Add category summary for all users
+        $reportData['category_summary'] = $this->calculateCategorySummaryOptimized($allUsersData);
 
         return $reportData;
     }
 
     /**
+     * Resolve date range and mode based on period selection
+     */
+    private function resolveDateRangeAndMode(string $period, int $year, Request $request): array
+    {
+        switch ($period) {
+            case 'weekly_summary':
+                // UI passes start_date/end_date for the chosen week
+                $startDate = $request->input('start_date');
+                $endDate   = $request->input('end_date');
+                return [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                    'mode'       => 'weekly',
+                ];
+
+            case 'monthly_summary':
+                // UI passes start_date/end_date for the chosen month window
+                $startDate = $request->input('start_date');
+                $endDate   = $request->input('end_date');
+                return [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                    'mode'       => 'monthly',
+                ];
+
+            case 'yearly_summary':
+                // UI passes start_date/end_date for 52 weeks
+                $startDate = $request->input('start_date');
+                $endDate   = $request->input('end_date');
+                return [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                    'mode'       => 'yearly',
+                ];
+
+            case 'calendar_month':
+                $month     = (int) $request->input('month');
+                $startDate = Carbon::create($year, $month, 1)->startOfDay()->format('Y-m-d');
+                $endDate   = Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d');
+                return [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                    'mode'       => 'monthly',
+                ];
+
+            case 'bimonthly':
+                $month     = (int) $request->input('month');
+                $cut       = (int) $request->input('bimonthly_date', 15);
+                $startDate = Carbon::create($year, $month, 1)->format('Y-m-d');
+                $endDate   = Carbon::create($year, $month, $cut)->endOfDay()->format('Y-m-d');
+                return [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                    'mode'       => 'weekly',
+                ];
+
+            case 'custom':
+            default:
+                $startDate = $request->input('start_date');
+                $endDate   = $request->input('end_date');
+                // Determine mode based on date range
+                $days = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+                $mode = $days >= 350 ? 'yearly' : ($days >= 28 ? 'monthly' : 'weekly');
+                return [
+                    'start_date' => $startDate,
+                    'end_date'   => $endDate,
+                    'mode'       => $mode,
+                ];
+        }
+    }
+
+    /**
      * Get active users in region during the specified period
+     * (same logic as IvaRegionReportController)
      */
     private function getActiveUsersInRegion($regionId, $startDate, $endDate)
     {
@@ -237,7 +314,44 @@ class IvaRegionReportController extends Controller
     }
 
     /**
+     * Get all active users during the specified period
+     * (same logic as IvaOverallReportController)
+     */
+    private function getAllActiveUsers($startDate, $endDate)
+    {
+        return IvaUser::select([
+            'id',
+            'full_name',
+            'email',
+            'job_title',
+            'work_status',
+            'region_id',
+            'hire_date',
+            'end_date',
+            'timedoctor_version',
+        ])
+            ->with(['customizations.setting.settingType', 'region'])
+            ->where('is_active', true)
+            ->where(function ($query) use ($startDate, $endDate) {
+                // User was active during the period
+                $query->where(function ($q) use ($startDate) {
+                    $q->whereNull('hire_date')
+                        ->orWhere('hire_date', '<=', $startDate);
+                })
+                    ->where(function ($q) use ($endDate) {
+                        $q->whereNull('end_date')
+                            ->orWhere('end_date', '>=', $endDate);
+                    });
+            })
+            ->orderBy('region_id')
+            ->orderBy('work_status')
+            ->orderBy('full_name')
+            ->get();
+    }
+
+    /**
      * Process weekly summary data using optimized daily summaries
+     * (mirrors IvaRegionReportController logic)
      */
     private function processWeeklySummaryDataOptimized($users, $startDate, $endDate, $reportData)
     {
@@ -279,6 +393,7 @@ class IvaRegionReportController extends Controller
             $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
 
             // Get categories breakdown using optimized helper
+            // $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
             $categoriesResponse = calculateFullCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
             // Transform nested category structure to flat array for frontend compatibility
@@ -297,24 +412,14 @@ class IvaRegionReportController extends Controller
                 }
             }
 
-            // Create single-week breakdown array
-            $weeklyData = [[
-                'week_number'        => $this->calculateWeekNumber($startDate),
-                'start_date'         => $startDate,
-                'end_date'           => $endDate,
-                'billable_hours'     => $weekMetrics['billable_hours'],
-                'non_billable_hours' => $weekMetrics['non_billable_hours'],
-                'total_hours'        => $weekMetrics['total_hours'],
-                'target_hours'       => $weekPerformance[0]['target_total_hours'] ?? 0,
-                'performance'        => $weekPerformance[0] ?? null,
-            ]];
-
             $userData = [
                 'id'                 => $user->id,
                 'full_name'          => $user->full_name,
                 'email'              => $user->email,
                 'job_title'          => $user->job_title,
                 'work_status'        => $user->work_status,
+                'region_id'          => $user->region_id,
+                'region_name'        => $user->region->name ?? 'Unknown',
                 'billable_hours'     => round($weekMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($weekMetrics['non_billable_hours'], 2),
                 'total_hours'        => round($weekMetrics['total_hours'], 2),
@@ -322,9 +427,7 @@ class IvaRegionReportController extends Controller
                 'nad_count'          => $userNadData['nad_count'],
                 'nad_hours'          => round($userNadData['nad_hours'], 2),
                 'performance'        => $weekPerformance[0] ?? null,
-                'weekly_breakdown'   => $weeklyData,
                 'categories'         => $categoriesBreakdown,
-                'categoryresponse'   => $categoriesResponse, // For debugging only
             ];
 
             $allUsersData[] = $userData;
@@ -353,6 +456,7 @@ class IvaRegionReportController extends Controller
 
     /**
      * Process monthly summary data using optimized daily summaries
+     * (mirrors IvaRegionReportController logic but adds weekly_breakdown for monthly_summary)
      */
     private function processMonthlySummaryDataOptimized($users, $startDate, $endDate, $reportData)
     {
@@ -360,7 +464,7 @@ class IvaRegionReportController extends Controller
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
-        // Fetch NAD data for all users once (optimized)
+        // Fetch NAD data for all users once (optimized) for the entire month
         $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
         $nadDataByEmail  = [];
 
@@ -394,7 +498,8 @@ class IvaRegionReportController extends Controller
             $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
 
             // Get categories breakdown using optimized helper
-            $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
+            // $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
+            $categoriesResponse = calculateFullCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
             // Transform nested category structure to flat array for frontend compatibility
             $categoriesBreakdown = [];
@@ -412,19 +517,8 @@ class IvaRegionReportController extends Controller
                 }
             }
 
-            // Create single-month breakdown array
-            $monthName   = Carbon::parse($startDate)->format('F');
-            $monthlyData = [[
-                'month_number'       => Carbon::parse($startDate)->month,
-                'start_date'         => $startDate,
-                'end_date'           => $endDate,
-                'label'              => $monthName,
-                'billable_hours'     => $monthMetrics['billable_hours'],
-                'non_billable_hours' => $monthMetrics['non_billable_hours'],
-                'total_hours'        => $monthMetrics['total_hours'],
-                'target_hours'       => $monthPerformance[0]['target_total_hours'] ?? 0,
-                'performance'        => $monthPerformance[0] ?? null,
-            ]];
+            // FOR MONTHLY_SUMMARY: Calculate weekly breakdown within this month
+            $weeklyBreakdown = $this->calculateWeeklyBreakdownForMonthOptimized($user, $startDate, $endDate, $nadDataByEmail);
 
             $userData = [
                 'id'                 => $user->id,
@@ -432,6 +526,8 @@ class IvaRegionReportController extends Controller
                 'email'              => $user->email,
                 'job_title'          => $user->job_title,
                 'work_status'        => $user->work_status,
+                'region_id'          => $user->region_id,
+                'region_name'        => $user->region->name ?? 'Unknown',
                 'billable_hours'     => round($monthMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($monthMetrics['non_billable_hours'], 2),
                 'total_hours'        => round($monthMetrics['total_hours'], 2),
@@ -439,8 +535,8 @@ class IvaRegionReportController extends Controller
                 'nad_count'          => $userNadData['nad_count'],
                 'nad_hours'          => round($userNadData['nad_hours'], 2),
                 'performance'        => $monthPerformance[0] ?? null,
-                'monthly_breakdown'  => $monthlyData,
                 'categories'         => $categoriesBreakdown,
+                'weekly_breakdown'   => $weeklyBreakdown, // Add weekly breakdown for monthly_summary
             ];
 
             $allUsersData[] = $userData;
@@ -469,6 +565,7 @@ class IvaRegionReportController extends Controller
 
     /**
      * Process yearly data using optimized daily summaries
+     * (mirrors IvaRegionReportController logic)
      */
     private function processYearlyDataOptimized($users, $startDate, $endDate, $reportData)
     {
@@ -510,7 +607,8 @@ class IvaRegionReportController extends Controller
             $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
 
             // Get categories breakdown using optimized helper
-            $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
+            // $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
+            $categoriesResponse = calculateFullCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
             // Transform nested category structure to flat array for frontend compatibility
             $categoriesBreakdown = [];
@@ -534,6 +632,8 @@ class IvaRegionReportController extends Controller
                 'email'              => $user->email,
                 'job_title'          => $user->job_title,
                 'work_status'        => $user->work_status,
+                'region_id'          => $user->region_id,
+                'region_name'        => $user->region->name ?? 'Unknown',
                 'billable_hours'     => round($yearMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($yearMetrics['non_billable_hours'], 2),
                 'total_hours'        => round($yearMetrics['total_hours'], 2),
@@ -569,7 +669,125 @@ class IvaRegionReportController extends Controller
     }
 
     /**
+     * Calculate weekly breakdown for month using optimized approach
+     * Based on WorklogDashboardController::calculateWeeklyBreakdownForMonthDailySummary
+     * but optimized to use pre-fetched NAD data
+     */
+    private function calculateWeeklyBreakdownForMonthOptimized($user, $startDate, $endDate, $nadDataByEmail)
+    {
+        try {
+            $timezone = config('app.timezone', 'Asia/Singapore');
+
+            // Get all weeks that fall within this month
+            $monthStart = Carbon::parse($startDate, $timezone);
+            $monthEnd   = Carbon::parse($endDate, $timezone);
+
+            // Find the Monday of the first week and Sunday of the last week
+            $firstMonday = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
+            $lastSunday  = $monthEnd->copy()->endOfWeek(Carbon::SUNDAY);
+
+            $weeks       = [];
+            $currentWeek = $firstMonday->copy();
+            $weekNumber  = 1;
+
+            while ($currentWeek->lte($lastSunday)) {
+                $weekStart = $currentWeek->copy();
+                $weekEnd   = $currentWeek->copy()->endOfWeek(Carbon::SUNDAY);
+
+                // Only include weeks that overlap with the month
+                if ($weekEnd->gte($monthStart) && $weekStart->lte($monthEnd)) {
+                    // Adjust week boundaries to month boundaries if needed
+                    $adjustedStart = $weekStart->lt($monthStart) ? $monthStart : $weekStart;
+                    $adjustedEnd   = $weekEnd->gt($monthEnd) ? $monthEnd : $weekEnd;
+
+                    $weekMetrics = calculateBasicMetricsFromDailySummaries($user->id, $adjustedStart->format('Y-m-d'),
+                        $adjustedEnd->format('Y-m-d'));
+
+                    // Use optimized NAD data lookup instead of individual API call
+                    $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
+
+                    // Calculate proportional NAD data for this week based on days overlap
+                    $weekDays      = $adjustedStart->diffInDays($adjustedEnd) + 1;
+                    $monthDays     = $monthStart->diffInDays($monthEnd) + 1;
+                    $nadProportion = $weekDays / $monthDays;
+
+                    $weekNadCount = round($userNadData['nad_count'] * $nadProportion);
+                    $weekNadHours = round($userNadData['nad_hours'] * $nadProportion, 2);
+
+                    $weeks[] = [
+                        'week_number'        => $weekNumber,
+                        'start_date'         => $adjustedStart->format('Y-m-d'),
+                        'end_date'           => $adjustedEnd->format('Y-m-d'),
+                        'label'              => sprintf(
+                            'Week %d (%s - %s)',
+                            $weekNumber,
+                            $adjustedStart->format('M d'),
+                            $adjustedEnd->format('M d')
+                        ),
+                        'billable_hours'     => $weekMetrics['billable_hours'],
+                        'non_billable_hours' => $weekMetrics['non_billable_hours'],
+                        'total_hours'        => $weekMetrics['total_hours'],
+                        'nad_count'          => $weekNadCount,
+                        'nad_hours'          => $weekNadHours,
+                        'nad_data'           => [
+                            'nad_count' => $weekNadCount,
+                            'nad_hours' => $weekNadHours,
+                        ],
+                        'entries_count'      => $weekMetrics['total_entries'],
+                    ];
+
+                    $weekNumber++;
+                }
+
+                $currentWeek->addWeek();
+            }
+
+            return $weeks;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to calculate weekly breakdown for month', [
+                'user_id'    => $user->id,
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Process users for a specific region using optimized daily summaries
+     * (mirrors IvaOverallReportController logic)
+     */
+    private function processRegionUsersOptimized($users, $startDate, $endDate, $mode, $region)
+    {
+        switch ($mode) {
+            case 'weekly':
+                $reportData = $this->processWeeklySummaryDataOptimized($users, $startDate, $endDate, []);
+                break;
+            case 'monthly':
+                $reportData = $this->processMonthlySummaryDataOptimized($users, $startDate, $endDate, []);
+                break;
+            case 'yearly':
+                $reportData = $this->processYearlyDataOptimized($users, $startDate, $endDate, []);
+                break;
+        }
+
+        return [
+            'region'          => [
+                'id'   => $region->id,
+                'name' => $region->name,
+            ],
+            'users_data'      => $reportData['users_data'],
+            'full_time_users' => $reportData['full_time_users'],
+            'part_time_users' => $reportData['part_time_users'],
+            'summary'         => $reportData['summary'],
+        ];
+    }
+
+    /**
      * Calculate group summary with optimized performance data structure
+     * (same logic as IvaRegionReportController and IvaOverallReportController)
      */
     private function calculateGroupSummary($users)
     {
@@ -644,6 +862,7 @@ class IvaRegionReportController extends Controller
 
     /**
      * Calculate category summary across all users using optimized approach
+     * (same logic as IvaRegionReportController and IvaOverallReportController)
      */
     private function calculateCategorySummaryOptimized($usersData)
     {
@@ -693,85 +912,14 @@ class IvaRegionReportController extends Controller
     }
 
     /**
-     * Calculate week number for a given date
-     */
-    private function calculateWeekNumber($date)
-    {
-        return Carbon::parse($date)->weekOfYear;
-    }
-
-    /**
-     * Clear region report cache
-     */
-    public function clearRegionReportCache(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'region_id' => 'nullable|exists:regions,id',
-            'year'      => 'nullable|integer',
-            'mode'      => 'nullable|in:weekly,monthly,yearly',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            $pattern = 'region_performance_report:';
-
-            if ($request->filled('region_id')) {
-                $pattern .= 'region_' . $request->input('region_id') . ':';
-            } else {
-                $pattern .= '*';
-            }
-
-            if ($request->filled('year')) {
-                $pattern .= 'year_' . $request->input('year') . ':';
-            }
-
-            if ($request->filled('mode')) {
-                $pattern .= 'mode_' . $request->input('mode') . ':';
-            }
-
-            $pattern .= '*';
-
-            // Clear matching cache keys
-            $keys = Cache::getRedis()->keys($pattern);
-            foreach ($keys as $key) {
-                $cleanKey = str_replace(config('database.redis.options.prefix'), '', $key);
-                Cache::forget($cleanKey);
-            }
-
-            Log::info('Region report cache cleared', ['pattern' => $pattern, 'keys_cleared' => count($keys)]);
-
-            return response()->json([
-                'success'    => true,
-                'message'    => 'Cache cleared successfully',
-                'cleared_at' => now()->toISOString(),
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to clear region report cache', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to clear cache',
-            ], 500);
-        }
-    }
-
-    /**
-     * Get available regions for report
+     * Get available regions for the frontend dropdown
+     * (copied from IvaRegionReportController for API compatibility)
      */
     public function getAvailableRegions()
     {
         $regions = DB::table('regions')
             ->where('is_active', true)
             ->orderBy('name')
-            ->select('id', 'name', 'description')
             ->get()
             ->map(function ($region) {
                 // Get user count for each region
@@ -809,5 +957,60 @@ class IvaRegionReportController extends Controller
             'success' => true,
             'regions' => $regions,
         ]);
+    }
+
+    /**
+     * Generate filename for export
+     */
+    private function generateFilename(array $data): string
+    {
+        $type = ($data['report_type'] === 'region') ? 'Region_Report' : 'Overall_Report';
+        
+        // Add region name if applicable
+        if (! empty($data['region']['name'] ?? '')) {
+            $type .= '_' . str_replace(' ', '_', $data['region']['name']);
+        }
+        
+        // Add report period type
+        $reportPeriod = $this->formatReportPeriod($data['report_period'] ?? 'custom');
+        
+        // Format date range
+        $start = Carbon::parse($data['date_range']['start'])->format('M-d');
+        $end   = Carbon::parse($data['date_range']['end'])->format('M-d');
+        $year  = Carbon::parse($data['date_range']['start'])->format('Y');
+        
+        // Add export datetime
+        $exportDateTime = Carbon::now()->format('Y-m-d_H-i-s');
+
+        return sprintf('%s_%s_%s_to_%s_%s_exported_%s.xlsx', 
+            $type, 
+            $reportPeriod, 
+            $start, 
+            $end, 
+            $year, 
+            $exportDateTime
+        );
+    }
+
+    /**
+     * Format report period for filename
+     */
+    private function formatReportPeriod(string $period): string
+    {
+        switch ($period) {
+            case 'weekly_summary':
+                return 'Weekly_Summary';
+            case 'monthly_summary':
+                return 'Monthly_Summary';
+            case 'yearly_summary':
+                return 'Yearly_Summary';
+            case 'calendar_month':
+                return 'Calendar_Month';
+            case 'bimonthly':
+                return 'Bimonthly';
+            case 'custom':
+            default:
+                return 'Custom_Range';
+        }
     }
 }
