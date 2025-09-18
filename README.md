@@ -47,14 +47,19 @@ php artisan migrate
 -> login
  php artisan db:seed --class=RolePermissionSeeder
  php artisan db:seed --class=ConfigurationSettingsSeeder
+->sync iva
 -> sync tasks
+ php artisan db:seed --class=RegionSeeder
  php artisan db:seed --class=TaskCategorySeeder
  be notice: Task not found: [Verification work]: Pending B Corp
+sudo -u www-data php artisan optimize
 
 -------
 sudo -u www-data  php artisan timedoctor:sync-worklogs
 
-sudo -u www-data php artisan timedoctor:sync-worklogs --start-date=2025-07-28 --end-date=2025-07-28
+sudo -u www-data php artisan timedoctor:sync-worklogs --start-date=2025-08-04 --end-date=2025-08-27
+
+sudo -u www-data php artisan timedoctor:sync-worklogs --start-date=2025-07-21 --end-date=2025-08-03
 
 sudo -u www-data php artisan timedoctor:sync-worklogs --start-date=2025-06-02 --end-date=2025-06-29
 
@@ -63,37 +68,6 @@ sudo -u www-data php artisan timedoctor:sync-worklogs --start-date=2025-06-30 --
 timedoctor timerecord changes (edit record, add record, modify record.)
 -edit record:- 
     - it should be change in the timedoctor - then sync to the system - old data of that date will be remove to resync.
-- error on job title:
- "id": 43600111,
-            "email": "iris@genashtim.com",
-            "full_name": "MARIA IRIS ORTIZ PARDILLO",
-            "job_title": "Sales and Business Development Executive",
-            "full_name_ic": "VANESSA DEL CARMEN VELAZCO CONTRERAS",
-        "preferred_name": "Vanessa Velazco",
-        "email": "vanessa@genashtim.com",
-        "level": "6 - Professional/Support",
-        "level_id": 139,
-        "photo": null,
-        "job_title": {
-            "id": 47,
-            "type": "Job Title",
-            "name": "ESG Executive",
-            "is_active": 1,
-            "added_by": null,
-            "order": 0,
-            "created_at": null,
-            "updated_at": null
-        },
-        "job_titles": "ESG Executive",
-        "id": "43600053",
-        "parentId": "43600044",
-        "department_name": "ESG Services",
-        "religion_name": null,
-        "entity_names": "Genashtim Pte. Ltd.",
-        "departments": [
-
-            Abhista Sarwabhaswara ---?
--report export. 
 
 icon:
 https://remixicon.com/

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Date Time Helpers Test</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
@@ -47,6 +48,7 @@
             <div class="tab active" onclick="switchTab('datetime-helpers')">Date Time Helpers</div>
             <div class="tab" onclick="switchTab('worklog-summary')">Daily Worklog Summary</div>
             <div class="tab" onclick="switchTab('nad-data')">NAD Data Fetch</div>
+            <div class="tab" onclick="switchTab('export-test')">Export Test</div>
         </div>
 
         <!-- Date Time Helpers Tab -->
@@ -186,6 +188,53 @@
             <div id="nadResults" style="display:none;">
                 <h3>NAD Data Results</h3>
                 <div id="nadResultsContent"></div>
+            </div>
+        </div>
+
+        <!-- Export Test Tab -->
+        <div id="export-test" class="tab-content">
+            <div class="test-form">
+                <h2>Test Export Data Generation</h2>
+                <form id="exportTestForm">
+                    <div class="form-group">
+                        <label for="export_report_type">Report Type:</label>
+                        <select id="export_report_type" name="report_type">
+                            <option value="overall">Overall Report</option>
+                            <option value="region">Region Report</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="export_region_group" style="display:none;">
+                        <label for="export_region_id">Region ID:</label>
+                        <input type="number" id="export_region_id" name="region_id" placeholder="Enter region ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="export_report_period">Report Period:</label>
+                        <select id="export_report_period" name="report_period">
+                            <option value="weekly_summary">Weekly Summary</option>
+                            <option value="monthly_summary">Monthly Summary</option>
+                            <option value="yearly_summary">Yearly Summary</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="export_year">Year:</label>
+                        <input type="number" id="export_year" name="year" value="{{ date('Y') }}" min="2024" max="2030">
+                    </div>
+                    <div class="form-group">
+                        <label for="export_start_date">Start Date:</label>
+                        <input type="date" id="export_start_date" name="start_date" value="{{ Carbon\Carbon::now()->startOfWeek()->format('Y-m-d') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="export_end_date">End Date:</label>
+                        <input type="date" id="export_end_date" name="end_date" value="{{ Carbon\Carbon::now()->endOfWeek()->format('Y-m-d') }}">
+                    </div>
+                    <button type="submit" class="btn">Test Export Data</button>
+                </form>
+            </div>
+            
+            <div id="exportResults" style="display:none;">
+                <h3>Export Data Results</h3>
+                <div id="exportResultsContent"></div>
             </div>
         </div>
 
@@ -384,6 +433,106 @@
 
             } catch (error) {
                 resultsContent.innerHTML = '<div class="error">Failed to execute test: ' + error.message + '</div>';
+            }
+        }
+
+        // Handle report type change for export test
+        document.getElementById('export_report_type').addEventListener('change', function() {
+            const regionGroup = document.getElementById('export_region_group');
+            if (this.value === 'region') {
+                regionGroup.style.display = 'block';
+            } else {
+                regionGroup.style.display = 'none';
+            }
+        });
+
+        // Handle form submission for export test
+        document.getElementById('exportTestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await testExportData();
+        });
+
+        async function testExportData() {
+            const form = document.getElementById('exportTestForm');
+            const formData = new FormData(form);
+            
+            // Show loading state
+            const resultsDiv = document.getElementById('exportResults');
+            const resultsContent = document.getElementById('exportResultsContent');
+            
+            resultsDiv.style.display = 'block';
+            resultsContent.innerHTML = '<div class="loading">🔄 Testing export data generation...</div>';
+            
+            try {
+                const params = {};
+                for (let [key, value] of formData.entries()) {
+                    if (value) params[key] = value;
+                }
+                
+                // Create test endpoint to generate report data without actually creating Excel
+                const response = await fetch('/test/export-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',           // ask for JSON
+                        'X-Requested-With': 'XMLHttpRequest',   // hint to Laravel
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(params)
+                    });
+
+                    // Guard: don't JSON-parse HTML error pages
+                    const contentType = response.headers.get('content-type') || '';
+                    if (!contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Expected JSON, got ${response.status} ${response.statusText}: ${text.slice(0, 200)}`);
+                    }
+
+                    const result = await response.json();
+                
+                let html = '<div class="function-block">';
+                html += '<h3>🧪 Export Data Test Results</h3>';
+                
+                if (result.success) {
+                    html += '<div class="success">✅ Data generation successful</div>';
+                    
+                    if (result.data) {
+                        html += '<div class="result">';
+                        html += '<strong>Report Data Structure:</strong>';
+                        html += '<pre>' + JSON.stringify(result.data, null, 2) + '</pre>';
+                        html += '</div>';
+                    }
+                    
+                    if (result.categories) {
+                        html += '<div class="result">';
+                        html += '<strong>Task Categories Found:</strong>';
+                        html += '<pre>' + JSON.stringify(result.categories, null, 2) + '</pre>';
+                        html += '</div>';
+                    }
+                    
+                    if (result.summary) {
+                        html += '<div class="result">';
+                        html += '<strong>Data Summary:</strong>';
+                        html += '<pre>' + JSON.stringify(result.summary, null, 2) + '</pre>';
+                        html += '</div>';
+                    }
+                } else {
+                    html += '<div class="error-result">❌ Export data test failed</div>';
+                    
+                    if (result.error) {
+                        html += '<div class="error">';
+                        html += '<strong>Error:</strong>';
+                        html += '<pre>' + result.error + '</pre>';
+                        html += '</div>';
+                    }
+                }
+                
+                html += '</div>';
+                resultsContent.innerHTML = html;
+                
+            } catch (error) {
+                resultsContent.innerHTML = '<div class="error">Failed to test export data: ' + error.message + '</div>';
             }
         }
     </script>

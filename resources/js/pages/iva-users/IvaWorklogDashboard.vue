@@ -218,6 +218,9 @@ function getMonthOptionsForSummary() {
 }
 
 onMounted(() => {
+  // Check for URL date parameters first
+  initializeDateFromURL();
+
   fetchUserDetails();
   fetchAvailableWeeks();
   fetchDashboardData();
@@ -226,6 +229,34 @@ onMounted(() => {
 
 function handleResize() {
   isMobile.value = window.innerWidth < 768;
+}
+
+function initializeDateFromURL() {
+  const { start_date, end_date } = route.query;
+
+  if (start_date && end_date) {
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (dateRegex.test(start_date) && dateRegex.test(end_date)) {
+      const startDateObj = new Date(start_date);
+      const endDateObj = new Date(end_date);
+
+      // Validate that dates are valid and start_date <= end_date
+      if (startDateObj.getTime() && endDateObj.getTime() && startDateObj <= endDateObj) {
+        // Set custom date mode and populate the date fields
+        dateMode.value = 'custom';
+        customDateFrom.value = start_date;
+        customDateTo.value = end_date;
+
+        console.log('Initialized from URL:', { start_date, end_date });
+      } else {
+        console.warn('Invalid date range in URL parameters:', { start_date, end_date });
+      }
+    } else {
+      console.warn('Invalid date format in URL parameters:', { start_date, end_date });
+    }
+  }
 }
 
 async function fetchUserDetails() {

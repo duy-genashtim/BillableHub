@@ -315,6 +315,12 @@ export const routes = [
       },
       // IVA Reports routes
       {
+        path: 'admin/reports/nsh-performance',
+        name: 'nsh-performance-report',
+        component: () => import('@/pages/iva-reports/NshPerformanceReport.vue'),
+        meta: { permission: 'view_reports' },
+      },
+      {
         path: 'admin/reports/daily-performance',
         name: 'daily-performance-report',
         component: () => import('@/pages/iva-reports/DailyPerformanceReport.vue'),
@@ -337,6 +343,12 @@ export const routes = [
         name: 'overall-performance-report',
         component: () => import('@/pages/iva-reports/OverallPerformanceReport.vue'),
         meta: { permission: 'view_reports' },
+      },
+      {
+        path: 'admin/reports/export',
+        name: 'reports-export',
+        component: () => import('@/pages/report-export/ReportExport.vue'),
+        meta: { permission: 'export_reports' },
       },
     ],
   },

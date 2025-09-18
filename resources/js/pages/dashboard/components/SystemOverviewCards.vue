@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed } from 'vue';
 
 const props = defineProps({
   systemOverview: {
@@ -39,7 +39,7 @@ const metrics = computed(() => [
     value: props.systemOverview.total_cohorts || 0,
     icon: 'ri-team-line',
     color: 'success',
-    subtitle: `${props.systemOverview.total_tasks || 0} Tasks • ${props.systemOverview.total_projects || 0} Projects`
+    // subtitle: `${props.systemOverview.total_tasks || 0} Tasks • ${props.systemOverview.total_projects || 0} Projects`
   }
 ])
 </script>
@@ -55,21 +55,10 @@ const metrics = computed(() => [
 
     <VCardText>
       <VRow>
-        <VCol 
-          v-for="metric in metrics" 
-          :key="metric.title"
-          cols="12" 
-          :sm="isMobile ? 12 : 6"
-          :md="6"
-        >
+        <VCol v-for="metric in metrics" :key="metric.title" cols="12" :sm="isMobile ? 12 : 6" :md="6">
           <VCard variant="tonal" :color="metric.color" class="h-100">
             <VCardText class="d-flex align-center">
-              <VAvatar 
-                :color="metric.color" 
-                variant="flat" 
-                size="48" 
-                class="mr-4"
-              >
+              <VAvatar :color="metric.color" variant="flat" size="48" class="mr-4">
                 <VIcon :icon="metric.icon" size="24" />
               </VAvatar>
 
@@ -97,7 +86,7 @@ const metrics = computed(() => [
   .text-h4 {
     font-size: 1.75rem !important;
   }
-  
+
   :deep(.v-card-text) {
     padding: 16px;
   }

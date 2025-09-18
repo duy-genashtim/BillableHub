@@ -72,8 +72,8 @@ class DashboardController extends Controller
             // Regional breakdown
             'regional_breakdown'        => $this->getRegionalBreakdown(),
 
-            // Task categories performance
-            'categories_performance'    => $this->getCategoriesPerformance($startOfWeek, $endOfWeek),
+            // Cohort breakdown
+            'cohort_breakdown'          => $this->getCohortBreakdown(),
 
             // Recent activity
             'recent_activity'           => $this->getRecentActivity(),
@@ -221,6 +221,42 @@ class DashboardController extends Controller
                     'user_count'      => (int) $region->user_count,
                     'full_time_count' => (int) $region->full_time_count,
                     'part_time_count' => (int) $region->part_time_count,
+                ];
+            });
+    }
+
+    /**
+     * Get cohort breakdown
+     */
+    private function getCohortBreakdown()
+    {
+        return DB::table('cohorts as c')
+            ->leftJoin('iva_user as iu', function ($join) {
+                $join->on('c.id', '=', 'iu.cohort_id')
+                    ->where('iu.is_active', true);
+            })
+            ->where('c.is_active', true)
+            ->select([
+                'c.id',
+                'c.name',
+                'c.description',
+                'c.start_date',
+                DB::raw('COUNT(iu.id) as user_count'),
+                DB::raw('SUM(CASE WHEN iu.work_status = "full-time" THEN 1 ELSE 0 END) as full_time_count'),
+                DB::raw('SUM(CASE WHEN iu.work_status = "part-time" THEN 1 ELSE 0 END) as part_time_count'),
+            ])
+            ->groupBy('c.id', 'c.name', 'c.description', 'c.start_date')
+            ->orderBy('user_count', 'desc')
+            ->get()
+            ->map(function ($cohort) {
+                return [
+                    'id'              => $cohort->id,
+                    'name'            => $cohort->name,
+                    'description'     => $cohort->description,
+                    'start_date'      => $cohort->start_date,
+                    'user_count'      => (int) $cohort->user_count,
+                    'full_time_count' => (int) $cohort->full_time_count,
+                    'part_time_count' => (int) $cohort->part_time_count,
                 ];
             });
     }

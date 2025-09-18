@@ -1,6 +1,7 @@
 <script setup>
 import { WORKLOG_CONFIG } from '@/@core/utils/worklogConfig';
 import { formatDate, getCustomMonthOptionsForSummary, getWeekRangeForYear } from '@/@core/utils/worklogHelpers';
+import { filterFutureWeeks, filterFutureMonths, getMaxSelectableMonth } from '@/@core/utils/dateValidation';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -194,8 +195,10 @@ function generateDateRanges() {
   switch (dateMode.value) {
     case 'weekly': {
       const weeks = getWeekRangeForYear(selectedYear.value);
+      // Filter future weeks
+      const availableWeeks = filterFutureWeeks(weeks, selectedYear.value);
 
-      dateRanges.value = weeks.map(week => ({
+      dateRanges.value = availableWeeks.map(week => ({
         label: `Week ${week.week_number} (${formatDate(week.start_date)} - ${formatDate(week.end_date)})`,
         start_date: week.start_date,
         end_date: week.end_date,
@@ -206,8 +209,10 @@ function generateDateRanges() {
 
     case 'monthly': {
       const monthOptions = getCustomMonthOptionsForSummary(selectedYear.value);
+      // Filter future months
+      const availableMonths = filterFutureMonths(monthOptions, selectedYear.value);
 
-      dateRanges.value = monthOptions.map(month => ({
+      dateRanges.value = availableMonths.map(month => ({
         label: month.title,
         start_date: month.start_date,
         end_date: month.end_date,
@@ -218,6 +223,10 @@ function generateDateRanges() {
 
     case 'yearly': {
       const weeks = getWeekRangeForYear(selectedYear.value);
+      // For yearly reports, use all weeks without filtering
+      const availableWeeks = filterFutureWeeks(weeks, selectedYear.value, true);
+
+      // Always show yearly option with full 52 weeks for complete year data
       if (weeks.length >= 52) {
         const firstWeek = weeks[0];
         const lastWeek = weeks[51];
@@ -549,7 +558,17 @@ watch(showDetails, (newValue) => {
                     <VIcon icon="ri-map-pin-line" color="primary" />
                   </template>
                   <template #subtitle>
-                    {{ item.raw.user_count }} users
+                    <span v-if="item.raw.cohort_count > 0">
+                      Cohort {{ item.raw.cohort_count }} | {{ item.raw.user_count }} users
+                    </span>
+                    <span v-else>
+                      {{ item.raw.user_count }} users
+                    </span>
+                  </template>
+                  <template #append v-if="item.raw.cohort_names">
+                    <VChip size="x-small" color="info" variant="tonal">
+                      {{ item.raw.cohort_names }}
+                    </VChip>
                   </template>
                 </VListItem>
               </template>
