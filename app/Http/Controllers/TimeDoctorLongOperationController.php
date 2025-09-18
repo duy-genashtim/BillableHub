@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -18,10 +19,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class TimeDoctorLongOperationController extends Controller
 {
     protected $timeDoctorService;
+
     protected $dailyWorklogSummaryService;
 
-    const BATCH_SIZE       = 100;
-    const MAX_RETRIES      = 3;
+    const BATCH_SIZE = 100;
+
+    const MAX_RETRIES = 3;
+
     const PAGINATION_LIMIT = 250;
 
     public function __construct(
@@ -38,22 +42,22 @@ class TimeDoctorLongOperationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'start_date' => 'required|date_format:Y-m-d',
-            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
+            'end_date' => 'required|date_format:Y-m-d|after_or_equal:start_date',
         ]);
 
         if ($validator->fails()) {
             return new StreamedResponse(function () use ($validator) {
-                echo "data: " . json_encode([
-                    'type'     => 'error',
-                    'message'  => 'Validation error: ' . implode(', ', $validator->errors()->all()),
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'Validation error: '.implode(', ', $validator->errors()->all()),
                     'progress' => 0,
-                ]) . "\n\n";
+                ])."\n\n";
                 flush();
             });
         }
 
         $startDate = Carbon::parse($request->input('start_date'));
-        $endDate   = Carbon::parse($request->input('end_date'));
+        $endDate = Carbon::parse($request->input('end_date'));
 
         // Log::info("Worklog sync request received", [
         //     'start_date' => $startDate->format('Y-m-d'),
@@ -62,11 +66,11 @@ class TimeDoctorLongOperationController extends Controller
 
         if ($startDate->diffInDays($endDate) > 30) {
             return new StreamedResponse(function () {
-                echo "data: " . json_encode([
-                    'type'     => 'error',
-                    'message'  => 'Date range cannot exceed 31 days',
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'Date range cannot exceed 31 days',
                     'progress' => 0,
-                ]) . "\n\n";
+                ])."\n\n";
                 flush();
             });
         }
@@ -78,15 +82,16 @@ class TimeDoctorLongOperationController extends Controller
 
             try {
                 $companyInfo = $this->timeDoctorService->getCompanyInfo();
-                Log::debug("Company info response", ['data' => $companyInfo]);
+                Log::debug('Company info response', ['data' => $companyInfo]);
 
                 if (! isset($companyInfo['accounts'][0]['company_id'])) {
-                    echo "data: " . json_encode([
-                        'type'     => 'error',
-                        'message'  => 'Could not retrieve company ID from TimeDoctor',
+                    echo 'data: '.json_encode([
+                        'type' => 'error',
+                        'message' => 'Could not retrieve company ID from TimeDoctor',
                         'progress' => 0,
-                    ]) . "\n\n";
+                    ])."\n\n";
                     flush();
+
                     return;
                 }
 
@@ -103,48 +108,49 @@ class TimeDoctorLongOperationController extends Controller
                 // Log::info("Found " . $users->count() . " active IVA users with TimeDoctor mapping");
 
                 if ($users->isEmpty()) {
-                    echo "data: " . json_encode([
-                        'type'     => 'error',
-                        'message'  => 'No active TimeDoctor users found. Please sync users first.',
+                    echo 'data: '.json_encode([
+                        'type' => 'error',
+                        'message' => 'No active TimeDoctor users found. Please sync users first.',
                         'progress' => 0,
-                    ]) . "\n\n";
+                    ])."\n\n";
                     flush();
+
                     return;
                 }
 
-                $totalDays     = $startDate->diffInDays($endDate) + 1;
+                $totalDays = $startDate->diffInDays($endDate) + 1;
                 $processedDays = 0;
 
-                echo "data: " . json_encode([
-                    'type'     => 'info',
-                    'message'  => 'Starting worklog sync for date range: ' . $startDate->format('Y-m-d') . ' to ' . $endDate->format('Y-m-d'),
+                echo 'data: '.json_encode([
+                    'type' => 'info',
+                    'message' => 'Starting worklog sync for date range: '.$startDate->format('Y-m-d').' to '.$endDate->format('Y-m-d'),
                     'progress' => 0,
-                ]) . "\n\n";
+                ])."\n\n";
                 flush();
 
                 $currentDate = clone $startDate;
                 $totalSynced = 0;
 
                 while ($currentDate->lte($endDate)) {
-                    $dayStr      = $currentDate->format('Y-m-d');
+                    $dayStr = $currentDate->format('Y-m-d');
                     $dayProgress = round(($processedDays / $totalDays) * 100);
 
-                    echo "data: " . json_encode([
-                        'type'         => 'progress',
-                        'message'      => "Processing worklog data for: {$dayStr} (Day " . ($processedDays + 1) . " of {$totalDays})",
-                        'progress'     => $dayProgress,
+                    echo 'data: '.json_encode([
+                        'type' => 'progress',
+                        'message' => "Processing worklog data for: {$dayStr} (Day ".($processedDays + 1)." of {$totalDays})",
+                        'progress' => $dayProgress,
                         'current_date' => $dayStr,
-                    ]) . "\n\n";
+                    ])."\n\n";
                     flush();
 
-                    $dayResult = $this->processUsersWorklogsForDay($companyId, $users, $currentDate, function ($message, $type = 'info') use ($dayProgress, $processedDays, $totalDays) {
+                    $dayResult = $this->processUsersWorklogsForDay($companyId, $users, $currentDate, function ($message, $type = 'info') use ($processedDays, $totalDays) {
                         $overallProgress = round(($processedDays / $totalDays) * 100);
 
-                        echo "data: " . json_encode([
-                            'type'     => $type,
-                            'message'  => $message,
+                        echo 'data: '.json_encode([
+                            'type' => $type,
+                            'message' => $message,
                             'progress' => $overallProgress,
-                        ]) . "\n\n";
+                        ])."\n\n";
                         flush();
                     });
 
@@ -153,28 +159,28 @@ class TimeDoctorLongOperationController extends Controller
                     $currentDate->addDay();
 
                     $overallProgress = round(($processedDays / $totalDays) * 100);
-                    echo "data: " . json_encode([
-                        'type'     => 'progress',
-                        'message'  => "Completed day {$dayStr}: {$overallProgress}% overall progress",
+                    echo 'data: '.json_encode([
+                        'type' => 'progress',
+                        'message' => "Completed day {$dayStr}: {$overallProgress}% overall progress",
                         'progress' => $overallProgress,
-                    ]) . "\n\n";
+                    ])."\n\n";
                     flush();
                 }
 
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync completed via streaming', [
-                    'module'       => 'timedoctor_integration',
-                    'start_date'   => $startDate->format('Y-m-d'),
-                    'end_date'     => $endDate->format('Y-m-d'),
+                    'module' => 'timedoctor_integration',
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
                     'total_synced' => $totalSynced,
-                    'total_days'   => $totalDays,
+                    'total_days' => $totalDays,
                 ]);
 
                 // Auto-calculate daily worklog summaries for all affected users
-                echo "data: " . json_encode([
-                    'type'     => 'progress',
-                    'message'  => 'Calculating daily worklog summaries...',
+                echo 'data: '.json_encode([
+                    'type' => 'progress',
+                    'message' => 'Calculating daily worklog summaries...',
                     'progress' => 95,
-                ]) . "\n\n";
+                ])."\n\n";
                 flush();
 
                 try {
@@ -183,41 +189,41 @@ class TimeDoctorLongOperationController extends Controller
                         'start_date' => $startDate->format('Y-m-d'),
                         'end_date' => $endDate->format('Y-m-d'),
                         'calculate_all' => false,
-                        'iva_user_ids' => $userIds
+                        'iva_user_ids' => $userIds,
                     ];
 
                     $summaryResult = $this->dailyWorklogSummaryService->calculateSummaries($params);
-                    
+
                     if ($summaryResult['success']) {
-                        echo "data: " . json_encode([
-                            'type'     => 'progress',
-                            'message'  => 'Daily summaries calculated successfully! Processed: ' . $summaryResult['summary']['total_processed'],
+                        echo 'data: '.json_encode([
+                            'type' => 'progress',
+                            'message' => 'Daily summaries calculated successfully! Processed: '.$summaryResult['summary']['total_processed'],
                             'progress' => 98,
-                        ]) . "\n\n";
+                        ])."\n\n";
                         flush();
                     } else {
-                        echo "data: " . json_encode([
-                            'type'     => 'warning',
-                            'message'  => 'Daily summaries calculation had issues: ' . $summaryResult['message'],
+                        echo 'data: '.json_encode([
+                            'type' => 'warning',
+                            'message' => 'Daily summaries calculation had issues: '.$summaryResult['message'],
                             'progress' => 98,
-                        ]) . "\n\n";
+                        ])."\n\n";
                         flush();
                     }
                 } catch (\Exception $e) {
-                    echo "data: " . json_encode([
-                        'type'     => 'warning',
-                        'message'  => 'Failed to calculate daily summaries: ' . $e->getMessage(),
+                    echo 'data: '.json_encode([
+                        'type' => 'warning',
+                        'message' => 'Failed to calculate daily summaries: '.$e->getMessage(),
                         'progress' => 98,
-                    ]) . "\n\n";
+                    ])."\n\n";
                     flush();
                 }
 
-                echo "data: " . json_encode([
-                    'type'     => 'complete',
-                    'message'  => 'Worklog sync completed for date range: ' . $startDate->format('Y-m-d') . ' to ' . $endDate->format('Y-m-d'),
+                echo 'data: '.json_encode([
+                    'type' => 'complete',
+                    'message' => 'Worklog sync completed for date range: '.$startDate->format('Y-m-d').' to '.$endDate->format('Y-m-d'),
                     'progress' => 100,
-                    'stats'    => ['records_synced' => $totalSynced],
-                ]) . "\n\n";
+                    'stats' => ['records_synced' => $totalSynced],
+                ])."\n\n";
                 flush();
 
             } catch (\Exception $e) {
@@ -228,14 +234,14 @@ class TimeDoctorLongOperationController extends Controller
 
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync failed via streaming', [
                     'module' => 'timedoctor_integration',
-                    'error'  => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
 
-                echo "data: " . json_encode([
-                    'type'     => 'error',
-                    'message'  => 'Error syncing worklogs: ' . $e->getMessage(),
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'Error syncing worklogs: '.$e->getMessage(),
                     'progress' => 0,
-                ]) . "\n\n";
+                ])."\n\n";
                 flush();
             }
         });
@@ -250,16 +256,17 @@ class TimeDoctorLongOperationController extends Controller
 
     public function processUsersWorklogsForDay($companyId, $users, Carbon $date, callable $progressCallback)
     {
-        $totalUsers     = $users->count();
+        $totalUsers = $users->count();
         $processedUsers = 0;
-        $totalInserted  = 0;
-        $totalUpdated   = 0;
-        $totalErrors    = 0;
+        $totalInserted = 0;
+        $totalUpdated = 0;
+        $totalErrors = 0;
 
         foreach ($users as $user) {
             if (! $user->timedoctorUser) {
-                $progressCallback("Skipping user (no TimeDoctor user mapping)", 'warning');
+                $progressCallback('Skipping user (no TimeDoctor user mapping)', 'warning');
                 $processedUsers++;
+
                 continue;
             }
 
@@ -268,11 +275,11 @@ class TimeDoctorLongOperationController extends Controller
             try {
                 $progressCallback("Fetching worklogs for user: {$userName}");
 
-                $offset       = 1;
-                $hasMoreData  = true;
-                $batchNumber  = 1;
+                $offset = 1;
+                $hasMoreData = true;
+                $batchNumber = 1;
                 $userInserted = 0;
-                $userUpdated  = 0;
+                $userUpdated = 0;
 
                 while ($hasMoreData) {
                     $worklogData = $this->timeDoctorService->getUserWorklogs(
@@ -285,9 +292,9 @@ class TimeDoctorLongOperationController extends Controller
                     );
 
                     Log::debug("TimeDoctor API response for user {$userName}", [
-                        'response_keys'   => is_array($worklogData) ? array_keys($worklogData) : 'Response is not an array',
+                        'response_keys' => is_array($worklogData) ? array_keys($worklogData) : 'Response is not an array',
                         'worklogs_exists' => isset($worklogData['worklogs']),
-                        'worklogs_type'   => isset($worklogData['worklogs']) ? gettype($worklogData['worklogs']) : 'not set',
+                        'worklogs_type' => isset($worklogData['worklogs']) ? gettype($worklogData['worklogs']) : 'not set',
                     ]);
 
                     if (! is_array($worklogData)) {
@@ -303,7 +310,7 @@ class TimeDoctorLongOperationController extends Controller
 
                     if (isset($worklogData['worklogs']['items'])) {
                         $worklogItems = $worklogData['worklogs']['items'];
-                    } else if (is_array($worklogData['worklogs'])) {
+                    } elseif (is_array($worklogData['worklogs'])) {
                         $worklogItems = $worklogData['worklogs'];
                     } else {
                         $progressCallback("Unexpected worklog response format for user: {$userName}", 'warning');
@@ -346,9 +353,9 @@ class TimeDoctorLongOperationController extends Controller
             } catch (\Exception $e) {
                 Log::error("Error processing worklogs for user {$userName}", [
                     'user_id' => $user->id,
-                    'date'    => $date->format('Y-m-d'),
-                    'error'   => $e->getMessage(),
-                    'trace'   => $e->getTraceAsString(),
+                    'date' => $date->format('Y-m-d'),
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
 
                 $progressCallback("Error processing user {$userName}: {$e->getMessage()}", 'error');
@@ -369,24 +376,25 @@ class TimeDoctorLongOperationController extends Controller
 
         return [
             'inserted' => $totalInserted,
-            'updated'  => $totalUpdated,
-            'errors'   => $totalErrors,
+            'updated' => $totalUpdated,
+            'errors' => $totalErrors,
         ];
     }
 
-    private function processWorklogBatch(array $worklogItems, $user, callable $progressCallback = null)
+    private function processWorklogBatch(array $worklogItems, $user, ?callable $progressCallback = null)
     {
         if (empty($worklogItems)) {
             // Log::info("No worklog items to process for user {$user->timedoctorUser->tm_fullname}");
             if ($progressCallback) {
-                $progressCallback("No worklog items found for this user", 'info');
+                $progressCallback('No worklog items found for this user', 'info');
             }
+
             return ['inserted' => 0, 'updated' => 0, 'errors' => 0];
         }
 
         $insertedCount = 0;
-        $updatedCount  = 0;
-        $errorCount    = 0;
+        $updatedCount = 0;
+        $errorCount = 0;
 
         try {
             DB::beginTransaction();
@@ -398,17 +406,18 @@ class TimeDoctorLongOperationController extends Controller
                     // Log::debug("Processing worklog item", ['worklog' => $worklog]);
 
                     if (! isset($worklog['id']) || ! isset($worklog['start_time']) || ! isset($worklog['end_time'])) {
-                        Log::warning("Missing required fields in worklog item", ['worklog' => $worklog]);
+                        Log::warning('Missing required fields in worklog item', ['worklog' => $worklog]);
                         $errorCount++;
+
                         continue;
                     }
 
                     $startTime = Carbon::parse($worklog['start_time']);
-                    $endTime   = Carbon::parse($worklog['end_time']);
-                    $duration  = isset($worklog['length']) ? (int) $worklog['length'] : $endTime->diffInSeconds($startTime);
+                    $endTime = Carbon::parse($worklog['end_time']);
+                    $duration = isset($worklog['length']) ? (int) $worklog['length'] : $endTime->diffInSeconds($startTime);
 
                     $projectId = null;
-                    $taskId    = null;
+                    $taskId = null;
 
                     if (isset($worklog['project_id'])) {
                         $project = Project::where('timedoctor_id', $worklog['project_id'])->first();
@@ -419,8 +428,8 @@ class TimeDoctorLongOperationController extends Controller
 
                     if (isset($worklog['task_id'])) {
                         $task = Task::whereJsonContains('user_list', ['tId' => $worklog['task_id']])
-                            ->orWhere('user_list', 'like', '%"tId":"' . $worklog['task_id'] . '"%')
-                            ->orWhere('user_list', 'like', '%"tId":' . $worklog['task_id'] . '%')
+                            ->orWhere('user_list', 'like', '%"tId":"'.$worklog['task_id'].'"%')
+                            ->orWhere('user_list', 'like', '%"tId":'.$worklog['task_id'].'%')
                             ->first();
 
                         if ($task) {
@@ -435,43 +444,43 @@ class TimeDoctorLongOperationController extends Controller
                     if ($existingWorklog) {
                         $existingWorklog->update([
                             'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                            'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                            'project_id'            => $projectId,
-                            'task_id'               => $taskId,
-                            'work_mode'             => $worklog['work_mode'] ?? '0',
-                            'end_time'              => $endTime,
-                            'duration'              => $duration,
-                            'is_active'             => true,
+                            'timedoctor_task_id' => $worklog['task_id'] ?? null,
+                            'project_id' => $projectId,
+                            'task_id' => $taskId,
+                            'work_mode' => $worklog['work_mode'] ?? '0',
+                            'end_time' => $endTime,
+                            'duration' => $duration,
+                            'is_active' => true,
                         ]);
                         $updatedCount++;
                     } else {
                         $worklogsToInsert[] = [
-                            'iva_id'                => $user->id,
+                            'iva_id' => $user->id,
                             'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                            'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                            'project_id'            => $projectId,
-                            'task_id'               => $taskId,
-                            'work_mode'             => $worklog['work_mode'] ?? '0',
-                            'start_time'            => $startTime,
-                            'end_time'              => $endTime,
-                            'duration'              => $duration,
-                            'device_id'             => null,
-                            'comment'               => null,
-                            'api_type'              => 'timedoctor',
+                            'timedoctor_task_id' => $worklog['task_id'] ?? null,
+                            'project_id' => $projectId,
+                            'task_id' => $taskId,
+                            'work_mode' => $worklog['work_mode'] ?? '0',
+                            'start_time' => $startTime,
+                            'end_time' => $endTime,
+                            'duration' => $duration,
+                            'device_id' => null,
+                            'comment' => null,
+                            'api_type' => 'timedoctor',
                             'timedoctor_worklog_id' => $worklog['id'],
-                            'timedoctor_version'    => 1,
-                            'tm_user_id'            => $worklog['user_id'] ?? null,
-                            'is_active'             => true,
-                            'created_at'            => now(),
-                            'updated_at'            => now(),
+                            'timedoctor_version' => 1,
+                            'tm_user_id' => $worklog['user_id'] ?? null,
+                            'is_active' => true,
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ];
                         $insertedCount++;
                     }
                 } catch (\Exception $e) {
-                    Log::error("Error processing individual worklog", [
+                    Log::error('Error processing individual worklog', [
                         'worklog' => $worklog ?? 'unknown',
-                        'error'   => $e->getMessage(),
-                        'trace'   => $e->getTraceAsString(),
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
                     ]);
                     $errorCount++;
                 }
@@ -488,7 +497,7 @@ class TimeDoctorLongOperationController extends Controller
             } else {
                 // Log::info("No new worklog records to insert");
                 if ($progressCallback) {
-                    $progressCallback("No new worklog records to insert", 'info');
+                    $progressCallback('No new worklog records to insert', 'info');
                 }
             }
 
@@ -496,14 +505,14 @@ class TimeDoctorLongOperationController extends Controller
 
             return [
                 'inserted' => $insertedCount,
-                'updated'  => $updatedCount,
-                'errors'   => $errorCount,
+                'updated' => $updatedCount,
+                'errors' => $errorCount,
             ];
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Error in processWorklogBatch", [
-                'user'  => $user->timedoctorUser->tm_fullname ?? 'unknown',
+            Log::error('Error in processWorklogBatch', [
+                'user' => $user->timedoctorUser->tm_fullname ?? 'unknown',
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);

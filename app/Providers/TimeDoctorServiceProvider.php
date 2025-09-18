@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Providers;
 
 use App\Http\Controllers\TimeDoctorAuthController;
@@ -19,7 +20,7 @@ class TimeDoctorServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../../config/services.php', 'services'
+            __DIR__.'/../../config/services.php', 'services'
         );
     }
 }

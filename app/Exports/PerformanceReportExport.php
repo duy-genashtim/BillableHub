@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Exports;
 
 use Carbon\Carbon;
@@ -16,15 +17,25 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 {
     protected $reportData;
+
     protected $billableCategories;
+
     protected $categoryColumnMap;
+
     protected $regionGroups;
+
     protected $ftTableColumns;
+
     protected $ptTableColumns;
+
     protected $totalColumns;
+
     protected $ftRowData;
+
     protected $ptRowData;
+
     protected $regionCountTableRows;
+
     protected $billableTasksTableRows;
 
     public function __construct($reportData)
@@ -46,8 +57,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         if ($result['success']) {
             $this->billableCategories = collect($result['data'])->map(function ($category) {
                 return (object) [
-                    'id'             => $category['id'],
-                    'cat_name'       => $category['name'],
+                    'id' => $category['id'],
+                    'cat_name' => $category['name'],
                     'category_order' => $category['order'],
                 ];
             });
@@ -64,7 +75,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $this->categoryColumnMap = [];
         foreach ($this->billableCategories as $index => $category) {
             $this->categoryColumnMap[$category->id] = [
-                'name'         => $category->cat_name,
+                'name' => $category->cat_name,
                 'ft_col_index' => 3 + $index, // C=2 (non-billable), then D=3, E=4, etc.
                 'pt_col_index' => 3 + $index, // Same for PT table (separate table structure)
             ];
@@ -79,16 +90,16 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $categoryCount = count($this->billableCategories);
 
         if ($this->shouldIncludePerformanceData()) {
-                                                                        // WITH PERFORMANCE DATA (current behavior - unchanged)
-                                                                        // Full-Time table: A=NO, B=Name, C=Non-Billable, D-X=Categories, Y=Actual Billable, Z-AD=Performance, AE-AF=NAD
+            // WITH PERFORMANCE DATA (current behavior - unchanged)
+            // Full-Time table: A=NO, B=Name, C=Non-Billable, D-X=Categories, Y=Actual Billable, Z-AD=Performance, AE-AF=NAD
             $this->ftTableColumns = 3 + $categoryCount + 1 + 5 + 2 - 1; // Base + Categories + Billable + Performance + NAD
-                                                                        // Part-Time table: Same structure as FT
+            // Part-Time table: Same structure as FT
             $this->ptTableColumns = 3 + $categoryCount + 1 + 3 + 2 - 1; // Base + Categories + Billable + Performance + NAD (less performance columns)
         } else {
-                                                                // WITHOUT PERFORMANCE DATA (simplified)
-                                                                // Full-Time table: A=NO, B=Name, C=Non-Billable, D-X=Categories, Y=Total Billable, Z=NAD Days, AA=NAD Hours
+            // WITHOUT PERFORMANCE DATA (simplified)
+            // Full-Time table: A=NO, B=Name, C=Non-Billable, D-X=Categories, Y=Total Billable, Z=NAD Days, AA=NAD Hours
             $this->ftTableColumns = 3 + $categoryCount + 1 + 2; // Base + Categories + Billable + NAD (no performance targets)
-                                                                // Part-Time table: Same simplified structure
+            // Part-Time table: Same simplified structure
             $this->ptTableColumns = 3 + $categoryCount + 1 + 2; // Base + Categories + Billable + NAD (no performance targets)
         }
 
@@ -108,12 +119,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             foreach ($this->reportData['regions_data'] as $region) {
                 if (isset($region['users_data']) && ! empty($region['users_data'])) {
                     $regionName = $region['region']['name'];
-                    $ftUsers    = array_values(array_filter($region['users_data'], fn($u) => $u['work_status'] === 'full-time'));
-                    $ptUsers    = array_values(array_filter($region['users_data'], fn($u) => $u['work_status'] === 'part-time'));
+                    $ftUsers = array_values(array_filter($region['users_data'], fn ($u) => $u['work_status'] === 'full-time'));
+                    $ptUsers = array_values(array_filter($region['users_data'], fn ($u) => $u['work_status'] === 'part-time'));
 
                     $this->regionGroups[$regionName] = [
-                        'ft_users'    => $ftUsers,
-                        'pt_users'    => $ptUsers,
+                        'ft_users' => $ftUsers,
+                        'pt_users' => $ptUsers,
                         'region_data' => $region,
                     ];
                 }
@@ -121,12 +132,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         } else {
             // Single region report
             $regionName = $this->reportData['region']['name'];
-            $ftUsers    = $this->reportData['full_time_users'] ?? [];
-            $ptUsers    = $this->reportData['part_time_users'] ?? [];
+            $ftUsers = $this->reportData['full_time_users'] ?? [];
+            $ptUsers = $this->reportData['part_time_users'] ?? [];
 
             $this->regionGroups[$regionName] = [
-                'ft_users'    => $ftUsers,
-                'pt_users'    => $ptUsers,
+                'ft_users' => $ftUsers,
+                'pt_users' => $ptUsers,
                 'region_data' => ['region' => $this->reportData['region']],
             ];
         }
@@ -156,9 +167,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $data[] = $this->buildColumnHeaders();
 
             // Track FT and PT rows separately for styling
-            $this->ftRowData              = [];
-            $this->ptRowData              = [];
-            $this->regionCountTableRows   = [];
+            $this->ftRowData = [];
+            $this->ptRowData = [];
+            $this->regionCountTableRows = [];
             $this->billableTasksTableRows = [];
 
             // Process FT table completely independently
@@ -182,9 +193,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $data[] = $this->buildColumnHeadersSimple();
 
             // Track FT and PT rows separately for styling
-            $this->ftRowData              = [];
-            $this->ptRowData              = [];
-            $this->regionCountTableRows   = [];
+            $this->ftRowData = [];
+            $this->ptRowData = [];
+            $this->regionCountTableRows = [];
             $this->billableTasksTableRows = [];
 
             // Process FT table with simplified methods
@@ -201,12 +212,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $data[] = array_fill(0, $this->totalColumns, '');
 
             // Add Region Count Table
-            $regionCountRows     = $this->buildRegionCountTable();
+            $regionCountRows = $this->buildRegionCountTable();
             $regionCountStartRow = count($data) + 1; // +1 for 1-based Excel row indexing
             foreach ($regionCountRows as $index => $row) {
-                $data[]                       = $row;
+                $data[] = $row;
                 $this->regionCountTableRows[] = [
-                    'row'  => count($data),
+                    'row' => count($data),
                     'type' => $index === 0 ? 'header' : ($index === count($regionCountRows) - 1 ? 'grand_total' : 'data'),
                 ];
             }
@@ -216,12 +227,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $data[] = array_fill(0, $this->totalColumns, '');
 
             // Add Billable Tasks Table
-            $billableTasksRows     = $this->buildBillableTasksTable();
+            $billableTasksRows = $this->buildBillableTasksTable();
             $billableTasksStartRow = count($data) + 1; // +1 for 1-based Excel row indexing
             foreach ($billableTasksRows as $index => $row) {
-                $data[]                         = $row;
+                $data[] = $row;
                 $this->billableTasksTableRows[] = [
-                    'row'  => count($data),
+                    'row' => count($data),
                     'type' => $index === 0 ? 'header' : ($index === count($billableTasksRows) - 1 ? 'grand_total' : 'data'),
                 ];
             }
@@ -244,8 +255,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             }
 
             // Add FT region header row
-            $regionHeaderRow   = $this->buildRegionHeaderRow($regionName);
-            $data[]            = $regionHeaderRow;
+            $regionHeaderRow = $this->buildRegionHeaderRow($regionName);
+            $data[] = $regionHeaderRow;
             $this->ftRowData[] = ['row' => count($data), 'type' => 'region_header'];
 
             // Add FT users
@@ -258,17 +269,17 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                     $row[$j] = $ftRow[$j];
                 }
 
-                $data[]            = $row;
+                $data[] = $row;
                 $this->ftRowData[] = ['row' => count($data), 'type' => 'user'];
             }
 
             // Add FT region total immediately after FT users
-            $row        = array_fill(0, $this->totalColumns, '');
+            $row = array_fill(0, $this->totalColumns, '');
             $ftTotalRow = $this->buildFTRegionTotalRow($regionData, $regionName);
             for ($j = 0; $j < $this->ftTableColumns; $j++) {
                 $row[$j] = $ftTotalRow[$j];
             }
-            $data[]            = $row;
+            $data[] = $row;
             $this->ftRowData[] = ['row' => count($data), 'type' => 'region_total'];
 
             // Add empty separator row after FT region
@@ -279,12 +290,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // $data[] = array_fill(0, $this->totalColumns, '');
 
         // Add FT overall summary row
-        $row                 = array_fill(0, $this->totalColumns, '');
+        $row = array_fill(0, $this->totalColumns, '');
         $ftOverallSummaryRow = $this->buildFTOverallSummaryRow();
         for ($j = 0; $j < $this->ftTableColumns; $j++) {
             $row[$j] = $ftOverallSummaryRow[$j];
         }
-        $data[]            = $row;
+        $data[] = $row;
         $this->ftRowData[] = ['row' => count($data), 'type' => 'overall_summary'];
     }
 
@@ -302,8 +313,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             }
 
             // Add FT region header row
-            $regionHeaderRow   = $this->buildRegionHeaderRow($regionName);
-            $data[]            = $regionHeaderRow;
+            $regionHeaderRow = $this->buildRegionHeaderRow($regionName);
+            $data[] = $regionHeaderRow;
             $this->ftRowData[] = ['row' => count($data), 'type' => 'region_header'];
 
             // Add FT users
@@ -316,17 +327,17 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                     $row[$j] = $ftRow[$j];
                 }
 
-                $data[]            = $row;
+                $data[] = $row;
                 $this->ftRowData[] = ['row' => count($data), 'type' => 'user'];
             }
 
             // Add FT region total immediately after FT users (simplified)
-            $row        = array_fill(0, $this->totalColumns, '');
+            $row = array_fill(0, $this->totalColumns, '');
             $ftTotalRow = $this->buildFTRegionTotalRowSimple($regionData, $regionName);
             for ($j = 0; $j < $this->ftTableColumns; $j++) {
                 $row[$j] = $ftTotalRow[$j];
             }
-            $data[]            = $row;
+            $data[] = $row;
             $this->ftRowData[] = ['row' => count($data), 'type' => 'region_total'];
 
             // Add empty separator row after FT region
@@ -334,12 +345,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         }
 
         // Add FT overall summary row (simplified)
-        $row                 = array_fill(0, $this->totalColumns, '');
+        $row = array_fill(0, $this->totalColumns, '');
         $ftOverallSummaryRow = $this->buildFTOverallSummaryRowSimple();
         for ($j = 0; $j < $this->ftTableColumns; $j++) {
             $row[$j] = $ftOverallSummaryRow[$j];
         }
-        $data[]            = $row;
+        $data[] = $row;
         $this->ftRowData[] = ['row' => count($data), 'type' => 'overall_summary'];
     }
 
@@ -364,9 +375,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             }
 
             // Add PT region header data to existing row
-            $ptStartCol                           = $this->ftTableColumns + 1;
+            $ptStartCol = $this->ftTableColumns + 1;
             $data[$ptCurrentRow][$ptStartCol + 1] = $regionName; // PT Name column
-            $this->ptRowData[]                    = ['row' => $ptCurrentRow + 1, 'type' => 'region_header'];
+            $this->ptRowData[] = ['row' => $ptCurrentRow + 1, 'type' => 'region_header'];
             $ptCurrentRow++;
 
             // Add PT users
@@ -418,7 +429,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // }
 
         $ptOverallSummaryRow = $this->buildPTOverallSummaryRow();
-        $ptStartCol          = $this->ftTableColumns + 1;
+        $ptStartCol = $this->ftTableColumns + 1;
         for ($j = 0; $j < $this->ptTableColumns; $j++) {
             $data[$ptCurrentRow][$ptStartCol + $j] = $ptOverallSummaryRow[$ptStartCol + $j];
         }
@@ -447,9 +458,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             }
 
             // Add PT region header data to existing row
-            $ptStartCol                           = $this->ftTableColumns + 1;
+            $ptStartCol = $this->ftTableColumns + 1;
             $data[$ptCurrentRow][$ptStartCol + 1] = $regionName; // PT Name column
-            $this->ptRowData[]                    = ['row' => $ptCurrentRow + 1, 'type' => 'region_header'];
+            $this->ptRowData[] = ['row' => $ptCurrentRow + 1, 'type' => 'region_header'];
             $ptCurrentRow++;
 
             // Add PT users (simplified)
@@ -496,7 +507,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Add PT overall summary row (simplified)
         $ptOverallSummaryRow = $this->buildPTOverallSummaryRowSimple();
-        $ptStartCol          = $this->ftTableColumns + 1;
+        $ptStartCol = $this->ftTableColumns + 1;
         for ($j = 0; $j < $this->ptTableColumns; $j++) {
             $data[$ptCurrentRow][$ptStartCol + $j] = $ptOverallSummaryRow[$ptStartCol + $j];
         }
@@ -518,9 +529,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             // FT Table: Place "General Tasks" in first billable category column (index 3 = column D)
             $row[3] = 'General Tasks';
 
-                                                                   // PT Table: Calculate PT start position and place "General Tasks"
-            $ptStartCol               = $this->ftTableColumns + 1; // After FT table + separator
-            $ptFirstCategoryCol       = $ptStartCol + 3;           // PT: NO + Name + Non-Billable + first category
+            // PT Table: Calculate PT start position and place "General Tasks"
+            $ptStartCol = $this->ftTableColumns + 1; // After FT table + separator
+            $ptFirstCategoryCol = $ptStartCol + 3;           // PT: NO + Name + Non-Billable + first category
             $row[$ptFirstCategoryCol] = 'General Tasks';
         }
 
@@ -538,7 +549,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // === MOVE COLUMN HEADERS FROM NO. TO ACTUAL BILLABLE HOURS TO ROW 3 ===
 
-                                               // FT Table: NO. to Actual Billable Hours
+        // FT Table: NO. to Actual Billable Hours
         $row[0] = 'NO.';                       // A
         $row[1] = 'Name';                      // B
         $row[2] = 'Actual Non-Billable Hours'; // C
@@ -548,12 +559,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $row[3 + $index] = $category->cat_name;
         }
 
-        $ftActualBillableCol       = 3 + $categoryCount;
+        $ftActualBillableCol = 3 + $categoryCount;
         $row[$ftActualBillableCol] = 'Actual Billable Hours';
 
         // PT Table: NO. to Actual Billable Hours (starts after FT table + separator)
-        $ptStartCol           = $this->ftTableColumns + 1;
-        $row[$ptStartCol]     = 'NO.';
+        $ptStartCol = $this->ftTableColumns + 1;
+        $row[$ptStartCol] = 'NO.';
         $row[$ptStartCol + 1] = 'Name';
         $row[$ptStartCol + 2] = 'Actual Non-Billable Hours';
 
@@ -562,29 +573,29 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $row[$ptStartCol + 3 + $index] = $category->cat_name;
         }
 
-        $ptActualBillableCol       = $ptStartCol + 3 + $categoryCount;
+        $ptActualBillableCol = $ptStartCol + 3 + $categoryCount;
         $row[$ptActualBillableCol] = 'Actual Billable Hours';
 
         // === KEEP GROUPED PERFORMANCE HEADERS ===
 
-                                                         // FT: "35 Workweek Hours" - spans Target Billable Hours + Actuals vs Committed columns
-        $ftTarget35Col       = $ftActualBillableCol + 1; // Target Billable Hours column
+        // FT: "35 Workweek Hours" - spans Target Billable Hours + Actuals vs Committed columns
+        $ftTarget35Col = $ftActualBillableCol + 1; // Target Billable Hours column
         $row[$ftTarget35Col] = '35 Workweek Hours';
 
-                                                         // FT: "40 Workweek Hours" - spans Target (40) + Actuals vs Committed (40) columns
-        $ftTarget40Col       = $ftActualBillableCol + 3; // Target Billable Hours (40) column
+        // FT: "40 Workweek Hours" - spans Target (40) + Actuals vs Committed (40) columns
+        $ftTarget40Col = $ftActualBillableCol + 3; // Target Billable Hours (40) column
         $row[$ftTarget40Col] = '40 Workweek Hours';
 
-                                                    // FT: "NAD Data" - spans NAD Days + NAD Hours columns
-        $ftNadCol       = $ftActualBillableCol + 5; // NAD Data – In days column
+        // FT: "NAD Data" - spans NAD Days + NAD Hours columns
+        $ftNadCol = $ftActualBillableCol + 5; // NAD Data – In days column
         $row[$ftNadCol] = 'NAD Data';
 
-                                                         // PT: "20 Workweek Hours" - spans Target Billable Hours + Actuals vs Committed columns
-        $ptTarget20Col       = $ptActualBillableCol + 1; // PT Target Billable Hours column
+        // PT: "20 Workweek Hours" - spans Target Billable Hours + Actuals vs Committed columns
+        $ptTarget20Col = $ptActualBillableCol + 1; // PT Target Billable Hours column
         $row[$ptTarget20Col] = '20 Workweek Hours';
 
-                                                    // PT: "NAD Data" - spans NAD Days + NAD Hours columns
-        $ptNadCol       = $ptActualBillableCol + 3; // PT NAD Data – In days column
+        // PT: "NAD Data" - spans NAD Days + NAD Hours columns
+        $ptNadCol = $ptActualBillableCol + 3; // PT NAD Data – In days column
         $row[$ptNadCol] = 'NAD Data';
 
         return $row;
@@ -601,7 +612,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // === BASIC COLUMN HEADERS FROM NO. TO ACTUAL BILLABLE HOURS ONLY ===
 
-                                               // FT Table: NO. to Actual Billable Hours
+        // FT Table: NO. to Actual Billable Hours
         $row[0] = 'NO.';                       // A
         $row[1] = 'Name';                      // B
         $row[2] = 'Actual Non-Billable Hours'; // C
@@ -611,12 +622,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $row[3 + $index] = $category->cat_name;
         }
 
-        $ftActualBillableCol       = 3 + $categoryCount;
+        $ftActualBillableCol = 3 + $categoryCount;
         $row[$ftActualBillableCol] = 'Actual Billable Hours';
 
         // PT Table: NO. to Actual Billable Hours + NAD (starts after FT table + separator)
-        $ptStartCol           = $this->ftTableColumns + 1;
-        $row[$ptStartCol]     = 'NO.';
+        $ptStartCol = $this->ftTableColumns + 1;
+        $row[$ptStartCol] = 'NO.';
         $row[$ptStartCol + 1] = 'Name';
         $row[$ptStartCol + 2] = 'Actual Non-Billable Hours';
 
@@ -625,16 +636,16 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $row[$ptStartCol + 3 + $index] = $category->cat_name;
         }
 
-        $ptActualBillableCol       = $ptStartCol + 3 + $categoryCount;
+        $ptActualBillableCol = $ptStartCol + 3 + $categoryCount;
         $row[$ptActualBillableCol] = 'Actual Billable Hours';
 
-                                                    // Add NAD Data grouped headers for simplified reports (Row 3)
-                                                    // FT: "NAD Data" - spans NAD Days + NAD Hours columns
-        $ftNadCol       = $ftActualBillableCol + 1; // NAD Data – In days column
+        // Add NAD Data grouped headers for simplified reports (Row 3)
+        // FT: "NAD Data" - spans NAD Days + NAD Hours columns
+        $ftNadCol = $ftActualBillableCol + 1; // NAD Data – In days column
         $row[$ftNadCol] = 'NAD Data';
 
-                                                    // PT: "NAD Data" - spans NAD Days + NAD Hours columns
-        $ptNadCol       = $ptActualBillableCol + 1; // PT NAD Data – In days column
+        // PT: "NAD Data" - spans NAD Days + NAD Hours columns
+        $ptNadCol = $ptActualBillableCol + 1; // PT NAD Data – In days column
         $row[$ptNadCol] = 'NAD Data';
 
         return $row;
@@ -652,8 +663,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Full-Time header (B1 to end of FT table)
         $row[0] = "Date Covered: {$dateRange} (Full Time)";
 
-                                                                      // Part-Time header (starts after FT table + separator)
-        $ptStartCol       = $this->ftTableColumns + 1;                // FT table + separator column
+        // Part-Time header (starts after FT table + separator)
+        $ptStartCol = $this->ftTableColumns + 1;                // FT table + separator column
         $row[$ptStartCol] = "Date Covered: {$dateRange} (Part Time)"; // +1 for the Name column
 
         return $row;
@@ -673,9 +684,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             // FT Table: Place "General Tasks" in first billable category column (index 3 = column D)
             $row[3] = 'General Tasks';
 
-                                                                   // PT Table: Calculate PT start position and place "General Tasks"
-            $ptStartCol               = $this->ftTableColumns + 1; // After FT table + separator
-            $ptFirstCategoryCol       = $ptStartCol + 3;           // PT: NO + Name + Non-Billable + first category
+            // PT Table: Calculate PT start position and place "General Tasks"
+            $ptStartCol = $this->ftTableColumns + 1; // After FT table + separator
+            $ptFirstCategoryCol = $ptStartCol + 3;           // PT: NO + Name + Non-Billable + first category
             $row[$ptFirstCategoryCol] = 'General Tasks';
         }
 
@@ -694,8 +705,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Full-Time header (B1 to end of FT table)
         $row[0] = "Date Covered: {$dateRange} (Full Time)";
 
-                                                                      // Part-Time header (starts after FT table + separator)
-        $ptStartCol       = $this->ftTableColumns + 1;                // FT table + separator column
+        // Part-Time header (starts after FT table + separator)
+        $ptStartCol = $this->ftTableColumns + 1;                // FT table + separator column
         $row[$ptStartCol] = "Date Covered: {$dateRange} (Part Time)"; // +1 for the Name column
 
         return $row;
@@ -710,8 +721,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         $categoryCount = count($this->billableCategories);
 
-                                                             // === FT PERFORMANCE HEADERS ONLY (Target Billable Hours to NAD Data) ===
-        $ftActualBillableCol           = 3 + $categoryCount; // After NO + Name + Non-Billable + Categories + Actual Billable
+        // === FT PERFORMANCE HEADERS ONLY (Target Billable Hours to NAD Data) ===
+        $ftActualBillableCol = 3 + $categoryCount; // After NO + Name + Non-Billable + Categories + Actual Billable
         $row[$ftActualBillableCol + 1] = 'Target Billable Hours';
         $row[$ftActualBillableCol + 2] = 'Actuals vs Committed';
         $row[$ftActualBillableCol + 3] = 'Target Billable Hours';
@@ -720,8 +731,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $row[$ftActualBillableCol + 6] = 'In hours';
 
         // === PT PERFORMANCE HEADERS ONLY (Target Billable Hours to NAD Data) ===
-        $ptStartCol                    = $this->ftTableColumns + 1;
-        $ptActualBillableCol           = $ptStartCol + 3 + $categoryCount; // PT: NO + Name + Non-Billable + Categories + Actual Billable
+        $ptStartCol = $this->ftTableColumns + 1;
+        $ptActualBillableCol = $ptStartCol + 3 + $categoryCount; // PT: NO + Name + Non-Billable + Categories + Actual Billable
         $row[$ptActualBillableCol + 1] = 'Target Billable Hours';
         $row[$ptActualBillableCol + 2] = 'Actuals vs Committed';
         $row[$ptActualBillableCol + 3] = 'In days';
@@ -739,14 +750,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         $categoryCount = count($this->billableCategories);
 
-                                                             // === FT NAD HEADERS ONLY (In days, In hours) ===
-        $ftActualBillableCol           = 3 + $categoryCount; // After NO + Name + Non-Billable + Categories + Actual Billable
+        // === FT NAD HEADERS ONLY (In days, In hours) ===
+        $ftActualBillableCol = 3 + $categoryCount; // After NO + Name + Non-Billable + Categories + Actual Billable
         $row[$ftActualBillableCol + 1] = 'In days';
         $row[$ftActualBillableCol + 2] = 'In hours';
 
         // === PT NAD HEADERS ONLY (In days, In hours) ===
-        $ptStartCol                    = $this->ftTableColumns + 1;
-        $ptActualBillableCol           = $ptStartCol + 3 + $categoryCount; // PT: NO + Name + Non-Billable + Categories + Actual Billable
+        $ptStartCol = $this->ftTableColumns + 1;
+        $ptActualBillableCol = $ptStartCol + 3 + $categoryCount; // PT: NO + Name + Non-Billable + Categories + Actual Billable
         $row[$ptActualBillableCol + 1] = 'In days';
         $row[$ptActualBillableCol + 2] = 'In hours';
 
@@ -760,7 +771,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $row = array_fill(0, $this->totalColumns, '');
 
-                               // Display region name in both FT and PT name columns
+        // Display region name in both FT and PT name columns
         $row[1] = $regionName; // B: FT Name column
 
         // $ptStartCol           = $this->ftTableColumns + 1;
@@ -776,14 +787,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $row = array_fill(0, $this->totalColumns, '');
 
-                                                                                                      // Full-Time user data
+        // Full-Time user data
         $row[0] = $rowNumber;                                                                         // A: NO.
         $row[1] = ucwords(strtolower($ftUser['full_name']));                                          // B: Name (first letter cap only)
         $row[2] = $ftUser['non_billable_hours'] === 0 ? '0' : ($ftUser['non_billable_hours'] ?: '0'); // C: Non-Billable Hours
 
         // Dynamic billable categories
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $hours                         = $this->getCategoryHours($ftUser, $categoryId);
+            $hours = $this->getCategoryHours($ftUser, $categoryId);
             $row[$mapping['ft_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
         }
         // foreach ($this->categoryColumnMap as $categoryId => $mapping) {
@@ -791,14 +802,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // }
 
         $categoryCount = count($this->billableCategories);
-        $billableCol   = 3 + $categoryCount;
-        $targetHours   = $ftUser['target_hours'] ?? 35;
+        $billableCol = 3 + $categoryCount;
+        $targetHours = $ftUser['target_hours'] ?? 35;
 
-        $billableHours         = $ftUser['billable_hours'] === 0 ? '0' : ($ftUser['billable_hours'] ?: '0');
-        $billableHours40       = $ftUser['performance']['target_hours_per_week'] == 35 ? 40 : $ftUser['performance']['target_hours_per_week'];
-        $weekNumber            = $ftUser['performance']['period_weeks'] ?? 1;
-        $totalBillableHours40  = $billableHours40 == 40 ? $billableHours40 * $weekNumber : $targetHours;
-        $row[$billableCol]     = $billableHours === 0 ? '0' : ($billableHours ?: '0');             // Actual Billable Hours
+        $billableHours = $ftUser['billable_hours'] === 0 ? '0' : ($ftUser['billable_hours'] ?: '0');
+        $billableHours40 = $ftUser['performance']['target_hours_per_week'] == 35 ? 40 : $ftUser['performance']['target_hours_per_week'];
+        $weekNumber = $ftUser['performance']['period_weeks'] ?? 1;
+        $totalBillableHours40 = $billableHours40 == 40 ? $billableHours40 * $weekNumber : $targetHours;
+        $row[$billableCol] = $billableHours === 0 ? '0' : ($billableHours ?: '0');             // Actual Billable Hours
         $row[$billableCol + 1] = $targetHours === 0 ? '0' : ($targetHours ?: '0');                 // Target Hours
         $row[$billableCol + 2] = $billableHours - $targetHours;                                    // Actual vs Target
         $row[$billableCol + 3] = $totalBillableHours40;                                            // 40 Hour Target
@@ -816,22 +827,22 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $row = array_fill(0, $this->totalColumns, '');
 
-                                                                                                      // Full-Time user data (basic only)
+        // Full-Time user data (basic only)
         $row[0] = $rowNumber;                                                                         // A: NO.
         $row[1] = ucwords(strtolower($ftUser['full_name']));                                          // B: Name (first letter cap only)
         $row[2] = $ftUser['non_billable_hours'] === 0 ? '0' : ($ftUser['non_billable_hours'] ?: '0'); // C: Non-Billable Hours
 
         // Dynamic billable categories
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $hours                         = $this->getCategoryHours($ftUser, $categoryId);
+            $hours = $this->getCategoryHours($ftUser, $categoryId);
             $row[$mapping['ft_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
         }
 
         $categoryCount = count($this->billableCategories);
-        $billableCol   = 3 + $categoryCount;
+        $billableCol = 3 + $categoryCount;
 
-        $billableHours         = $ftUser['billable_hours'] === 0 ? '0' : ($ftUser['billable_hours'] ?: '0');
-        $row[$billableCol]     = $billableHours;                                                   // Actual Billable Hours
+        $billableHours = $ftUser['billable_hours'] === 0 ? '0' : ($ftUser['billable_hours'] ?: '0');
+        $row[$billableCol] = $billableHours;                                                   // Actual Billable Hours
         $row[$billableCol + 1] = $ftUser['nad_count'] === 0 ? '0' : ($ftUser['nad_count'] ?: '0'); // NAD Days
         $row[$billableCol + 2] = $ftUser['nad_hours'] === 0 ? '0' : ($ftUser['nad_hours'] ?: '0'); // NAD Hours
 
@@ -848,22 +859,22 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Part-Time user data (starts after FT table + separator)
         $ptStartCol = $this->ftTableColumns + 1;
 
-        $row[$ptStartCol]     = $rowNumber;                                                                         // NO.
+        $row[$ptStartCol] = $rowNumber;                                                                         // NO.
         $row[$ptStartCol + 1] = ucwords(strtolower($ptUser['full_name']));                                          // Name (first letter cap only)
         $row[$ptStartCol + 2] = $ptUser['non_billable_hours'] === 0 ? '0' : ($ptUser['non_billable_hours'] ?: '0'); // Non-Billable Hours
 
         // Dynamic billable categories
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $hours                                       = $this->getCategoryHours($ptUser, $categoryId);
+            $hours = $this->getCategoryHours($ptUser, $categoryId);
             $row[$ptStartCol + $mapping['pt_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
-        $targetHours   = $ptUser['target_hours'] ?? 20;
+        $targetHours = $ptUser['target_hours'] ?? 20;
 
-        $ptBillableHours         = $ptUser['billable_hours'] == 0 ? '0' : ($ptUser['billable_hours'] ?: '0');
-        $row[$ptBillableCol]     = $ptBillableHours === 0 ? '0' : ($ptBillableHours ?: '0');         // Actual Billable Hours
+        $ptBillableHours = $ptUser['billable_hours'] == 0 ? '0' : ($ptUser['billable_hours'] ?: '0');
+        $row[$ptBillableCol] = $ptBillableHours === 0 ? '0' : ($ptBillableHours ?: '0');         // Actual Billable Hours
         $row[$ptBillableCol + 1] = $targetHours === 0 ? '0' : ($targetHours ?: '0');                 // Target Hours
         $row[$ptBillableCol + 2] = $ptBillableHours - $targetHours;                                  // Actual vs Target
         $row[$ptBillableCol + 3] = $ptUser['nad_count'] === 0 ? '0' : ($ptUser['nad_count'] ?: '0'); // NAD Days
@@ -882,21 +893,21 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Part-Time user data (starts after FT table + separator)
         $ptStartCol = $this->ftTableColumns + 1;
 
-        $row[$ptStartCol]     = $rowNumber;                                                                         // NO.
+        $row[$ptStartCol] = $rowNumber;                                                                         // NO.
         $row[$ptStartCol + 1] = ucwords(strtolower($ptUser['full_name']));                                          // Name (first letter cap only)
         $row[$ptStartCol + 2] = $ptUser['non_billable_hours'] === 0 ? '0' : ($ptUser['non_billable_hours'] ?: '0'); // Non-Billable Hours
 
         // Dynamic billable categories
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $hours                                       = $this->getCategoryHours($ptUser, $categoryId);
+            $hours = $this->getCategoryHours($ptUser, $categoryId);
             $row[$ptStartCol + $mapping['pt_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
-        $ptBillableHours         = $ptUser['billable_hours'] == 0 ? '0' : ($ptUser['billable_hours'] ?: '0');
-        $row[$ptBillableCol]     = $ptBillableHours === 0 ? '0' : ($ptBillableHours ?: '0');         // Actual Billable Hours
+        $ptBillableHours = $ptUser['billable_hours'] == 0 ? '0' : ($ptUser['billable_hours'] ?: '0');
+        $row[$ptBillableCol] = $ptBillableHours === 0 ? '0' : ($ptBillableHours ?: '0');         // Actual Billable Hours
         $row[$ptBillableCol + 1] = $ptUser['nad_count'] === 0 ? '0' : ($ptUser['nad_count'] ?: '0'); // NAD Days
         $row[$ptBillableCol + 2] = $ptUser['nad_hours'] === 0 ? '0' : ($ptUser['nad_hours'] ?: '0'); // NAD Hours
 
@@ -912,22 +923,22 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Full-Time totals for this region
         $ftTotals = $this->calculateTotals($regionData['ft_users']);
-        $row[1]   = $regionName . ' Total';                                                     // B: Label
-        $row[2]   = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
+        $row[1] = $regionName.' Total';                                                     // B: Label
+        $row[2] = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
 
         // FT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                 = $ftTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ftTotals['categories'][$categoryId] ?? 0;
             $row[$mapping['ft_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
         $categoryCount = count($this->billableCategories);
-        $billableCol   = 3 + $categoryCount;
+        $billableCol = 3 + $categoryCount;
 
         $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
-        $totalTarget   = $ftTotals['target_hours'] === 0 ? '0' : ($ftTotals['target_hours'] ?: '0');
+        $totalTarget = $ftTotals['target_hours'] === 0 ? '0' : ($ftTotals['target_hours'] ?: '0');
 
-        $row[$billableCol]     = $totalBillable;                // Total Billable
+        $row[$billableCol] = $totalBillable;                // Total Billable
         $row[$billableCol + 1] = $totalTarget;                  // Total Target Hours
         $row[$billableCol + 2] = $totalBillable - $totalTarget; // Total Actuals vs Committed
 
@@ -939,7 +950,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 ? 40
                 : ($u['performance']['target_hours_per_week'] ?? 35);
 
-            $weekNumber      = $u['performance']['period_weeks'] ?? 1;
+            $weekNumber = $u['performance']['period_weeks'] ?? 1;
             $targetHoursUser = $u['target_hours'] ?? 35;
 
             $sum40Target += ($billableHours40 == 40)
@@ -950,8 +961,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $row[$billableCol + 3] = $sum40Target;                  // 40 Hour Target (summed)
         $row[$billableCol + 4] = $totalBillable - $sum40Target; // Actual vs 40
 
-                                                                                                       // $row[$billableCol + 3] = count($regionData['ft_users']) * 40;                                  // Total 40 Hour Target (40 * user count)
-                                                                                                       // $row[$billableCol + 4] = $totalBillable - (count($regionData['ft_users']) * 40);               // Total Actuals vs 40
+        // $row[$billableCol + 3] = count($regionData['ft_users']) * 40;                                  // Total 40 Hour Target (40 * user count)
+        // $row[$billableCol + 4] = $totalBillable - (count($regionData['ft_users']) * 40);               // Total Actuals vs 40
         $row[$billableCol + 5] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
         $row[$billableCol + 6] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
 
@@ -967,20 +978,20 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Full-Time totals for this region (basic only)
         $ftTotals = $this->calculateTotals($regionData['ft_users']);
-        $row[1]   = $regionName . ' Total';                                                     // B: Label
-        $row[2]   = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
+        $row[1] = $regionName.' Total';                                                     // B: Label
+        $row[2] = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
 
         // FT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                 = $ftTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ftTotals['categories'][$categoryId] ?? 0;
             $row[$mapping['ft_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
         $categoryCount = count($this->billableCategories);
-        $billableCol   = 3 + $categoryCount;
+        $billableCol = 3 + $categoryCount;
 
-        $totalBillable         = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
-        $row[$billableCol]     = $totalBillable;                                                       // Total Billable
+        $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
+        $row[$billableCol] = $totalBillable;                                                       // Total Billable
         $row[$billableCol + 1] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
         $row[$billableCol + 2] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
 
@@ -996,14 +1007,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Part-Time totals for this region
         $ptStartCol = $this->ftTableColumns + 1;
-        $ptTotals   = $this->calculateTotals($regionData['pt_users']);
+        $ptTotals = $this->calculateTotals($regionData['pt_users']);
 
-        $row[$ptStartCol + 1] = $regionName . ' Total';                                                     // Name column: Label
+        $row[$ptStartCol + 1] = $regionName.' Total';                                                     // Name column: Label
         $row[$ptStartCol + 2] = $ptTotals['non_billable'] === 0 ? '0' : ($ptTotals['non_billable'] ?: '0'); // Total Non-Billable
 
         // PT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                               = $ptTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ptTotals['categories'][$categoryId] ?? 0;
             $row[$ptStartCol + $mapping['pt_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
@@ -1011,9 +1022,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
         $totalBillable = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
-        $totalTarget   = $ptTotals['target_hours'] === 0 ? '0' : ($ptTotals['target_hours'] ?: '0');
+        $totalTarget = $ptTotals['target_hours'] === 0 ? '0' : ($ptTotals['target_hours'] ?: '0');
 
-        $row[$ptBillableCol]     = $totalBillable;                                                       // Total Billable
+        $row[$ptBillableCol] = $totalBillable;                                                       // Total Billable
         $row[$ptBillableCol + 1] = $totalTarget;                                                         // Total Target Hours
         $row[$ptBillableCol + 2] = $totalBillable - $totalTarget;                                        // Total Actuals vs Committed
         $row[$ptBillableCol + 3] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
@@ -1031,22 +1042,22 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Part-Time totals for this region (basic only)
         $ptStartCol = $this->ftTableColumns + 1;
-        $ptTotals   = $this->calculateTotals($regionData['pt_users']);
+        $ptTotals = $this->calculateTotals($regionData['pt_users']);
 
-        $row[$ptStartCol + 1] = $regionName . ' Total';                                                     // Name column: Label
+        $row[$ptStartCol + 1] = $regionName.' Total';                                                     // Name column: Label
         $row[$ptStartCol + 2] = $ptTotals['non_billable'] === 0 ? '0' : ($ptTotals['non_billable'] ?: '0'); // Total Non-Billable
 
         // PT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                               = $ptTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ptTotals['categories'][$categoryId] ?? 0;
             $row[$ptStartCol + $mapping['pt_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
-        $totalBillable           = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
-        $row[$ptBillableCol]     = $totalBillable;                                                       // Total Billable
+        $totalBillable = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
+        $row[$ptBillableCol] = $totalBillable;                                                       // Total Billable
         $row[$ptBillableCol + 1] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
         $row[$ptBillableCol + 2] = $ptTotals['nad_hours'] === 0 ? '0' : ($ptTotals['nad_hours'] ?: '0'); // Total NAD Hours
 
@@ -1068,22 +1079,22 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Full-Time overall totals
         $ftTotals = $this->calculateTotals($allFtUsers);
-        $row[1]   = 'Full-Time Overall Summary';                                                // B: Label
-        $row[2]   = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
+        $row[1] = 'Full-Time Overall Summary';                                                // B: Label
+        $row[2] = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
 
         // FT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                 = $ftTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ftTotals['categories'][$categoryId] ?? 0;
             $row[$mapping['ft_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
         $categoryCount = count($this->billableCategories);
-        $billableCol   = 3 + $categoryCount;
+        $billableCol = 3 + $categoryCount;
 
         $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
-        $totalTarget   = $ftTotals['target_hours'] === 0 ? '0' : ($ftTotals['target_hours'] ?: '0');
+        $totalTarget = $ftTotals['target_hours'] === 0 ? '0' : ($ftTotals['target_hours'] ?: '0');
 
-        $row[$billableCol]     = $totalBillable;                // Total Billable
+        $row[$billableCol] = $totalBillable;                // Total Billable
         $row[$billableCol + 1] = $totalTarget;                  // Total Target Hours
         $row[$billableCol + 2] = $totalBillable - $totalTarget; // Total Actuals vs Committed
 
@@ -1093,7 +1104,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 ? 40
                 : ($u['performance']['target_hours_per_week'] ?? 35);
 
-            $weekNumber      = $u['performance']['period_weeks'] ?? 1;
+            $weekNumber = $u['performance']['period_weeks'] ?? 1;
             $targetHoursUser = $u['target_hours'] ?? 35;
 
             $sum40TargetAll += ($billableHours40 == 40)
@@ -1103,8 +1114,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         $row[$billableCol + 3] = $sum40TargetAll;                                                      // 40 Hour Target (summed)
         $row[$billableCol + 4] = $totalBillable - $sum40TargetAll;                                     // Actual vs 40
-                                                                                                       // $row[$billableCol + 3] = count($allFtUsers) * 40;                                              // Total 40 Hour Target (40 * user count)
-                                                                                                       // $row[$billableCol + 4] = $totalBillable - (count($allFtUsers) * 40);                           // Total Actuals vs 40
+        // $row[$billableCol + 3] = count($allFtUsers) * 40;                                              // Total 40 Hour Target (40 * user count)
+        // $row[$billableCol + 4] = $totalBillable - (count($allFtUsers) * 40);                           // Total Actuals vs 40
         $row[$billableCol + 5] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
         $row[$billableCol + 6] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
 
@@ -1126,14 +1137,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Part-Time overall totals
         $ptStartCol = $this->ftTableColumns + 1;
-        $ptTotals   = $this->calculateTotals($allPtUsers);
+        $ptTotals = $this->calculateTotals($allPtUsers);
 
         $row[$ptStartCol + 1] = 'Part-Time Overall Summary';                                            // PT Name column: Label
         $row[$ptStartCol + 2] = $ptTotals['non_billable'] === 0 ? 0 : ($ptTotals['non_billable'] ?: 0); // Total Non-Billable
 
         // PT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                               = $ptTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ptTotals['categories'][$categoryId] ?? 0;
             $row[$ptStartCol + $mapping['pt_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
@@ -1141,9 +1152,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
         $totalBillablePT = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
-        $totalTargetPT   = $ptTotals['target_hours'] === 0 ? '0' : ($ptTotals['target_hours'] ?: '0');
+        $totalTargetPT = $ptTotals['target_hours'] === 0 ? '0' : ($ptTotals['target_hours'] ?: '0');
 
-        $row[$ptBillableCol]     = $totalBillablePT;                                                     // Total Billable
+        $row[$ptBillableCol] = $totalBillablePT;                                                     // Total Billable
         $row[$ptBillableCol + 1] = $totalTargetPT;                                                       // Total Target Hours
         $row[$ptBillableCol + 2] = $totalBillablePT - $totalTargetPT;                                    // Total Actuals vs Committed
         $row[$ptBillableCol + 3] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
@@ -1167,20 +1178,20 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Full-Time overall totals (basic only)
         $ftTotals = $this->calculateTotals($allFtUsers);
-        $row[1]   = 'Full-Time Overall Summary';                                                // B: Label
-        $row[2]   = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
+        $row[1] = 'Full-Time Overall Summary';                                                // B: Label
+        $row[2] = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
 
         // FT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                 = $ftTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ftTotals['categories'][$categoryId] ?? 0;
             $row[$mapping['ft_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
         $categoryCount = count($this->billableCategories);
-        $billableCol   = 3 + $categoryCount;
+        $billableCol = 3 + $categoryCount;
 
-        $totalBillable         = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
-        $row[$billableCol]     = $totalBillable;                                                       // Total Billable
+        $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
+        $row[$billableCol] = $totalBillable;                                                       // Total Billable
         $row[$billableCol + 1] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
         $row[$billableCol + 2] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
 
@@ -1202,22 +1213,22 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Part-Time overall totals (basic only)
         $ptStartCol = $this->ftTableColumns + 1;
-        $ptTotals   = $this->calculateTotals($allPtUsers);
+        $ptTotals = $this->calculateTotals($allPtUsers);
 
         $row[$ptStartCol + 1] = 'Part-Time Overall Summary';                                            // PT Name column: Label
         $row[$ptStartCol + 2] = $ptTotals['non_billable'] === 0 ? 0 : ($ptTotals['non_billable'] ?: 0); // Total Non-Billable
 
         // PT category totals
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
-            $categoryTotal                               = $ptTotals['categories'][$categoryId] ?? 0;
+            $categoryTotal = $ptTotals['categories'][$categoryId] ?? 0;
             $row[$ptStartCol + $mapping['pt_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
-        $totalBillablePT         = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
-        $row[$ptBillableCol]     = $totalBillablePT;                                                     // Total Billable
+        $totalBillablePT = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
+        $row[$ptBillableCol] = $totalBillablePT;                                                     // Total Billable
         $row[$ptBillableCol + 1] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
         $row[$ptBillableCol + 2] = $ptTotals['nad_hours'] === 0 ? '0' : ($ptTotals['nad_hours'] ?: '0'); // Total NAD Hours
 
@@ -1232,35 +1243,35 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $tableRows = [];
 
         // Header row (starting from column B)
-        $headerRow    = array_fill(0, $this->totalColumns, '');
+        $headerRow = array_fill(0, $this->totalColumns, '');
         $headerRow[1] = 'Region';
         $headerRow[2] = 'Full-Time';
         $headerRow[3] = 'Part-Time';
         $headerRow[4] = 'Total';
-        $tableRows[]  = $headerRow;
+        $tableRows[] = $headerRow;
 
         $ftGrandTotal = 0;
         $ptGrandTotal = 0;
 
         // Data rows for each region (starting from column B)
         foreach ($this->regionGroups as $regionName => $regionData) {
-            $ftCount    = count($regionData['ft_users']);
-            $ptCount    = count($regionData['pt_users']);
+            $ftCount = count($regionData['ft_users']);
+            $ptCount = count($regionData['pt_users']);
             $totalCount = $ftCount + $ptCount;
 
             $ftGrandTotal += $ftCount;
             $ptGrandTotal += $ptCount;
 
-            $dataRow     = array_fill(0, $this->totalColumns, '');
-            $dataRow[1]  = $regionName;
-            $dataRow[2]  = $ftCount;
-            $dataRow[3]  = $ptCount;
-            $dataRow[4]  = $totalCount;
+            $dataRow = array_fill(0, $this->totalColumns, '');
+            $dataRow[1] = $regionName;
+            $dataRow[2] = $ftCount;
+            $dataRow[3] = $ptCount;
+            $dataRow[4] = $totalCount;
             $tableRows[] = $dataRow;
         }
 
         // Grand Total row (starting from column B)
-        $totalRow    = array_fill(0, $this->totalColumns, '');
+        $totalRow = array_fill(0, $this->totalColumns, '');
         $totalRow[1] = 'Grand Total';
         $totalRow[2] = $ftGrandTotal;
         $totalRow[3] = $ptGrandTotal;
@@ -1278,10 +1289,10 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $tableRows = [];
 
         // Header row (starting from column B)
-        $headerRow    = array_fill(0, $this->totalColumns, '');
+        $headerRow = array_fill(0, $this->totalColumns, '');
         $headerRow[1] = 'Billable Tasks Category';
         $headerRow[2] = 'Total Hours';
-        $tableRows[]  = $headerRow;
+        $tableRows[] = $headerRow;
 
         // Collect all users from all regions (FT + PT combined)
         $allUsers = [];
@@ -1290,11 +1301,11 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         }
 
         $categoryTotals = [];
-        $grandTotal     = 0;
+        $grandTotal = 0;
 
         // Calculate totals for each category (starting from column B)
         foreach ($this->billableCategories as $category) {
-            $categoryId    = $category->id;
+            $categoryId = $category->id;
             $categoryTotal = 0;
 
             foreach ($allUsers as $user) {
@@ -1306,14 +1317,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $grandTotal += $categoryTotal;
 
             // Add category row
-            $dataRow     = array_fill(0, $this->totalColumns, '');
-            $dataRow[1]  = $category->cat_name;
-            $dataRow[2]  = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
+            $dataRow = array_fill(0, $this->totalColumns, '');
+            $dataRow[1] = $category->cat_name;
+            $dataRow[2] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
             $tableRows[] = $dataRow;
         }
 
         // Grand Total row (starting from column B)
-        $totalRow    = array_fill(0, $this->totalColumns, '');
+        $totalRow = array_fill(0, $this->totalColumns, '');
         $totalRow[1] = 'Grand Total';
         $totalRow[2] = $grandTotal === 0 ? '0' : ($grandTotal ?: '0');
         $tableRows[] = $totalRow;
@@ -1334,11 +1345,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // If report_period is not set, include performance data (backward compatibility)
         if ($reportPeriod === null) {
             \Log::info('Performance Export: report_period is null, defaulting to performance data');
+
             return true;
         }
 
         $result = ! in_array($reportPeriod, $excludedPeriods);
-        \Log::info('Performance Export: Final result = ' . ($result ? 'true (with performance)' : 'false (simplified)'));
+        \Log::info('Performance Export: Final result = '.($result ? 'true (with performance)' : 'false (simplified)'));
 
         return $result;
     }
@@ -1355,6 +1367,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 }
             }
         }
+
         return 0;
     }
 
@@ -1364,12 +1377,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     private function calculateTotals($users)
     {
         $totals = [
-            'billable'     => 0,
+            'billable' => 0,
             'non_billable' => 0,
             'target_hours' => 0,
-            'nad_count'    => 0,
-            'nad_hours'    => 0,
-            'categories'   => [],
+            'nad_count' => 0,
+            'nad_hours' => 0,
+            'categories' => [],
         ];
 
         foreach ($users as $user) {
@@ -1383,7 +1396,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 foreach ($user['categories'] as $category) {
                     $categoryId = $category['category_id'] ?? null;
                     if ($categoryId) {
-                        $hours                             = $category['hours'] ?? 0;
+                        $hours = $category['hours'] ?? 0;
                         $totals['categories'][$categoryId] = ($totals['categories'][$categoryId] ?? 0) + $hours;
                     }
                 }
@@ -1399,8 +1412,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     private function getDateRangeLabel()
     {
         $startDate = Carbon::parse($this->reportData['date_range']['start']);
-        $endDate   = Carbon::parse($this->reportData['date_range']['end']);
-        return $startDate->format('F d') . ' to ' . $endDate->format('F d, Y');
+        $endDate = Carbon::parse($this->reportData['date_range']['end']);
+
+        return $startDate->format('F d').' to '.$endDate->format('F d, Y');
     }
 
     /**
@@ -1409,8 +1423,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     public function title(): string
     {
         $startDate = Carbon::parse($this->reportData['date_range']['start']);
-        $endDate   = Carbon::parse($this->reportData['date_range']['end']);
-        return $startDate->format('M d') . ' to ' . $endDate->format('M d, Y');
+        $endDate = Carbon::parse($this->reportData['date_range']['end']);
+
+        return $startDate->format('M d').' to '.$endDate->format('M d, Y');
     }
 
     /**
@@ -1494,32 +1509,32 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ftEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns);
 
         // Full Time header (B1 to end of FT table) with light blue background
-        $sheet->mergeCells('A1:' . $ftEndCol . '1');
-        $sheet->getStyle('A1:' . $ftEndCol . '4')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+        $sheet->mergeCells('A1:'.$ftEndCol.'1');
+        $sheet->getStyle('A1:'.$ftEndCol.'4')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            'fill'      => [
-                'fillType'   => Fill::FILL_SOLID,
-                                                     // 'startColor' => ['rgb' => 'B4C7E7'], // Light blue for FT
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                // 'startColor' => ['rgb' => 'B4C7E7'], // Light blue for FT
                 'startColor' => ['rgb' => '1F4E79'], // Dark blue for PT
             ],
-            'borders'   => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
+            'borders' => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
         ]);
 
         // Part Time header with dark blue background and white text
         $ptStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2);
-        $ptEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
+        $ptEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
 
-        $sheet->mergeCells($ptStartCol . '1:' . $ptEndCol . '1');
-        $sheet->getStyle($ptStartCol . '1:' . $ptEndCol . '4')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+        $sheet->mergeCells($ptStartCol.'1:'.$ptEndCol.'1');
+        $sheet->getStyle($ptStartCol.'1:'.$ptEndCol.'4')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            'fill'      => [
-                'fillType'   => Fill::FILL_SOLID,
-                                                     // 'startColor' => ['rgb' => '1F4E79'], // Dark blue for PT
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                // 'startColor' => ['rgb' => '1F4E79'], // Dark blue for PT
                 'startColor' => ['rgb' => '006400'], // Dark green for PT
             ],
-            'borders'   => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
+            'borders' => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
         ]);
 
         // Row 2: General Tasks header styling (for both FT and PT)
@@ -1533,33 +1548,33 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $totalColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
 
         // FT table headers (light blue)
-        $sheet->getStyle('A4:' . $ftEndCol . '4')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11],
+        $sheet->getStyle('A4:'.$ftEndCol.'4')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical'   => Alignment::VERTICAL_CENTER,
-                'wrapText'   => true,
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'wrapText' => true,
             ],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => 'B4C7E7'], // Light blue for FT headers
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         // PT table headers (dark blue with white text)
-        $sheet->getStyle($ptStartCol . '4:' . $ptEndCol . '4')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+        $sheet->getStyle($ptStartCol.'4:'.$ptEndCol.'4')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical'   => Alignment::VERTICAL_CENTER,
-                'wrapText'   => true,
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'wrapText' => true,
             ],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => '1F4E79'], // Dark blue for PT headers
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         $categoryCount = count($this->billableCategories);
@@ -1567,136 +1582,136 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         if ($categoryCount > 0) {
             // === ROW 2: GENERAL TASKS MERGING (FT + PT) ===
 
-                                                         // FT General Tasks: Merge billable categories + Actual Billable Hours (D2 to column after categories)
-            $ftGeneralStart    = 'D';                    // First billable category column
+            // FT General Tasks: Merge billable categories + Actual Billable Hours (D2 to column after categories)
+            $ftGeneralStart = 'D';                    // First billable category column
             $ftGeneralEndIndex = 3 + $categoryCount + 1; // Categories + Actual Billable Hours
-            $ftGeneralEnd      = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftGeneralEndIndex);
-            $sheet->mergeCells($ftGeneralStart . '2:' . $ftGeneralEnd . '2');
-            $sheet->getStyle('A2:' . $ftEndCol . '2')->applyFromArray([
-                'font'      => ['bold' => true, 'size' => 11],
+            $ftGeneralEnd = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftGeneralEndIndex);
+            $sheet->mergeCells($ftGeneralStart.'2:'.$ftGeneralEnd.'2');
+            $sheet->getStyle('A2:'.$ftEndCol.'2')->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
                 // 'fill'      => [
                 //     'fillType'   => Fill::FILL_SOLID,
                 //     'startColor' => ['rgb' => 'E8F4FD'], // Light blue for FT
                 // ],
-                'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             ]);
 
             // PT General Tasks: Same structure
-            $ptStartColIndex     = $this->ftTableColumns + 1;
+            $ptStartColIndex = $this->ftTableColumns + 1;
             $ptGeneralStartIndex = $ptStartColIndex + 3 + 1;                  // PT start + NO + Name + Non-Billable + first category
-            $ptGeneralEndIndex   = $ptStartColIndex + 3 + $categoryCount + 1; // PT Categories + Actual Billable Hours
-            $ptGeneralStart      = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptGeneralStartIndex);
-            $ptGeneralEnd        = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptGeneralEndIndex);
-            $sheet->mergeCells($ptGeneralStart . '2:' . $ptGeneralEnd . '2');
-            $sheet->getStyle($ptStartCol . '2:' . $ptEndCol . '2')->applyFromArray([
-                'font'      => ['bold' => true, 'size' => 11],
+            $ptGeneralEndIndex = $ptStartColIndex + 3 + $categoryCount + 1; // PT Categories + Actual Billable Hours
+            $ptGeneralStart = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptGeneralStartIndex);
+            $ptGeneralEnd = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptGeneralEndIndex);
+            $sheet->mergeCells($ptGeneralStart.'2:'.$ptGeneralEnd.'2');
+            $sheet->getStyle($ptStartCol.'2:'.$ptEndCol.'2')->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
                 // 'fill'      => [
                 //     'fillType'   => Fill::FILL_SOLID,
                 //     'startColor' => ['rgb' => 'F0F8F0'], // Light green for PT
                 // ],
-                'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             ]);
         }
 
         // FT "35 Workweek Hours" - Target Billable Hours + Actuals vs Committed
         $ftActualBillableCol = 3 + $categoryCount;
-        $ft35Start           = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 1 + 1);
-        $ft35End             = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 2 + 1);
-        $sheet->mergeCells($ft35Start . '2:' . $ft35End . '2');
-        $sheet->mergeCells($ft35Start . '3:' . $ft35End . '3');
-        $sheet->getStyle($ft35Start . '3:' . $ft35End . '3')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11],
+        $ft35Start = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 1 + 1);
+        $ft35End = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 2 + 1);
+        $sheet->mergeCells($ft35Start.'2:'.$ft35End.'2');
+        $sheet->mergeCells($ft35Start.'3:'.$ft35End.'3');
+        $sheet->getStyle($ft35Start.'3:'.$ft35End.'3')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => 'D9E2F3'], // Medium blue for FT
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         // FT "40 Workweek Hours" - Target (40) + Actuals vs Committed (40)
         $ft40Start = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 3 + 1);
-        $ft40End   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 4 + 1);
-        $sheet->mergeCells($ft40Start . '2:' . $ft40End . '2');
-        $sheet->mergeCells($ft40Start . '3:' . $ft40End . '3');
-        $sheet->getStyle($ft40Start . '3:' . $ft40End . '3')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11],
+        $ft40End = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 4 + 1);
+        $sheet->mergeCells($ft40Start.'2:'.$ft40End.'2');
+        $sheet->mergeCells($ft40Start.'3:'.$ft40End.'3');
+        $sheet->getStyle($ft40Start.'3:'.$ft40End.'3')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => 'D9E2F3'], // Medium blue for FT
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         // FT "NAD Data" - NAD Days + NAD Hours
         $ftNADStart = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 5 + 1);
-        $ftNADEnd   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 6 + 1);
-        $sheet->mergeCells($ftNADStart . '2:' . $ftNADEnd . '2');
-        $sheet->mergeCells($ftNADStart . '3:' . $ftNADEnd . '3');
-        $sheet->getStyle($ftNADStart . '3:' . $ftNADEnd . '3')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11],
+        $ftNADEnd = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ftActualBillableCol + 6 + 1);
+        $sheet->mergeCells($ftNADStart.'2:'.$ftNADEnd.'2');
+        $sheet->mergeCells($ftNADStart.'3:'.$ftNADEnd.'3');
+        $sheet->getStyle($ftNADStart.'3:'.$ftNADEnd.'3')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => 'D9E2F3'], // Medium blue for FT
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         // PT "20 Workweek Hours" - Target Billable Hours + Actuals vs Committed
-        $ptStartColIndex     = $this->ftTableColumns + 1;
+        $ptStartColIndex = $this->ftTableColumns + 1;
         $ptActualBillableCol = $ptStartColIndex + 3 + $categoryCount + 1;
-        $pt20Start           = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 1);
-        $pt20End             = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 2);
-        $sheet->mergeCells($pt20Start . '2:' . $pt20End . '2');
-        $sheet->mergeCells($pt20Start . '3:' . $pt20End . '3');
-        $sheet->getStyle($pt20Start . '3:' . $pt20End . '3')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11],
+        $pt20Start = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 1);
+        $pt20End = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 2);
+        $sheet->mergeCells($pt20Start.'2:'.$pt20End.'2');
+        $sheet->mergeCells($pt20Start.'3:'.$pt20End.'3');
+        $sheet->getStyle($pt20Start.'3:'.$pt20End.'3')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'wrapText' => true],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => 'E2EFDA'], // Medium green for PT
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         // PT "NAD Data" - NAD Days + NAD Hours
         $ptNADStart = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 3);
-        $ptNADEnd   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 4);
-        $sheet->mergeCells($ptNADStart . '2:' . $ptNADEnd . '2');
-        $sheet->mergeCells($ptNADStart . '3:' . $ptNADEnd . '3');
-        $sheet->getStyle($ptNADStart . '3:' . $ptNADEnd . '3')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11],
+        $ptNADEnd = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptActualBillableCol + 4);
+        $sheet->mergeCells($ptNADStart.'2:'.$ptNADEnd.'2');
+        $sheet->mergeCells($ptNADStart.'3:'.$ptNADEnd.'3');
+        $sheet->getStyle($ptNADStart.'3:'.$ptNADEnd.'3')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             // 'fill'      => [
             //     'fillType'   => Fill::FILL_SOLID,
             //     'startColor' => ['rgb' => 'E2EFDA'], // Medium green for PT
             // ],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
         // Loop from column index 1 (A) up to one before $ft35Start
         for ($col = 1; $col < \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ft35Start); $col++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
 
-            $range = $colLetter . '3:' . $colLetter . '4';
+            $range = $colLetter.'3:'.$colLetter.'4';
 
             $sheet->mergeCells($range);
             $sheet->getStyle($range)->applyFromArray([
-                'font'      => ['bold' => true, 'size' => 11],
+                'font' => ['bold' => true, 'size' => 11],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical'   => Alignment::VERTICAL_CENTER,
-                    'wrapText'   => true,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => true,
                 ],
                 // 'fill'      => [
                 //     'fillType'   => Fill::FILL_SOLID,
                 //     'startColor' => ['rgb' => 'B4C7E7'],
                 // ],
-                'borders'   => [
+                'borders' => [
                     'allBorders' => ['borderStyle' => Border::BORDER_THIN],
                 ],
             ]);
@@ -1709,21 +1724,21 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             $col++
         ) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
-            $range     = $colLetter . '3:' . $colLetter . '4';
+            $range = $colLetter.'3:'.$colLetter.'4';
 
             $sheet->mergeCells($range);
             $sheet->getStyle($range)->applyFromArray([
-                'font'      => ['bold' => true, 'size' => 11],
+                'font' => ['bold' => true, 'size' => 11],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical'   => Alignment::VERTICAL_CENTER,
-                    'wrapText'   => true, // enable wrap
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => true, // enable wrap
                 ],
                 // 'fill'      => [
                 //     'fillType'   => Fill::FILL_SOLID,
                 //     'startColor' => ['rgb' => 'B4C7E7'],
                 // ],
-                'borders'   => [
+                'borders' => [
                     'allBorders' => ['borderStyle' => Border::BORDER_THIN],
                 ],
             ]);
@@ -1749,14 +1764,14 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             }
         }
 
-                                                       // Set column widths dynamically
+        // Set column widths dynamically
         $sheet->getColumnDimension('A')->setWidth(4);  // FT ID column
         $sheet->getColumnDimension('B')->setWidth(28); // FT Name column
 
         // PT columns
         $ptStartCol = $this->ftTableColumns + 1;
-        $ptIdCol    = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 1);
-        $ptNameCol  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 2);
+        $ptIdCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 1);
+        $ptNameCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 2);
 
         $sheet->getColumnDimension($ptIdCol)->setWidth(4);    // PT ID column
         $sheet->getColumnDimension($ptNameCol)->setWidth(28); // PT Name column
@@ -1780,15 +1795,15 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // FT Actual Billable Hours - width 12
         $ftBillableCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1);
         $sheet->getColumnDimension($ftBillableCol)->setWidth(12);
-        $sheet->getStyle($ftBillableCol . ':' . $ftBillableCol)
+        $sheet->getStyle($ftBillableCol.':'.$ftBillableCol)
             ->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
 
-                                      // FT Performance columns - width 8
+        // FT Performance columns - width 8
         for ($i = 1; $i <= 5; $i++) { // Target Hours, Actual vs Target, 40 Hour Target, Actual vs 40, NAD Days
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + $i);
             $sheet->getColumnDimension($colLetter)->setWidth(10);
-            $sheet->getStyle($colLetter . ':' . $colLetter)
+            $sheet->getStyle($colLetter.':'.$colLetter)
                 ->getNumberFormat()
                 ->setFormatCode('#,##0');
         }
@@ -1796,11 +1811,11 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // FT NAD Hours - width 12
         $ftNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 5 + 1);
         $sheet->getColumnDimension($ftNadHoursCol)->setWidth(10);
-        $sheet->getStyle($ftNadHoursCol . ':' . $ftNadHoursCol)
+        $sheet->getStyle($ftNadHoursCol.':'.$ftNadHoursCol)
             ->getNumberFormat()
             ->setFormatCode('#,##0');
 
-                                                  // PT columns (starting after separator)
+        // PT columns (starting after separator)
         $ptDataStart = $this->ftTableColumns + 2; // After separator column
 
         // PT Non-Billable Hours - width 12
@@ -1817,7 +1832,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptBillableCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptDataStart + 2 + $categoryCount + 1);
         $sheet->getColumnDimension($ptBillableCol)->setWidth(12);
 
-                                      // PT Performance columns - width 8
+        // PT Performance columns - width 8
         for ($i = 1; $i <= 3; $i++) { // Target Hours, Actual vs Target, NAD Days
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptDataStart + 2 + $categoryCount + 1 + $i);
             $sheet->getColumnDimension($colLetter)->setWidth(8);
@@ -1826,17 +1841,17 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // PT NAD Hours - width 12
         $ptNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
         $sheet->getColumnDimension($ptNadHoursCol)->setWidth(12);
-        $sheet->getStyle($ptNadHoursCol . ':' . $ptNadHoursCol)
+        $sheet->getStyle($ptNadHoursCol.':'.$ptNadHoursCol)
             ->getNumberFormat()
             ->setFormatCode('#,##0'); // or NumberFormat::FORMAT_NUMBER (both show no decimals)
 
         // Number format for hours: #,##0.00 (dynamic based on table structure)
         $categoryCount = count($this->billableCategories);
 
-                                                          // FT table hours columns
+        // FT table hours columns
         for ($i = 3; $i < 3 + $categoryCount + 1; $i++) { // Non-billable + categories + billable
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
-            $sheet->getStyle($colLetter . '5:' . $colLetter . $dataRowCount)
+            $sheet->getStyle($colLetter.'5:'.$colLetter.$dataRowCount)
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
@@ -1845,36 +1860,36 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptDataStart = $this->ftTableColumns + 2;
         for ($i = $ptDataStart + 2; $i < $ptDataStart + 2 + $categoryCount + 1; $i++) { // Non-billable + categories + billable
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
-            $sheet->getStyle($colLetter . '5:' . $colLetter . $dataRowCount)
+            $sheet->getStyle($colLetter.'5:'.$colLetter.$dataRowCount)
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
 
-                                                                                                                           // NAD hours columns (last columns in each table)
+        // NAD hours columns (last columns in each table)
         $ftNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 5 + 1); // Last FT column
         $ptNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);            // Last PT column
 
-        $sheet->getStyle($ftNadHoursCol . '5:' . $ftNadHoursCol . $dataRowCount)
+        $sheet->getStyle($ftNadHoursCol.'5:'.$ftNadHoursCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
-        $sheet->getStyle($ptNadHoursCol . '5:' . $ptNadHoursCol . $dataRowCount)
+        $sheet->getStyle($ptNadHoursCol.'5:'.$ptNadHoursCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
 
-                                                                                                                      // Number format for NAD days: 0
+        // Number format for NAD days: 0
         $ftNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 5); // Second to last FT column
         $ptNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns - 1);    // Second to last PT column
 
-        $sheet->getStyle($ftNadDaysCol . '5:' . $ftNadDaysCol . $dataRowCount)
+        $sheet->getStyle($ftNadDaysCol.'5:'.$ftNadDaysCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode('0.0');
-        $sheet->getStyle($ptNadDaysCol . '5:' . $ptNadDaysCol . $dataRowCount)
+        $sheet->getStyle($ptNadDaysCol.'5:'.$ptNadDaysCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode('0.0');
 
-                                                                                                                                    // Number format for deltas: +#,##0.00;-#,##0.00;0.00
+        // Number format for deltas: +#,##0.00;-#,##0.00;0.00
         $ftDelta1Col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 1);                // FT Actual vs Target
         $ftDelta2Col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 3);                // FT Actual vs 40
-        $ptDeltaCol  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptDataStart + 2 + $categoryCount + 1 + 1); // PT Actual vs Target
+        $ptDeltaCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptDataStart + 2 + $categoryCount + 1 + 1); // PT Actual vs Target
 
         foreach ([$ftDelta1Col, $ftDelta2Col, $ptDeltaCol] as $col) {
-            $sheet->getStyle($col . '5:' . $col . $dataRowCount)
+            $sheet->getStyle($col.'5:'.$col.$dataRowCount)
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER);
         }
@@ -1887,10 +1902,10 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $categoryCount = count($this->billableCategories);
 
-                                                                                                                                                 // Dynamic delta columns (only Actuals vs Committed, not Target columns)
+        // Dynamic delta columns (only Actuals vs Committed, not Target columns)
         $ftDelta1Col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 2);                             // FT Actual vs Target
         $ftDelta2Col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 4);                             // FT Actual vs 40
-        $ptDeltaCol  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2 + 2 + $categoryCount + 1 + 2); // PT Actual vs Target
+        $ptDeltaCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2 + 2 + $categoryCount + 1 + 2); // PT Actual vs Target
 
         $deltaColumns = [$ftDelta1Col, $ftDelta2Col, $ptDeltaCol];
 
@@ -1915,11 +1930,11 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                     continue;
                 }
 
-                $cellRange = $col . $row;
+                $cellRange = $col.$row;
 
                 // Red fill if < 0
                 $conditionalStyles = [];
-                $condition1        = new Conditional();
+                $condition1 = new Conditional;
                 $condition1->setConditionType(Conditional::CONDITION_CELLIS)
                     ->setOperatorType(Conditional::OPERATOR_LESSTHAN)
                     ->addCondition('0')
@@ -1929,7 +1944,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 $conditionalStyles[] = $condition1;
 
                 // Green fill if > 0
-                $condition2 = new Conditional();
+                $condition2 = new Conditional;
                 $condition2->setConditionType(Conditional::CONDITION_CELLIS)
                     ->setOperatorType(Conditional::OPERATOR_GREATERTHAN)
                     ->addCondition('0')
@@ -1955,15 +1970,15 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Separate borders for FT table (with dynamic end row)
         $ftEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns);
         if ($ftEndRow > 4) {
-            $sheet->getStyle('A4:' . $ftEndCol . $ftEndRow)->applyFromArray([
+            $sheet->getStyle('A4:'.$ftEndCol.$ftEndRow)->applyFromArray([
                 'borders' => [
                     'allBorders' => [
                         'borderStyle' => Border::BORDER_THIN,
-                        'color'       => ['rgb' => '000000'],
+                        'color' => ['rgb' => '000000'],
                     ],
-                    'outline'    => [
+                    'outline' => [
                         'borderStyle' => Border::BORDER_MEDIUM,
-                        'color'       => ['rgb' => '000000'],
+                        'color' => ['rgb' => '000000'],
                     ],
                 ],
             ]);
@@ -1971,17 +1986,17 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Separate borders for PT table (with dynamic end row)
         $ptStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2);
-        $ptEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
+        $ptEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
         if ($ptEndRow > 4) {
-            $sheet->getStyle($ptStartCol . '4:' . $ptEndCol . $ptEndRow)->applyFromArray([
+            $sheet->getStyle($ptStartCol.'4:'.$ptEndCol.$ptEndRow)->applyFromArray([
                 'borders' => [
                     'allBorders' => [
                         'borderStyle' => Border::BORDER_THIN,
-                        'color'       => ['rgb' => '000000'],
+                        'color' => ['rgb' => '000000'],
                     ],
-                    'outline'    => [
+                    'outline' => [
                         'borderStyle' => Border::BORDER_MEDIUM,
-                        'color'       => ['rgb' => '000000'],
+                        'color' => ['rgb' => '000000'],
                     ],
                 ],
             ]);
@@ -1989,7 +2004,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         // Remove any background from separator column
         $separatorColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 1);
-        $sheet->getStyle($separatorColLetter . '1:' . $separatorColLetter . $dataRowCount)->applyFromArray([
+        $sheet->getStyle($separatorColLetter.'1:'.$separatorColLetter.$dataRowCount)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_NONE,
             ],
@@ -2039,41 +2054,41 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         foreach ($this->ftRowData as $ftRow) {
             $rowNum = $ftRow['row'];
-            $type   = $ftRow['type'];
+            $type = $ftRow['type'];
 
             if ($type === 'region_header') {
                 // Style FT region header - Light blue background, bold
-                $sheet->getStyle('A' . $rowNum . ':' . $ftEndCol . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 11],
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('A'.$rowNum.':'.$ftEndCol.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'D9E2F3'], // Light blue background for FT headers
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                 ]);
             } elseif ($type === 'region_total') {
                 // Style FT region total - Darker blue background, bold, white text
-                $sheet->getStyle('A' . $rowNum . ':' . $ftEndCol . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('A'.$rowNum.':'.$ftEndCol.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => '4472C4'], // Darker blue background for FT totals
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                 ]);
             } elseif ($type === 'overall_summary') {
                 // Style FT overall summary - Very dark blue background, bold, white text
-                $sheet->getStyle('A' . $rowNum . ':' . $ftEndCol . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']], // White text, larger font
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('A'.$rowNum.':'.$ftEndCol.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']], // White text, larger font
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => '1F3864'], // Very dark blue for FT overall summary
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-                    'borders'   => [
+                    'borders' => [
                         'outline' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color'       => ['rgb' => '000000'],
+                            'color' => ['rgb' => '000000'],
                         ],
                     ],
                 ]);
@@ -2087,45 +2102,45 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     private function applyPTRegionStyling($sheet)
     {
         $ptStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2);
-        $ptEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
+        $ptEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
 
         foreach ($this->ptRowData as $ptRow) {
             $rowNum = $ptRow['row'];
-            $type   = $ptRow['type'];
+            $type = $ptRow['type'];
 
             if ($type === 'region_header') {
                 // Style PT region header - Light green background, bold
-                $sheet->getStyle($ptStartCol . $rowNum . ':' . $ptEndCol . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 11],
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle($ptStartCol.$rowNum.':'.$ptEndCol.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'E2EFDA'], // Light green background for PT headers
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                 ]);
             } elseif ($type === 'region_total') {
                 // Style PT region total - Darker green background, bold, white text
-                $sheet->getStyle($ptStartCol . $rowNum . ':' . $ptEndCol . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle($ptStartCol.$rowNum.':'.$ptEndCol.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => '70AD47'], // Darker green background for PT totals
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                 ]);
             } elseif ($type === 'overall_summary') {
                 // Style PT overall summary - Very dark green background, bold, white text
-                $sheet->getStyle($ptStartCol . $rowNum . ':' . $ptEndCol . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']], // White text, larger font
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle($ptStartCol.$rowNum.':'.$ptEndCol.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']], // White text, larger font
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => '375623'], // Very dark green for PT overall summary
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-                    'borders'   => [
+                    'borders' => [
                         'outline' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color'       => ['rgb' => '000000'],
+                            'color' => ['rgb' => '000000'],
                         ],
                     ],
                 ]);
@@ -2140,43 +2155,43 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         foreach ($this->regionCountTableRows as $row) {
             $rowNum = $row['row'];
-            $type   = $row['type'];
+            $type = $row['type'];
 
             if ($type === 'header' || $type === 'grand_total') {
                 // Header and Grand Total - Dark orange background with white text
-                $sheet->getStyle('B' . $rowNum . ':E' . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('B'.$rowNum.':E'.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'C65911'], // Dark orange
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                    'borders'   => [
+                    'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color'       => ['rgb' => '000000'],
+                            'color' => ['rgb' => '000000'],
                         ],
                     ],
                 ]);
             } elseif ($type === 'data') {
                 // Data rows - Light orange background with bold region names
-                $sheet->getStyle('B' . $rowNum . ':E' . $rowNum)->applyFromArray([
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('B'.$rowNum.':E'.$rowNum)->applyFromArray([
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'F4B183'], // Light orange
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                    'borders'   => [
+                    'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color'       => ['rgb' => '000000'],
+                            'color' => ['rgb' => '000000'],
                         ],
                     ],
                 ]);
 
                 // Make region name bold (column B)
-                $sheet->getStyle('B' . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true],
+                $sheet->getStyle('B'.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                 ]);
             }
@@ -2190,43 +2205,43 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         foreach ($this->billableTasksTableRows as $row) {
             $rowNum = $row['row'];
-            $type   = $row['type'];
+            $type = $row['type'];
 
             if ($type === 'header' || $type === 'grand_total') {
                 // Header and Grand Total - Dark purple background with white text
-                $sheet->getStyle('B' . $rowNum . ':C' . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('B'.$rowNum.':C'.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => '5B2C6F'], // Dark purple
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                    'borders'   => [
+                    'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color'       => ['rgb' => '000000'],
+                            'color' => ['rgb' => '000000'],
                         ],
                     ],
                 ]);
             } elseif ($type === 'data') {
                 // Data rows - Light purple background with bold category names
-                $sheet->getStyle('B' . $rowNum . ':C' . $rowNum)->applyFromArray([
-                    'fill'      => [
-                        'fillType'   => Fill::FILL_SOLID,
+                $sheet->getStyle('B'.$rowNum.':C'.$rowNum)->applyFromArray([
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'D5A6BD'], // Light purple
                     ],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                    'borders'   => [
+                    'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color'       => ['rgb' => '000000'],
+                            'color' => ['rgb' => '000000'],
                         ],
                     ],
                 ]);
 
                 // Make category name bold (column B)
-                $sheet->getStyle('B' . $rowNum)->applyFromArray([
-                    'font'      => ['bold' => true],
+                $sheet->getStyle('B'.$rowNum)->applyFromArray([
+                    'font' => ['bold' => true],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                 ]);
             }
@@ -2242,99 +2257,99 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ftEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns);
 
         // Full Time header (A1 to end of FT table) with dark blue background - simplified
-        $sheet->mergeCells('A1:' . $ftEndCol . '1');
-        $sheet->getStyle('A1:' . $ftEndCol . '4')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+        $sheet->mergeCells('A1:'.$ftEndCol.'1');
+        $sheet->getStyle('A1:'.$ftEndCol.'4')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            'fill'      => [
-                'fillType'   => Fill::FILL_SOLID,
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => '1F4E79'], // Dark blue for FT
             ],
-            'borders'   => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
+            'borders' => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
         ]);
 
         // Part-Time header (starts after FT table + separator) with dark blue background - simplified
         $ptStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2);
-        $ptEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
+        $ptEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
 
-        $sheet->mergeCells($ptStartCol . '1:' . $ptEndCol . '1');
-        $sheet->getStyle($ptStartCol . '1:' . $ptEndCol . '4')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
+        $sheet->mergeCells($ptStartCol.'1:'.$ptEndCol.'1');
+        $sheet->getStyle($ptStartCol.'1:'.$ptEndCol.'4')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']], // White text
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            'fill'      => [
-                'fillType'   => Fill::FILL_SOLID,
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => '1F4E79'], // Dark blue for PT
             ],
-            'borders'   => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
+            'borders' => ['outline' => ['borderStyle' => Border::BORDER_MEDIUM]],
         ]);
 
         // Row 2: "General Tasks" merged cells - simplified version
         if (count($this->billableCategories) > 0) {
             $categoryCount = count($this->billableCategories);
 
-                                                                                                                        // FT "General Tasks" merge
+            // FT "General Tasks" merge
             $ftStartCategoryCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(4);                  // Column D
-            $ftEndCategoryCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount); // Last category column
-            $sheet->mergeCells($ftStartCategoryCol . '2:' . $ftEndCategoryCol . '2');
+            $ftEndCategoryCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount); // Last category column
+            $sheet->mergeCells($ftStartCategoryCol.'2:'.$ftEndCategoryCol.'2');
 
-                                                                     // PT "General Tasks" merge
+            // PT "General Tasks" merge
             $ptFirstCategoryCol = $this->ftTableColumns + 1 + 3 + 1; // After FT + separator + NO + Name + Non-Billable + first category
             $ptStartCategoryCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptFirstCategoryCol);
-            $ptEndCategoryCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptFirstCategoryCol + $categoryCount - 1);
-            $sheet->mergeCells($ptStartCategoryCol . '2:' . $ptEndCategoryCol . '2');
+            $ptEndCategoryCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptFirstCategoryCol + $categoryCount - 1);
+            $sheet->mergeCells($ptStartCategoryCol.'2:'.$ptEndCategoryCol.'2');
         }
 
         // Row 3: "NAD Data" merged cells - simplified version
         $categoryCount = count($this->billableCategories);
 
-                                                                                                                       // FT "NAD Data" merge (spans 2 columns: In days + In hours)
+        // FT "NAD Data" merge (spans 2 columns: In days + In hours)
         $ftNadStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 1); // After Actual Billable Hours
-        $ftNadEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 2); // NAD Hours column
-        $sheet->mergeCells($ftNadStartCol . '3:' . $ftNadEndCol . '3');
+        $ftNadEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 2); // NAD Hours column
+        $sheet->mergeCells($ftNadStartCol.'3:'.$ftNadEndCol.'3');
 
-                                                                                                                                                   // PT "NAD Data" merge (spans 2 columns: In days + In hours)
+        // PT "NAD Data" merge (spans 2 columns: In days + In hours)
         $ptNadStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 1 + 3 + $categoryCount + 1 + 1); // After PT Actual Billable Hours
-        $ptNadEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 1 + 3 + $categoryCount + 1 + 2); // PT NAD Hours column
-        $sheet->mergeCells($ptNadStartCol . '3:' . $ptNadEndCol . '3');
+        $ptNadEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 1 + 3 + $categoryCount + 1 + 2); // PT NAD Hours column
+        $sheet->mergeCells($ptNadStartCol.'3:'.$ptNadEndCol.'3');
 
         // === MERGE ROWS 3 AND 4 FOR BASIC COLUMNS ===
         // Merge rows 3-4 for: No, Name, Actual Non-Billable Hours, all billable categories, and Actual Billable Hours
 
-                                                 // FT Table: Merge rows 3-4 for basic columns
-                                                 // Calculate the end column for FT basic columns (up to Actual Billable Hours)
+        // FT Table: Merge rows 3-4 for basic columns
+        // Calculate the end column for FT basic columns (up to Actual Billable Hours)
         $ftBasicEndCol = 3 + $categoryCount + 1; // No + Name + Non-Billable + categories + Actual Billable Hours
 
         for ($col = 1; $col <= $ftBasicEndCol; $col++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
-            $range     = $colLetter . '3:' . $colLetter . '4';
+            $range = $colLetter.'3:'.$colLetter.'4';
             $sheet->mergeCells($range);
             $sheet->getStyle($range)->applyFromArray([
-                'font'      => ['bold' => true, 'size' => 11],
+                'font' => ['bold' => true, 'size' => 11],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical'   => Alignment::VERTICAL_CENTER,
-                    'wrapText'   => true,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => true,
                 ],
-                'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             ]);
         }
 
-                                                                  // PT Table: Merge rows 3-4 for basic columns
+        // PT Table: Merge rows 3-4 for basic columns
         $ptStartColIndex = $this->ftTableColumns + 2;             // After FT table + separator
-        $ptBasicEndCol   = $ptStartColIndex + 3 + $categoryCount; // NO + Name + Non-Billable + categories + Actual Billable Hours - 1 (0-indexed)
+        $ptBasicEndCol = $ptStartColIndex + 3 + $categoryCount; // NO + Name + Non-Billable + categories + Actual Billable Hours - 1 (0-indexed)
 
         for ($col = $ptStartColIndex; $col <= $ptBasicEndCol; $col++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
-            $range     = $colLetter . '3:' . $colLetter . '4';
+            $range = $colLetter.'3:'.$colLetter.'4';
             $sheet->mergeCells($range);
             $sheet->getStyle($range)->applyFromArray([
-                'font'      => ['bold' => true, 'size' => 11],
+                'font' => ['bold' => true, 'size' => 11],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical'   => Alignment::VERTICAL_CENTER,
-                    'wrapText'   => true,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => true,
                 ],
-                'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             ]);
         }
 
@@ -2345,7 +2360,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
      */
     private function applyColumnFormattingSimple($sheet, $dataRowCount)
     {
-                                                       // Column widths - simplified (only basic columns)
+        // Column widths - simplified (only basic columns)
         $sheet->getColumnDimension('A')->setWidth(5);  // NO.
         $sheet->getColumnDimension('B')->setWidth(25); // Name
         $sheet->getColumnDimension('C')->setWidth(12); // Non-Billable
@@ -2367,9 +2382,9 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ftNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 2);
         $sheet->getColumnDimension($ftNadHoursCol)->setWidth(12);
 
-                                                            // PT columns - same pattern
+        // PT columns - same pattern
         $ptStartCol = $this->ftTableColumns + 2;            // After FT + separator
-        $ptEndCol   = $ptStartCol + $categoryCount + 3 + 2; // NO + Name + Non-Billable + categories + Total Billable + NAD Days + NAD Hours
+        $ptEndCol = $ptStartCol + $categoryCount + 3 + 2; // NO + Name + Non-Billable + categories + Total Billable + NAD Days + NAD Hours
 
         for ($i = $ptStartCol; $i <= $ptEndCol; $i++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
@@ -2384,40 +2399,40 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             }
         }
 
-                                                          // Number format for hours columns (categories + billable + NAD hours)
+        // Number format for hours columns (categories + billable + NAD hours)
         for ($i = 3; $i < 3 + $categoryCount + 1; $i++) { // FT hours columns (non-billable + categories + billable)
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
-            $sheet->getStyle($colLetter . '5:' . $colLetter . $dataRowCount)
+            $sheet->getStyle($colLetter.'5:'.$colLetter.$dataRowCount)
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
 
         // FT NAD Hours column
         $ftNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 2);
-        $sheet->getStyle($ftNadHoursCol . '5:' . $ftNadHoursCol . $dataRowCount)
+        $sheet->getStyle($ftNadHoursCol.'5:'.$ftNadHoursCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
 
         // FT NAD Days column (1 decimal place)
         $ftNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 1);
-        $sheet->getStyle($ftNadDaysCol . '5:' . $ftNadDaysCol . $dataRowCount)
+        $sheet->getStyle($ftNadDaysCol.'5:'.$ftNadDaysCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode('0.0');
 
-                                                                                      // PT hours columns
+        // PT hours columns
         for ($i = $ptStartCol + 2; $i < $ptStartCol + 2 + $categoryCount + 1; $i++) { // PT hours columns (non-billable + categories + billable)
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
-            $sheet->getStyle($colLetter . '5:' . $colLetter . $dataRowCount)
+            $sheet->getStyle($colLetter.'5:'.$colLetter.$dataRowCount)
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
 
         // PT NAD Hours column
         $ptNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 3 + $categoryCount + 1 + 2);
-        $sheet->getStyle($ptNadHoursCol . '5:' . $ptNadHoursCol . $dataRowCount)
+        $sheet->getStyle($ptNadHoursCol.'5:'.$ptNadHoursCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
 
         // PT NAD Days column (1 decimal place)
         $ptNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 3 + $categoryCount + 1 + 1);
-        $sheet->getStyle($ptNadDaysCol . '5:' . $ptNadDaysCol . $dataRowCount)
+        $sheet->getStyle($ptNadDaysCol.'5:'.$ptNadDaysCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode('0.0');
     }
 
@@ -2428,26 +2443,25 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         // FT table borders
         $ftEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns);
-        $sheet->getStyle('A1:' . $ftEndCol . $dataRowCount)->applyFromArray([
+        $sheet->getStyle('A1:'.$ftEndCol.$dataRowCount)->applyFromArray([
             'borders' => [
                 'allBorders' => [
                     'borderStyle' => Border::BORDER_THIN,
-                    'color'       => ['rgb' => '000000'],
+                    'color' => ['rgb' => '000000'],
                 ],
             ],
         ]);
 
         // PT table borders
         $ptStartCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->ftTableColumns + 2);
-        $ptEndCol   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
-        $sheet->getStyle($ptStartCol . '1:' . $ptEndCol . $dataRowCount)->applyFromArray([
+        $ptEndCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);
+        $sheet->getStyle($ptStartCol.'1:'.$ptEndCol.$dataRowCount)->applyFromArray([
             'borders' => [
                 'allBorders' => [
                     'borderStyle' => Border::BORDER_THIN,
-                    'color'       => ['rgb' => '000000'],
+                    'color' => ['rgb' => '000000'],
                 ],
             ],
         ]);
     }
-
 }

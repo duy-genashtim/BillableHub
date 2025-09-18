@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +21,7 @@ class TaskReportCategory extends Model
 
     protected $casts = [
         'task_id' => 'integer',
-        'cat_id'  => 'integer',
+        'cat_id' => 'integer',
     ];
 
     public function task(): BelongsTo

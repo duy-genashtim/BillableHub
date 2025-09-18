@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Batch;
@@ -36,7 +37,7 @@ class BatchController extends Controller
             }
 
             // Sort
-            $sortBy    = $request->get('sort_by', 'batch_order');
+            $sortBy = $request->get('sort_by', 'batch_order');
             $sortOrder = $request->get('sort_order', 'asc');
 
             if (in_array($sortBy, ['id', 'name', 'batch_order', 'is_active', 'start_date', 'created_at'])) {
@@ -46,22 +47,22 @@ class BatchController extends Controller
             $batches = $query->paginate($perPage);
 
             return response()->json([
-                'success'    => true,
-                'batches'    => $batches->items(),
+                'success' => true,
+                'batches' => $batches->items(),
                 'pagination' => [
                     'current_page' => $batches->currentPage(),
-                    'last_page'    => $batches->lastPage(),
-                    'per_page'     => $batches->perPage(),
-                    'total'        => $batches->total(),
-                    'from'         => $batches->firstItem(),
-                    'to'           => $batches->lastItem(),
+                    'last_page' => $batches->lastPage(),
+                    'per_page' => $batches->perPage(),
+                    'total' => $batches->total(),
+                    'from' => $batches->firstItem(),
+                    'to' => $batches->lastItem(),
                 ],
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch batches',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -72,24 +73,24 @@ class BatchController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|string|max:255|unique:batches,name',
+            'name' => 'required|string|max:255|unique:batches,name',
             'description' => 'nullable|string|max:1000',
             'batch_order' => 'nullable|integer|min:1',
-            'start_date'  => 'nullable|date',
-            'is_active'   => 'boolean',
+            'start_date' => 'nullable|date',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $batchData                = $request->only(['name', 'description', 'start_date', 'is_active']);
+            $batchData = $request->only(['name', 'description', 'start_date', 'is_active']);
             $batchData['batch_order'] = $request->batch_order ?? Batch::getNextOrder();
 
             $batch = Batch::create($batchData);
@@ -99,10 +100,10 @@ class BatchController extends Controller
                 'batch_create',
                 "Created batch: {$batch->name}",
                 [
-                    'batch_id'   => $batch->id,
+                    'batch_id' => $batch->id,
                     'batch_name' => $batch->name,
                     'batch_data' => $batchData,
-                    'module'     => 'batches',
+                    'module' => 'batches',
                 ]
             );
 
@@ -111,14 +112,15 @@ class BatchController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Batch created successfully',
-                'batch'   => $batch,
+                'batch' => $batch,
             ], 201);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create batch',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -135,13 +137,13 @@ class BatchController extends Controller
 
             return response()->json([
                 'success' => true,
-                'batch'   => $batch,
+                'batch' => $batch,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Batch not found',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 404);
         }
     }
@@ -152,24 +154,24 @@ class BatchController extends Controller
     public function update(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|string|max:255|unique:batches,name,' . $id,
+            'name' => 'required|string|max:255|unique:batches,name,'.$id,
             'description' => 'nullable|string|max:1000',
             'batch_order' => 'nullable|integer|min:1',
-            'start_date'  => 'nullable|date',
-            'is_active'   => 'boolean',
+            'start_date' => 'nullable|date',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $batch   = Batch::findOrFail($id);
+            $batch = Batch::findOrFail($id);
             $oldData = $batch->toArray();
 
             $batchData = $request->only(['name', 'description', 'batch_order', 'start_date', 'is_active']);
@@ -180,11 +182,11 @@ class BatchController extends Controller
                 'batch_update',
                 "Updated batch: {$batch->name}",
                 [
-                    'batch_id'   => $batch->id,
+                    'batch_id' => $batch->id,
                     'batch_name' => $batch->name,
-                    'old_data'   => $oldData,
-                    'new_data'   => $batch->fresh()->toArray(),
-                    'module'     => 'batches',
+                    'old_data' => $oldData,
+                    'new_data' => $batch->fresh()->toArray(),
+                    'module' => 'batches',
                 ]
             );
 
@@ -193,14 +195,15 @@ class BatchController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Batch updated successfully',
-                'batch'   => $batch,
+                'batch' => $batch,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update batch',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -212,8 +215,8 @@ class BatchController extends Controller
     {
         DB::beginTransaction();
         try {
-            $batch      = Batch::findOrFail($id);
-            $batchName  = $batch->name;
+            $batch = Batch::findOrFail($id);
+            $batchName = $batch->name;
             $usersCount = $batch->ivaUsers()->count();
 
             // Check if batch has IVA users
@@ -231,9 +234,9 @@ class BatchController extends Controller
                 'batch_deactivate',
                 "Deactivated batch: {$batchName}",
                 [
-                    'batch_id'   => $batch->id,
+                    'batch_id' => $batch->id,
                     'batch_name' => $batchName,
-                    'module'     => 'batches',
+                    'module' => 'batches',
                 ]
             );
 
@@ -245,10 +248,11 @@ class BatchController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to deactivate batch',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -267,13 +271,13 @@ class BatchController extends Controller
 
             return response()->json([
                 'success' => true,
-                'users'   => $users,
+                'users' => $users,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch available users',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -284,7 +288,7 @@ class BatchController extends Controller
     public function assignUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -292,13 +296,13 @@ class BatchController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $batch   = Batch::findOrFail($id);
+            $batch = Batch::findOrFail($id);
             $userIds = $request->user_ids;
 
             // Update IVA users' batch
@@ -311,27 +315,28 @@ class BatchController extends Controller
                 'batch_assign_users',
                 "Assigned {$assignedUsers->count()} IVA user(s) to batch: {$batch->name}",
                 [
-                    'batch_id'       => $batch->id,
-                    'batch_name'     => $batch->name,
-                    'user_ids'       => $userIds,
+                    'batch_id' => $batch->id,
+                    'batch_name' => $batch->name,
+                    'user_ids' => $userIds,
                     'assigned_users' => $assignedUsers->toArray(),
-                    'module'         => 'batches',
+                    'module' => 'batches',
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'success'        => true,
-                'message'        => 'IVA users assigned to batch successfully',
+                'success' => true,
+                'message' => 'IVA users assigned to batch successfully',
                 'assigned_users' => $assignedUsers,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to assign IVA users to batch',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -342,7 +347,7 @@ class BatchController extends Controller
     public function removeUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -350,13 +355,13 @@ class BatchController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $batch   = Batch::findOrFail($id);
+            $batch = Batch::findOrFail($id);
             $userIds = $request->user_ids;
 
             $removedUsers = IvaUser::whereIn('id', $userIds)
@@ -371,27 +376,28 @@ class BatchController extends Controller
                 'batch_remove_users',
                 "Removed {$removedUsers->count()} IVA user(s) from batch: {$batch->name}",
                 [
-                    'batch_id'      => $batch->id,
-                    'batch_name'    => $batch->name,
-                    'user_ids'      => $userIds,
+                    'batch_id' => $batch->id,
+                    'batch_name' => $batch->name,
+                    'user_ids' => $userIds,
                     'removed_users' => $removedUsers->toArray(),
-                    'module'        => 'batches',
+                    'module' => 'batches',
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'success'       => true,
-                'message'       => 'IVA users removed from batch successfully',
+                'success' => true,
+                'message' => 'IVA users removed from batch successfully',
                 'removed_users' => $removedUsers,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to remove IVA users from batch',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

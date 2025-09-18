@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,20 +21,26 @@ class TimedoctorSyncStatus extends Model
     ];
 
     protected $casts = [
-        'last_synced_at'       => 'datetime',
+        'last_synced_at' => 'datetime',
         'last_sync_started_at' => 'datetime',
-        'sync_details'         => 'array',
+        'sync_details' => 'array',
     ];
 
-    const ENTITY_USERS    = 'users';
+    const ENTITY_USERS = 'users';
+
     const ENTITY_PROJECTS = 'projects';
-    const ENTITY_TASKS    = 'tasks';
+
+    const ENTITY_TASKS = 'tasks';
+
     const ENTITY_WORKLOGS = 'worklogs';
 
-    const STATUS_IDLE        = 'idle';
+    const STATUS_IDLE = 'idle';
+
     const STATUS_IN_PROGRESS = 'in_progress';
-    const STATUS_COMPLETED   = 'completed';
-    const STATUS_FAILED      = 'failed';
+
+    const STATUS_COMPLETED = 'completed';
+
+    const STATUS_FAILED = 'failed';
 
     public function scopeOfType($query, string $entityType)
     {
@@ -50,35 +57,35 @@ class TimedoctorSyncStatus extends Model
         return $this->status === self::STATUS_IN_PROGRESS;
     }
 
-    public function markAsStarted(array $details = null): self
+    public function markAsStarted(?array $details = null): self
     {
         $this->update([
-            'status'               => self::STATUS_IN_PROGRESS,
+            'status' => self::STATUS_IN_PROGRESS,
             'last_sync_started_at' => now(),
-            'sync_details'         => $details,
-            'error_message'        => null,
+            'sync_details' => $details,
+            'error_message' => null,
         ]);
 
         return $this;
     }
 
-    public function markAsCompleted(array $details = null): self
+    public function markAsCompleted(?array $details = null): self
     {
         $this->update([
-            'status'         => self::STATUS_COMPLETED,
+            'status' => self::STATUS_COMPLETED,
             'last_synced_at' => now(),
-            'sync_details'   => $details ?: $this->sync_details,
-            'error_message'  => null,
+            'sync_details' => $details ?: $this->sync_details,
+            'error_message' => null,
         ]);
 
         return $this;
     }
 
-    public function markAsFailed(string $errorMessage, array $details = null): self
+    public function markAsFailed(string $errorMessage, ?array $details = null): self
     {
         $this->update([
-            'status'        => self::STATUS_FAILED,
-            'sync_details'  => $details ?: $this->sync_details,
+            'status' => self::STATUS_FAILED,
+            'sync_details' => $details ?: $this->sync_details,
             'error_message' => $errorMessage,
         ]);
 
@@ -88,7 +95,7 @@ class TimedoctorSyncStatus extends Model
     public function markAsIdle(): self
     {
         $this->update([
-            'status'        => self::STATUS_IDLE,
+            'status' => self::STATUS_IDLE,
             'error_message' => null,
         ]);
 

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -9,7 +10,6 @@ use Illuminate\Support\Facades\Response;
 
 class ActivityLogController extends Controller
 {
-
     /**
      * Display a listing of activity logs
      */
@@ -42,7 +42,7 @@ class ActivityLogController extends Controller
             // Filter by date range
             if ($request->has('start_date') && ! empty($request->start_date)) {
                 $startDate = $request->start_date;
-                $endDate   = $request->get('end_date', now()->toDateString());
+                $endDate = $request->get('end_date', now()->toDateString());
                 $query->byDateRange($startDate, $endDate);
             }
 
@@ -57,14 +57,14 @@ class ActivityLogController extends Controller
             }
 
             // Sorting
-            $sortBy        = $request->get('sort_by', 'created_at');
+            $sortBy = $request->get('sort_by', 'created_at');
             $sortDirection = $request->get('sort_direction', 'desc');
             $query->orderBy($sortBy, $sortDirection);
 
             // Get pagination config
-            $perPage    = $request->get('per_page', config('constants.pagination.default_per_page', 20));
+            $perPage = $request->get('per_page', config('constants.pagination.default_per_page', 20));
             $maxPerPage = config('constants.pagination.max_per_page', 100);
-            $perPage    = min($perPage, $maxPerPage);
+            $perPage = min($perPage, $maxPerPage);
 
             $logs = $query->paginate($perPage);
 
@@ -72,34 +72,34 @@ class ActivityLogController extends Controller
                 $detailLog = json_decode($log->detail_log, true) ?? [];
 
                 return [
-                    'id'             => $log->id,
-                    'user_id'        => $log->user_id,
-                    'user_name'      => $log->user?->name,
-                    'email'          => $log->email,
-                    'action'         => $log->action,
-                    'action_label'   => config('constants.activity_log_actions.' . $log->action, ucfirst($log->action)),
-                    'description'    => $log->description,
-                    'detail_log'     => $detailLog,
-                    'ip_address'     => $detailLog['ip_address'] ?? null,
-                    'user_agent'     => $detailLog['user_agent'] ?? null,
-                    'module'         => $detailLog['details']['module'] ?? null,
-                    'created_at'     => $log->created_at,
+                    'id' => $log->id,
+                    'user_id' => $log->user_id,
+                    'user_name' => $log->user?->name,
+                    'email' => $log->email,
+                    'action' => $log->action,
+                    'action_label' => config('constants.activity_log_actions.'.$log->action, ucfirst($log->action)),
+                    'description' => $log->description,
+                    'detail_log' => $detailLog,
+                    'ip_address' => $detailLog['ip_address'] ?? null,
+                    'user_agent' => $detailLog['user_agent'] ?? null,
+                    'module' => $detailLog['details']['module'] ?? null,
+                    'created_at' => $log->created_at,
                     'formatted_date' => $log->created_at->format('Y-m-d H:i:s'),
                 ];
             });
 
             return response()->json([
-                'logs'       => $logsData,
+                'logs' => $logsData,
                 'pagination' => [
                     'current_page' => $logs->currentPage(),
-                    'per_page'     => $logs->perPage(),
-                    'total'        => $logs->total(),
-                    'last_page'    => $logs->lastPage(),
+                    'per_page' => $logs->perPage(),
+                    'total' => $logs->total(),
+                    'last_page' => $logs->lastPage(),
                 ],
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch activity logs: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch activity logs: '.$e->getMessage()], 500);
         }
     }
 
@@ -119,21 +119,21 @@ class ActivityLogController extends Controller
 
             return response()->json([
                 'log' => [
-                    'id'             => $activityLog->id,
-                    'user_id'        => $activityLog->user_id,
-                    'user_name'      => $activityLog->user?->name,
-                    'email'          => $activityLog->email,
-                    'action'         => $activityLog->action,
-                    'action_label'   => config('constants.activity_log_actions.' . $activityLog->action, ucfirst($activityLog->action)),
-                    'description'    => $activityLog->description,
-                    'detail_log'     => $detailLog,
-                    'created_at'     => $activityLog->created_at,
+                    'id' => $activityLog->id,
+                    'user_id' => $activityLog->user_id,
+                    'user_name' => $activityLog->user?->name,
+                    'email' => $activityLog->email,
+                    'action' => $activityLog->action,
+                    'action_label' => config('constants.activity_log_actions.'.$activityLog->action, ucfirst($activityLog->action)),
+                    'description' => $activityLog->description,
+                    'detail_log' => $detailLog,
+                    'created_at' => $activityLog->created_at,
                     'formatted_date' => $activityLog->created_at->format('Y-m-d H:i:s'),
                 ],
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch activity log: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch activity log: '.$e->getMessage()], 500);
         }
     }
 
@@ -166,7 +166,7 @@ class ActivityLogController extends Controller
 
             if ($request->has('start_date') && ! empty($request->start_date)) {
                 $startDate = $request->start_date;
-                $endDate   = $request->get('end_date', now()->toDateString());
+                $endDate = $request->get('end_date', now()->toDateString());
                 $query->byDateRange($startDate, $endDate);
             }
 
@@ -180,7 +180,7 @@ class ActivityLogController extends Controller
             }
 
             // Apply sorting for export
-            $sortBy        = $request->get('sort_by', 'created_at');
+            $sortBy = $request->get('sort_by', 'created_at');
             $sortDirection = $request->get('sort_direction', 'desc');
             $query->orderBy($sortBy, $sortDirection);
 
@@ -188,7 +188,7 @@ class ActivityLogController extends Controller
             $logs = $query->limit(10000)->get();
 
             // Generate CSV content
-            $csvData   = [];
+            $csvData = [];
             $csvData[] = [
                 'ID',
                 'User Name',
@@ -209,7 +209,7 @@ class ActivityLogController extends Controller
                     $log->user?->name ?? 'N/A',
                     $log->email ?? 'N/A',
                     $log->action,
-                    config('constants.activity_log_actions.' . $log->action, ucfirst($log->action)),
+                    config('constants.activity_log_actions.'.$log->action, ucfirst($log->action)),
                     $log->description,
                     $detailLog['ip_address'] ?? 'N/A',
                     $detailLog['details']['module'] ?? 'N/A',
@@ -221,25 +221,25 @@ class ActivityLogController extends Controller
             $csvContent = '';
             foreach ($csvData as $row) {
                 $csvContent .= implode(',', array_map(function ($field) {
-                    return '"' . str_replace('"', '""', $field) . '"';
-                }, $row)) . "\n";
+                    return '"'.str_replace('"', '""', $field).'"';
+                }, $row))."\n";
             }
 
             // Log the export activity
             ActivityLogService::logDataExport('activity_logs', [
                 'total_records' => count($logs),
-                'filters'       => $request->only(['action', 'email', 'user_id', 'start_date', 'end_date', 'search', 'sort_by', 'sort_direction']),
+                'filters' => $request->only(['action', 'email', 'user_id', 'start_date', 'end_date', 'search', 'sort_by', 'sort_direction']),
             ]);
 
-            $filename = 'activity_logs_' . now()->format('Y_m_d_H_i_s') . '.csv';
+            $filename = 'activity_logs_'.now()->format('Y_m_d_H_i_s').'.csv';
 
             return Response::make($csvContent, 200, [
-                'Content-Type'        => 'text/csv',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to export activity logs: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to export activity logs: '.$e->getMessage()], 500);
         }
     }
 
@@ -260,7 +260,7 @@ class ActivityLogController extends Controller
                 ->filter()
                 ->map(function ($action) {
                     return [
-                        'title' => config('constants.activity_log_actions.' . $action, ucfirst($action)),
+                        'title' => config('constants.activity_log_actions.'.$action, ucfirst($action)),
                         'value' => $action,
                     ];
                 })
@@ -282,11 +282,11 @@ class ActivityLogController extends Controller
 
             return response()->json([
                 'actions' => $actions,
-                'users'   => $users,
+                'users' => $users,
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch filter options: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch filter options: '.$e->getMessage()], 500);
         }
     }
 }

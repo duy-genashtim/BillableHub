@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -16,26 +17,26 @@ class IvaDailyReportController extends Controller
     public function getDailyPerformanceReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'date'        => 'nullable|date',
+            'date' => 'nullable|date',
             'work_status' => 'nullable|string',
-            'region'      => 'nullable|string',
-            'search'      => 'nullable|string',
-            'sort_by'     => 'nullable|string|in:name,billable,non_billable,uncategorized,total',
-            'sort_order'  => 'nullable|string|in:asc,desc',
+            'region' => 'nullable|string',
+            'search' => 'nullable|string',
+            'sort_by' => 'nullable|string|in:name,billable,non_billable,uncategorized,total',
+            'sort_order' => 'nullable|string|in:asc,desc',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // Get date (default to yesterday)
-        $date       = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::yesterday();
+        $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::yesterday();
         $startOfDay = $date->copy()->startOfDay();
-        $endOfDay   = $date->copy()->endOfDay();
+        $endOfDay = $date->copy()->endOfDay();
 
         // Build user query with optimized loading
         $usersQuery = IvaUser::select([
@@ -94,12 +95,12 @@ class IvaDailyReportController extends Controller
         $performanceData = [];
 
         foreach ($users as $user) {
-            $userId       = $user->id;
+            $userId = $user->id;
             $userWorklogs = $worklogsData->get($userId, collect());
 
             // Calculate hours by category
-            $billableHours      = 0;
-            $nonBillableHours   = 0;
+            $billableHours = 0;
+            $nonBillableHours = 0;
             $uncategorizedHours = 0;
 
             foreach ($userWorklogs as $worklog) {
@@ -122,30 +123,30 @@ class IvaDailyReportController extends Controller
 
             // Check adjusted start date for performance calculation
             $adjustedDateInfo = ivaAdjustStartDate($user, $date->format('Y-m-d'), $date->format('Y-m-d'), false);
-            $hasData          = $adjustedDateInfo['adjusted_start_date'];
+            $hasData = $adjustedDateInfo['adjusted_start_date'];
 
             $performanceData[] = [
-                'id'                  => $user->id,
-                'full_name'           => $user->full_name,
-                'email'               => $user->email,
-                'job_title'           => $user->job_title,
-                'work_status'         => $user->work_status,
-                'region'              => $user->region ? $user->region->name : null,
-                'cohort'              => $user->cohort ? $user->cohort->name : null,
-                'timedoctor_version'  => $user->timedoctor_version,
-                'billable_hours'      => round($billableHours, 2),
-                'non_billable_hours'  => round($nonBillableHours, 2),
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'job_title' => $user->job_title,
+                'work_status' => $user->work_status,
+                'region' => $user->region ? $user->region->name : null,
+                'cohort' => $user->cohort ? $user->cohort->name : null,
+                'timedoctor_version' => $user->timedoctor_version,
+                'billable_hours' => round($billableHours, 2),
+                'non_billable_hours' => round($nonBillableHours, 2),
                 'uncategorized_hours' => round($uncategorizedHours, 2),
-                'total_hours'         => round($totalHours, 2),
-                'entries_count'       => $userWorklogs->count(),
-                'has_data'            => $hasData,
-                'hire_date'           => $user->hire_date ? $user->hire_date->format('Y-m-d') : null,
-                'end_date'            => $user->end_date ? $user->end_date->format('Y-m-d') : null,
+                'total_hours' => round($totalHours, 2),
+                'entries_count' => $userWorklogs->count(),
+                'has_data' => $hasData,
+                'hire_date' => $user->hire_date ? $user->hire_date->format('Y-m-d') : null,
+                'end_date' => $user->end_date ? $user->end_date->format('Y-m-d') : null,
             ];
         }
 
         // Apply sorting
-        $sortBy    = $request->input('sort_by', 'name');
+        $sortBy = $request->input('sort_by', 'name');
         $sortOrder = $request->input('sort_order', 'asc');
 
         $performanceData = $this->sortPerformanceData($performanceData, $sortBy, $sortOrder);
@@ -160,7 +161,7 @@ class IvaDailyReportController extends Controller
             ->get()
             ->map(function ($item) {
                 return [
-                    'value'       => $item->setting_value,
+                    'value' => $item->setting_value,
                     'description' => $item->description,
                 ];
             })
@@ -175,23 +176,23 @@ class IvaDailyReportController extends Controller
 
         // Calculate summary statistics
         $summary = [
-            'total_users'               => count($performanceData),
-            'total_billable_hours'      => collect($performanceData)->sum('billable_hours'),
-            'total_non_billable_hours'  => collect($performanceData)->sum('non_billable_hours'),
+            'total_users' => count($performanceData),
+            'total_billable_hours' => collect($performanceData)->sum('billable_hours'),
+            'total_non_billable_hours' => collect($performanceData)->sum('non_billable_hours'),
             'total_uncategorized_hours' => collect($performanceData)->sum('uncategorized_hours'),
-            'total_hours'               => collect($performanceData)->sum('total_hours'),
-            'users_with_data'           => collect($performanceData)->where('total_hours', '>', 0)->count(),
-            'users_without_data'        => collect($performanceData)->where('total_hours', '=', 0)->count(),
+            'total_hours' => collect($performanceData)->sum('total_hours'),
+            'users_with_data' => collect($performanceData)->where('total_hours', '>', 0)->count(),
+            'users_without_data' => collect($performanceData)->where('total_hours', '=', 0)->count(),
         ];
 
         return response()->json([
-            'success'             => true,
-            'date'                => $date->format('Y-m-d'),
-            'is_yesterday'        => $date->isYesterday(),
-            'performance_data'    => $performanceData,
-            'summary'             => $summary,
+            'success' => true,
+            'date' => $date->format('Y-m-d'),
+            'is_yesterday' => $date->isYesterday(),
+            'performance_data' => $performanceData,
+            'summary' => $summary,
             'work_status_options' => $workStatusOptions,
-            'region_options'      => $regionOptions,
+            'region_options' => $regionOptions,
         ]);
     }
 
@@ -211,9 +212,9 @@ class IvaDailyReportController extends Controller
             ])
             ->get();
 
-        $billableTaskIds    = [];
+        $billableTaskIds = [];
         $nonBillableTaskIds = [];
-        $fullMapping        = [];
+        $fullMapping = [];
 
         foreach ($categoryMapping as $mapping) {
             $taskId = $mapping->task_id;
@@ -231,9 +232,9 @@ class IvaDailyReportController extends Controller
         }
 
         return [
-            'billable_task_ids'     => array_unique($billableTaskIds),
+            'billable_task_ids' => array_unique($billableTaskIds),
             'non_billable_task_ids' => array_unique($nonBillableTaskIds),
-            'full_mapping'          => collect($fullMapping),
+            'full_mapping' => collect($fullMapping),
         ];
     }
 
@@ -247,7 +248,7 @@ class IvaDailyReportController extends Controller
         }
 
         // Create case statement for categorization
-        $billableIds    = implode(',', array_merge([0], $taskCategories['billable_task_ids']));
+        $billableIds = implode(',', array_merge([0], $taskCategories['billable_task_ids']));
         $nonBillableIds = implode(',', array_merge([0], $taskCategories['non_billable_task_ids']));
 
         $worklogs = WorklogsData::select([

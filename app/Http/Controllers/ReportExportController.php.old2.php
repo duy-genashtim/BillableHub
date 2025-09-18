@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Exports\PerformanceReportExport;
@@ -21,36 +22,36 @@ class ReportExportController extends Controller
     public function exportReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'report_type'    => 'required|in:region,overall',
-            'report_period'  => 'required|in:weekly_summary,monthly_summary,yearly_summary,calendar_month,bimonthly,custom',
-            'region_id'      => 'required_if:report_type,region|exists:regions,id',
-            'year'           => 'required|integer|min:2024',
-            'month'          => 'nullable|integer|min:1|max:12',
+            'report_type' => 'required|in:region,overall',
+            'report_period' => 'required|in:weekly_summary,monthly_summary,yearly_summary,calendar_month,bimonthly,custom',
+            'region_id' => 'required_if:report_type,region|exists:regions,id',
+            'year' => 'required|integer|min:2024',
+            'month' => 'nullable|integer|min:1|max:12',
             'bimonthly_date' => 'nullable|integer|min:1|max:28',
-            'start_date'     => 'nullable|date|required_if:report_period,custom',
-            'end_date'       => 'nullable|date|after_or_equal:start_date|required_if:report_period,custom',
+            'start_date' => 'nullable|date|required_if:report_period,custom',
+            'end_date' => 'nullable|date|after_or_equal:start_date|required_if:report_period,custom',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         try {
             $reportData = $this->prepareReportData($request);
-            $filename   = $this->generateFilename($reportData);
+            $filename = $this->generateFilename($reportData);
 
             ActivityLogService::log(
                 'export_report',
                 "Exported {$reportData['report_type']} report for {$reportData['date_range']['start']} to {$reportData['date_range']['end']}",
                 [
                     'report_type' => $reportData['report_type'],
-                    'date_range'  => $reportData['date_range'],
-                    'region'      => $reportData['region'] ?? null,
-                    'summary'     => $reportData['summary'] ?? null,
+                    'date_range' => $reportData['date_range'],
+                    'region' => $reportData['region'] ?? null,
+                    'summary' => $reportData['summary'] ?? null,
                 ]
             );
 
@@ -64,7 +65,7 @@ class ReportExportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to export report',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -76,25 +77,25 @@ class ReportExportController extends Controller
     private function prepareReportData(Request $request)
     {
         $reportType = $request->input('report_type', 'overall');
-        $period     = $request->input('report_period', 'weekly_summary');
-        $year       = (int) $request->input('year', Carbon::now()->year);
+        $period = $request->input('report_period', 'weekly_summary');
+        $year = (int) $request->input('year', Carbon::now()->year);
 
         // 1) Resolve date range + mode
-        $range     = $this->resolveDateRange($period, $year, $request);
+        $range = $this->resolveDateRange($period, $year, $request);
         $startDate = $range['start'];
-        $endDate   = $range['end'];
-        $mode      = $range['mode']; // weekly | monthly | yearly (internal)
+        $endDate = $range['end'];
+        $mode = $range['mode']; // weekly | monthly | yearly (internal)
 
         $base = [
             'report_type' => $reportType,
-            'date_range'  => ['start' => $startDate, 'end' => $endDate],
-            'mode'        => $mode,
+            'date_range' => ['start' => $startDate, 'end' => $endDate],
+            'mode' => $mode,
         ];
 
         // 2) Dispatch by report type
         if ($reportType === 'region') {
             $regionId = (int) $request->input('region_id');
-            $region   = Region::select('id', 'name')->find($regionId);
+            $region = Region::select('id', 'name')->find($regionId);
             if (! $region) {
                 throw new \RuntimeException('Region not found');
             }
@@ -102,9 +103,9 @@ class ReportExportController extends Controller
             $users = $this->getActiveUsersInRegion($regionId, $startDate, $endDate);
 
             $data = [
-                'region'     => ['id' => $region->id, 'name' => $region->name],
+                'region' => ['id' => $region->id, 'name' => $region->name],
                 'users_data' => [],
-                'summary'    => [],
+                'summary' => [],
             ];
 
             switch ($mode) {
@@ -125,11 +126,11 @@ class ReportExportController extends Controller
         }
 
         // overall
-        $regions  = Region::select('id', 'name')->orderBy('name')->get();
+        $regions = Region::select('id', 'name')->orderBy('name')->get();
         $allUsers = $this->getAllActiveUsers($startDate, $endDate);
 
         $allRegionsData = [];
-        $allUsersData   = [];
+        $allUsersData = [];
 
         foreach ($regions as $region) {
             $users = $allUsers->where('region_id', $region->id);
@@ -138,9 +139,9 @@ class ReportExportController extends Controller
             }
 
             $regionData = [
-                'region'     => ['id' => $region->id, 'name' => $region->name],
+                'region' => ['id' => $region->id, 'name' => $region->name],
                 'users_data' => [],
-                'summary'    => [],
+                'summary' => [],
             ];
 
             switch ($mode) {
@@ -156,13 +157,13 @@ class ReportExportController extends Controller
             }
 
             $allRegionsData[] = $regionData;
-            $allUsersData     = array_merge($allUsersData, $regionData['users_data']);
+            $allUsersData = array_merge($allUsersData, $regionData['users_data']);
         }
 
         return array_merge($base, [
-            'regions_data'     => $allRegionsData,
-            'users_data'       => $allUsersData,
-            'summary'          => $this->calculateGroupSummary($allUsersData),
+            'regions_data' => $allRegionsData,
+            'users_data' => $allUsersData,
+            'summary' => $this->calculateGroupSummary($allUsersData),
             'category_summary' => $this->calculateCategorySummary($allUsersData),
         ]);
     }
@@ -173,58 +174,59 @@ class ReportExportController extends Controller
     private function resolveDateRange(string $period, int $year, Request $request): array
     {
         switch ($period) {
-            case 'weekly_summary':{
-                    // Default: current week of the selected year (Mon-Sun)
-                    $start = Carbon::create($year, 1, 15)->startOfWeek(Carbon::MONDAY);
-                    $end   = Carbon::create($year, 1, 15)->endOfWeek(Carbon::SUNDAY);
-                    // If explicit range is provided from UI selection, respect it
-                    if ($request->filled('start_date') && $request->filled('end_date')) {
-                        $start = Carbon::parse($request->input('start_date'));
-                        $end   = Carbon::parse($request->input('end_date'));
-                    }
-                    return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'weekly'];
-                }
-
-            case 'monthly_summary':{
-                    // UI passes start_date/end_date for the chosen month window
+            case 'weekly_summary':
+                // Default: current week of the selected year (Mon-Sun)
+                $start = Carbon::create($year, 1, 15)->startOfWeek(Carbon::MONDAY);
+                $end = Carbon::create($year, 1, 15)->endOfWeek(Carbon::SUNDAY);
+                // If explicit range is provided from UI selection, respect it
+                if ($request->filled('start_date') && $request->filled('end_date')) {
                     $start = Carbon::parse($request->input('start_date'));
-                    $end   = Carbon::parse($request->input('end_date'));
-                    return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'monthly'];
+                    $end = Carbon::parse($request->input('end_date'));
                 }
 
-            case 'yearly_summary':{
-                    $start = Carbon::create($year, 1, 1)->startOfWeek(Carbon::MONDAY);
-                    $end   = Carbon::create($year, 12, 31)->endOfWeek(Carbon::SUNDAY);
-                    return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'yearly'];
-                }
+                return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'weekly'];
 
-            case 'calendar_month':{
-                    $month = (int) $request->input('month');
-                    $start = Carbon::create($year, $month, 1)->startOfDay();
-                    $end   = Carbon::create($year, $month, 1)->endOfMonth();
-                    return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'monthly'];
-                }
+            case 'monthly_summary':
+                // UI passes start_date/end_date for the chosen month window
+                $start = Carbon::parse($request->input('start_date'));
+                $end = Carbon::parse($request->input('end_date'));
 
-            case 'bimonthly':{
-                    $month       = (int) $request->input('month');
-                    $cut         = (int) $request->input('bimonthly_date', 15);
-                    $firstStart  = Carbon::create($year, $month, 1);
-                    $firstEnd    = Carbon::create($year, $month, $cut)->endOfDay();
-                    $secondStart = Carbon::create($year, $month, $cut + 1);
-                    $secondEnd   = Carbon::create($year, $month, 1)->endOfMonth();
-                    // Default to first half window
-                    return ['start' => $firstStart->format('Y-m-d'), 'end' => $firstEnd->format('Y-m-d'), 'mode' => 'weekly'];
-                }
+                return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'monthly'];
+
+            case 'yearly_summary':
+                $start = Carbon::create($year, 1, 1)->startOfWeek(Carbon::MONDAY);
+                $end = Carbon::create($year, 12, 31)->endOfWeek(Carbon::SUNDAY);
+
+                return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'yearly'];
+
+            case 'calendar_month':
+                $month = (int) $request->input('month');
+                $start = Carbon::create($year, $month, 1)->startOfDay();
+                $end = Carbon::create($year, $month, 1)->endOfMonth();
+
+                return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => 'monthly'];
+
+            case 'bimonthly':
+                $month = (int) $request->input('month');
+                $cut = (int) $request->input('bimonthly_date', 15);
+                $firstStart = Carbon::create($year, $month, 1);
+                $firstEnd = Carbon::create($year, $month, $cut)->endOfDay();
+                $secondStart = Carbon::create($year, $month, $cut + 1);
+                $secondEnd = Carbon::create($year, $month, 1)->endOfMonth();
+
+                // Default to first half window
+                return ['start' => $firstStart->format('Y-m-d'), 'end' => $firstEnd->format('Y-m-d'), 'mode' => 'weekly'];
 
             case 'custom':
-            default: {
-                    $start = Carbon::parse($request->input('start_date'));
-                    $end   = Carbon::parse($request->input('end_date'));
-                    // Internal mode: if >= 52 weeks → yearly; if aligns to month → monthly; else weekly
-                    $days = $start->diffInDays($end) + 1;
-                    $mode = $days >= 350 ? 'yearly' : ($start->isSameMonth($end) ? 'monthly' : 'weekly');
-                    return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => $mode];
-                }
+            default:
+                $start = Carbon::parse($request->input('start_date'));
+                $end = Carbon::parse($request->input('end_date'));
+                // Internal mode: if >= 52 weeks → yearly; if aligns to month → monthly; else weekly
+                $days = $start->diffInDays($end) + 1;
+                $mode = $days >= 350 ? 'yearly' : ($start->isSameMonth($end) ? 'monthly' : 'weekly');
+
+                return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d'), 'mode' => $mode];
+
         }
     }
 
@@ -283,7 +285,8 @@ class ReportExportController extends Controller
 
         }
         $reportData['users_data'] = $usersData;
-        $reportData['summary']    = $this->calculateGroupSummary($usersData);
+        $reportData['summary'] = $this->calculateGroupSummary($usersData);
+
         return $reportData;
     }
 
@@ -299,7 +302,8 @@ class ReportExportController extends Controller
 
         }
         $reportData['users_data'] = $usersData;
-        $reportData['summary']    = $this->calculateGroupSummary($usersData);
+        $reportData['summary'] = $this->calculateGroupSummary($usersData);
+
         return $reportData;
     }
 
@@ -315,7 +319,8 @@ class ReportExportController extends Controller
 
         }
         $reportData['users_data'] = $usersData;
-        $reportData['summary']    = $this->calculateGroupSummary($usersData);
+        $reportData['summary'] = $this->calculateGroupSummary($usersData);
+
         return $reportData;
     }
 
@@ -336,60 +341,61 @@ class ReportExportController extends Controller
             $categories = $this->getUserCategoriesBreakdown($user->id, $startDate, $endDate);
 
             // Basic metrics from summaries (billable/non-billable/total)
-            $basic            = calculateBasicMetricsFromDailySummaries($user->id, $startDate, $endDate);
-            $billableHours    = (float) ($basic['billable_hours'] ?? 0);
+            $basic = calculateBasicMetricsFromDailySummaries($user->id, $startDate, $endDate);
+            $billableHours = (float) ($basic['billable_hours'] ?? 0);
             $nonBillableHours = (float) ($basic['non_billable_hours'] ?? 0);
-            $totalHours       = (float) ($basic['total_hours'] ?? ($billableHours + $nonBillableHours));
+            $totalHours = (float) ($basic['total_hours'] ?? ($billableHours + $nonBillableHours));
 
             // Performance (target vs actual) — pass overall billable hours to avoid re-summing
-            $perfList    = calculatePerformanceMetricsDailySummaries($user, $startDate, $endDate, $billableHours);
+            $perfList = calculatePerformanceMetricsDailySummaries($user, $startDate, $endDate, $billableHours);
             $performance = is_array($perfList) && ! empty($perfList) ? $perfList[0] : [];
 
             // NAD data (stub / integrate with your NAD logic if available)
             $nad = $this->getUserNADData($user->id, $startDate, $endDate);
 
             return [
-                'id'                  => $user->id,
-                'full_name'           => $user->full_name,
-                'email'               => $user->email,
-                'job_title'           => $user->job_title,
-                'work_status'         => $user->work_status ?: 'full-time',
-                'region_id'           => $user->region_id,
-                'region_name'         => $user->region->name ?? $this->getRegionName($user->region_id),
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'job_title' => $user->job_title,
+                'work_status' => $user->work_status ?: 'full-time',
+                'region_id' => $user->region_id,
+                'region_name' => $user->region->name ?? $this->getRegionName($user->region_id),
 
-                'billable_hours'      => round($billableHours, 2),
-                'non_billable_hours'  => round($nonBillableHours, 2),
-                'total_hours'         => round($totalHours, 2),
+                'billable_hours' => round($billableHours, 2),
+                'non_billable_hours' => round($nonBillableHours, 2),
+                'total_hours' => round($totalHours, 2),
 
-                'target_hours'        => round((float) ($performance['target_total_hours'] ?? 0), 2),
-                'performance'         => $performance,
+                'target_hours' => round((float) ($performance['target_total_hours'] ?? 0), 2),
+                'performance' => $performance,
                 'performance_percent' => isset($performance['percentage']) ? (float) $performance['percentage'] : null,
 
-                'nad_count'           => (int) ($nad['count'] ?? 0),
-                'nad_hours'           => round((float) ($nad['hours'] ?? 0), 2),
+                'nad_count' => (int) ($nad['count'] ?? 0),
+                'nad_hours' => round((float) ($nad['hours'] ?? 0), 2),
 
-                'categories'          => $categories,
+                'categories' => $categories,
 
                 // for weekly mode include a simple week_number display
-                'weekly_data'         => $mode === 'weekly' ? [[
+                'weekly_data' => $mode === 'weekly' ? [[
                     'week_number' => $this->calculateWeekNumber($startDate),
-                    'start_date'  => $startDate,
-                    'end_date'    => $endDate,
-                    'metrics'     => [
-                        'billable_hours'     => round($billableHours, 2),
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'metrics' => [
+                        'billable_hours' => round($billableHours, 2),
                         'non_billable_hours' => round($nonBillableHours, 2),
-                        'total_hours'        => round($totalHours, 2),
+                        'total_hours' => round($totalHours, 2),
                     ],
                 ]] : [],
             ];
         } catch (\Throwable $e) {
             Log::error('Error generating user performance data', [
                 'user_id' => $userRow->id ?? null,
-                'start'   => $startDate,
-                'end'     => $endDate,
-                'error'   => $e->getMessage(),
-                'trace'   => $e->getTraceAsString(),
+                'start' => $startDate,
+                'end' => $endDate,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
@@ -408,19 +414,21 @@ class ReportExportController extends Controller
 
                     foreach ($group['categories'] as $c) {
                         $flat[] = [
-                            'category_id'   => $c['category_id'] ?? $c['id'] ?? null,
+                            'category_id' => $c['category_id'] ?? $c['id'] ?? null,
                             'category_name' => $c['category_name'] ?? $c['name'] ?? 'Unknown',
-                            'hours'         => round((float) ($c['total_hours'] ?? $c['hours'] ?? 0), 2),
+                            'hours' => round((float) ($c['total_hours'] ?? $c['hours'] ?? 0), 2),
                         ];
                     }
                 }
             }
+
             return $flat;
         } catch (\Throwable $e) {
             Log::error('Failed to build category breakdown', [
                 'iva_id' => $userId,
-                'error'  => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return [];
         }
     }
@@ -429,13 +437,13 @@ class ReportExportController extends Controller
     private function calculateGroupSummary(array $usersData): array
     {
         $sum = [
-            'total_users'              => count($usersData),
-            'full_time_users'          => 0,
-            'part_time_users'          => 0,
-            'total_billable_hours'     => 0.0,
+            'total_users' => count($usersData),
+            'full_time_users' => 0,
+            'part_time_users' => 0,
+            'total_billable_hours' => 0.0,
             'total_non_billable_hours' => 0.0,
-            'total_hours'              => 0.0,
-            'average_performance'      => 0.0,
+            'total_hours' => 0.0,
+            'average_performance' => 0.0,
         ];
 
         $perfVals = [];
@@ -450,10 +458,10 @@ class ReportExportController extends Controller
 
         }
 
-        $sum['total_billable_hours']     = round($sum['total_billable_hours'], 2);
+        $sum['total_billable_hours'] = round($sum['total_billable_hours'], 2);
         $sum['total_non_billable_hours'] = round($sum['total_non_billable_hours'], 2);
-        $sum['total_hours']              = round($sum['total_hours'], 2);
-        $sum['average_performance']      = count($perfVals) ? round(array_sum($perfVals) / count($perfVals), 2) : 0.0;
+        $sum['total_hours'] = round($sum['total_hours'], 2);
+        $sum['average_performance'] = count($perfVals) ? round(array_sum($perfVals) / count($perfVals), 2) : 0.0;
 
         return $sum;
     }
@@ -468,9 +476,9 @@ class ReportExportController extends Controller
             }
 
             foreach ($u['categories'] as $c) {
-                $id   = $c['category_id'] ?? $c['id'] ?? null;
+                $id = $c['category_id'] ?? $c['id'] ?? null;
                 $name = $c['category_name'] ?? $c['name'] ?? 'Unknown';
-                $hrs  = (float) ($c['hours'] ?? $c['total_hours'] ?? 0);
+                $hrs = (float) ($c['hours'] ?? $c['total_hours'] ?? 0);
                 if ($id === null) {
                     continue;
                 }
@@ -481,7 +489,10 @@ class ReportExportController extends Controller
                 $agg[$id]['total_hours'] += $hrs;
             }
         }
-        foreach ($agg as &$row) {$row['total_hours'] = round($row['total_hours'], 2);}
+        foreach ($agg as &$row) {
+            $row['total_hours'] = round($row['total_hours'], 2);
+        }
+
         return array_values($agg);
     }
 
@@ -496,13 +507,14 @@ class ReportExportController extends Controller
 
     private function generateFilename(array $data): string
     {
-        $type  = ($data['report_type'] === 'region') ? 'Region_Report' : 'Overall_Report';
+        $type = ($data['report_type'] === 'region') ? 'Region_Report' : 'Overall_Report';
         $start = Carbon::parse($data['date_range']['start'])->format('M-d');
-        $end   = Carbon::parse($data['date_range']['end'])->format('M-d');
-        $year  = Carbon::parse($data['date_range']['start'])->format('Y');
+        $end = Carbon::parse($data['date_range']['end'])->format('M-d');
+        $year = Carbon::parse($data['date_range']['start'])->format('Y');
         if (! empty($data['region']['name'] ?? '')) {
-            $type .= '_' . str_replace(' ', '_', $data['region']['name']);
+            $type .= '_'.str_replace(' ', '_', $data['region']['name']);
         }
+
         return sprintf('%s_%s_to_%s_%s.xlsx', $type, $start, $end, $year);
     }
 
@@ -517,9 +529,10 @@ class ReportExportController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Target hour calculation fallback', [
                 'iva_id' => $user->id,
-                'error'  => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
+
         return 0.0;
     }
 
@@ -537,6 +550,7 @@ class ReportExportController extends Controller
         }
 
         $r = DB::table('regions')->select('name')->where('id', $regionId)->first();
+
         return $r->name ?? 'Unknown';
     }
 }

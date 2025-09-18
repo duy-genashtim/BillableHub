@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Middleware;
 
 use App\Models\User;
@@ -16,6 +17,7 @@ class AuthenticateWithJWT
         'api/timedoctor-v2/stream-worklog-sync',
         'test/export-data',
     ];
+
     public function handle(Request $request, Closure $next)
     {
         // ✅ Skip JWT auth if current route is in the excluded list

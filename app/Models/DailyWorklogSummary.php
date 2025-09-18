@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,9 +20,9 @@ class DailyWorklogSummary extends Model
     ];
 
     protected $casts = [
-        'report_date'    => 'date:Y-m-d',
+        'report_date' => 'date:Y-m-d',
         'total_duration' => 'integer',
-        'entries_count'  => 'integer',
+        'entries_count' => 'integer',
     ];
 
     // Relationships
@@ -33,7 +34,7 @@ class DailyWorklogSummary extends Model
     public function reportCategory(): BelongsTo
     {
         return $this->belongsTo(ReportCategory::class, 'report_category_id')->withDefault([
-            'cat_name'        => 'Uncategorized',
+            'cat_name' => 'Uncategorized',
             'cat_description' => 'Worklogs without a specific category',
         ]);
     }
@@ -86,7 +87,7 @@ class DailyWorklogSummary extends Model
 
     public function getFormattedDurationAttribute()
     {
-        $hours   = floor($this->total_duration / 3600);
+        $hours = floor($this->total_duration / 3600);
         $minutes = floor(($this->total_duration % 3600) / 60);
 
         return sprintf('%dh %dm', $hours, $minutes);
@@ -129,17 +130,17 @@ class DailyWorklogSummary extends Model
             ->byDateRange($startDate, $endDate)
             ->get();
 
-        $totalHours    = $summaries->sum('total_duration') / 3600;
+        $totalHours = $summaries->sum('total_duration') / 3600;
         $billableHours = $summaries->where('category_type', 'billable')->sum('total_duration') / 3600;
-        $workingDays   = $summaries->groupBy('report_date')->count();
+        $workingDays = $summaries->groupBy('report_date')->count();
 
         return [
-            'total_hours'         => round($totalHours, 2),
-            'billable_hours'      => round($billableHours, 2),
-            'non_billable_hours'  => round($totalHours - $billableHours, 2),
-            'working_days'        => $workingDays,
+            'total_hours' => round($totalHours, 2),
+            'billable_hours' => round($billableHours, 2),
+            'non_billable_hours' => round($totalHours - $billableHours, 2),
+            'working_days' => $workingDays,
             'average_daily_hours' => $workingDays > 0 ? round($totalHours / $workingDays, 2) : 0,
-            'entries_count'       => $summaries->sum('entries_count'),
+            'entries_count' => $summaries->sum('entries_count'),
         ];
     }
 
@@ -151,14 +152,14 @@ class DailyWorklogSummary extends Model
             ->get()
             ->groupBy('report_category_id')
             ->map(function ($categoryData) {
-                $category   = $categoryData->first()->reportCategory;
+                $category = $categoryData->first()->reportCategory;
                 $totalHours = $categoryData->sum('total_duration') / 3600;
 
                 return [
-                    'category_id'   => $category->id,
+                    'category_id' => $category->id,
                     'category_name' => $category->cat_name,
                     'category_type' => $categoryData->first()->category_type,
-                    'total_hours'   => round($totalHours, 2),
+                    'total_hours' => round($totalHours, 2),
                     'entries_count' => $categoryData->sum('entries_count'),
                 ];
             })

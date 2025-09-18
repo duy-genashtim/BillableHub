@@ -1,11 +1,11 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
@@ -14,14 +14,14 @@ class DashboardController extends Controller
      */
     public function getDashboardOverview(Request $request)
     {
-        $cacheKey = 'dashboard_overview_' . auth()->id();
+        $cacheKey = 'dashboard_overview_'.auth()->id();
 
         // Try to get cached data (5 minute TTL)
         $cachedData = Cache::get($cacheKey);
         if ($cachedData !== null) {
             return response()->json([
-                'success'   => true,
-                'cached'    => true,
+                'success' => true,
+                'cached' => true,
                 'cached_at' => $cachedData['cached_at'] ?? null,
                 ...$cachedData['data'],
             ]);
@@ -32,14 +32,14 @@ class DashboardController extends Controller
 
         // Cache the data
         $wrappedData = [
-            'data'      => $dashboardData,
+            'data' => $dashboardData,
             'cached_at' => now()->toISOString(),
         ];
         Cache::put($cacheKey, $wrappedData, 300); // 5 minutes
 
         return response()->json([
-            'success'      => true,
-            'cached'       => false,
+            'success' => true,
+            'cached' => false,
             'generated_at' => now()->toISOString(),
             ...$dashboardData,
         ]);
@@ -51,38 +51,38 @@ class DashboardController extends Controller
     private function generateDashboardData()
     {
         // Get current week date range (Monday to Sunday)
-        $now         = Carbon::now();
+        $now = Carbon::now();
         $startOfWeek = $now->clone()->startOfWeek(Carbon::MONDAY);
-        $endOfWeek   = $now->clone()->endOfWeek(Carbon::SUNDAY);
+        $endOfWeek = $now->clone()->endOfWeek(Carbon::SUNDAY);
 
         // Get current month date range
         $startOfMonth = $now->clone()->startOfMonth();
-        $endOfMonth   = $now->clone()->endOfMonth();
+        $endOfMonth = $now->clone()->endOfMonth();
 
         return [
             // System overview
-            'system_overview'           => $this->getSystemOverview(),
+            'system_overview' => $this->getSystemOverview(),
 
             // Current week performance
-            'current_week_performance'  => $this->getCurrentWeekPerformance($startOfWeek, $endOfWeek),
+            'current_week_performance' => $this->getCurrentWeekPerformance($startOfWeek, $endOfWeek),
 
             // Current month performance
             'current_month_performance' => $this->getCurrentMonthPerformance($startOfMonth, $endOfMonth),
 
             // Regional breakdown
-            'regional_breakdown'        => $this->getRegionalBreakdown(),
+            'regional_breakdown' => $this->getRegionalBreakdown(),
 
             // Cohort breakdown
-            'cohort_breakdown'          => $this->getCohortBreakdown(),
+            'cohort_breakdown' => $this->getCohortBreakdown(),
 
             // Recent activity
-            'recent_activity'           => $this->getRecentActivity(),
+            'recent_activity' => $this->getRecentActivity(),
 
             // Top performers (last 3 days)
-            'top_performers'            => $this->getTopPerformers(),
+            'top_performers' => $this->getTopPerformers(),
 
             // Performance trends (last 4 weeks)
-            'performance_trends'        => $this->getPerformanceTrends(),
+            'performance_trends' => $this->getPerformanceTrends(),
         ];
     }
 
@@ -92,7 +92,7 @@ class DashboardController extends Controller
     private function getSystemOverview()
     {
         // Use the correct table name 'iva_user' from migrations
-        $totalUsers    = DB::table('iva_user')->where('is_active', true)->count();
+        $totalUsers = DB::table('iva_user')->where('is_active', true)->count();
         $fullTimeUsers = DB::table('iva_user')->where('is_active', true)->where('work_status', 'full-time')->count();
         $partTimeUsers = DB::table('iva_user')->where('is_active', true)->where('work_status', 'part-time')->count();
 
@@ -100,7 +100,7 @@ class DashboardController extends Controller
         $totalCohorts = DB::table('cohorts')->where('is_active', true)->count();
 
         // Use correct table names from migrations
-        $totalTasks    = DB::table('tasks')->where('is_active', true)->count();
+        $totalTasks = DB::table('tasks')->where('is_active', true)->count();
         $totalProjects = DB::table('projects')->where('is_active', true)->count();
 
         // Task categories - use exact matching for category types
@@ -117,14 +117,14 @@ class DashboardController extends Controller
             ->count();
 
         return [
-            'total_users'             => $totalUsers,
-            'full_time_users'         => $fullTimeUsers,
-            'part_time_users'         => $partTimeUsers,
-            'total_regions'           => $totalRegions,
-            'total_cohorts'           => $totalCohorts,
-            'total_tasks'             => $totalTasks,
-            'total_projects'          => $totalProjects,
-            'billable_categories'     => $billableCategories,
+            'total_users' => $totalUsers,
+            'full_time_users' => $fullTimeUsers,
+            'part_time_users' => $partTimeUsers,
+            'total_regions' => $totalRegions,
+            'total_cohorts' => $totalCohorts,
+            'total_tasks' => $totalTasks,
+            'total_projects' => $totalProjects,
+            'billable_categories' => $billableCategories,
             'non_billable_categories' => $nonBillableCategories,
         ];
     }
@@ -158,13 +158,13 @@ class DashboardController extends Controller
         $nadData = $this->getNADDataForPeriod($startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
 
         return [
-            'active_users'       => $activeUsers,
-            'billable_hours'     => $worklogSummary['billable_hours'],
+            'active_users' => $activeUsers,
+            'billable_hours' => $worklogSummary['billable_hours'],
             'non_billable_hours' => $worklogSummary['non_billable_hours'],
-            'total_hours'        => $worklogSummary['total_hours'],
-            'total_entries'      => $worklogSummary['total_entries'],
-            'nad_count'          => $nadData['nad_count'],
-            'nad_hours'          => $nadData['nad_hours'],
+            'total_hours' => $worklogSummary['total_hours'],
+            'total_entries' => $worklogSummary['total_entries'],
+            'nad_count' => $nadData['nad_count'],
+            'nad_hours' => $nadData['nad_hours'],
         ];
     }
 
@@ -182,12 +182,12 @@ class DashboardController extends Controller
         $nadData = $this->getNADDataForPeriod($startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
 
         return [
-            'billable_hours'     => $worklogSummary['billable_hours'],
+            'billable_hours' => $worklogSummary['billable_hours'],
             'non_billable_hours' => $worklogSummary['non_billable_hours'],
-            'total_hours'        => $worklogSummary['total_hours'],
-            'total_entries'      => $worklogSummary['total_entries'],
-            'nad_count'          => $nadData['nad_count'],
-            'nad_hours'          => $nadData['nad_hours'],
+            'total_hours' => $worklogSummary['total_hours'],
+            'total_entries' => $worklogSummary['total_entries'],
+            'nad_count' => $nadData['nad_count'],
+            'nad_hours' => $nadData['nad_hours'],
         ];
     }
 
@@ -215,10 +215,10 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($region) {
                 return [
-                    'id'              => $region->id,
-                    'name'            => $region->name,
-                    'description'     => $region->description,
-                    'user_count'      => (int) $region->user_count,
+                    'id' => $region->id,
+                    'name' => $region->name,
+                    'description' => $region->description,
+                    'user_count' => (int) $region->user_count,
                     'full_time_count' => (int) $region->full_time_count,
                     'part_time_count' => (int) $region->part_time_count,
                 ];
@@ -250,11 +250,11 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($cohort) {
                 return [
-                    'id'              => $cohort->id,
-                    'name'            => $cohort->name,
-                    'description'     => $cohort->description,
-                    'start_date'      => $cohort->start_date,
-                    'user_count'      => (int) $cohort->user_count,
+                    'id' => $cohort->id,
+                    'name' => $cohort->name,
+                    'description' => $cohort->description,
+                    'start_date' => $cohort->start_date,
+                    'user_count' => (int) $cohort->user_count,
                     'full_time_count' => (int) $cohort->full_time_count,
                     'part_time_count' => (int) $cohort->part_time_count,
                 ];
@@ -278,7 +278,7 @@ class DashboardController extends Controller
             ->join('task_report_categories as trc', 'wd.task_id', '=', 'trc.task_id')
             ->join('report_categories as rc', 'trc.cat_id', '=', 'rc.id')
             ->where('wd.is_active', true)
-            ->whereBetween('wd.start_time', [$startDate->format('Y-m-d') . ' 00:00:00', $endDate->format('Y-m-d') . ' 23:59:59'])
+            ->whereBetween('wd.start_time', [$startDate->format('Y-m-d').' 00:00:00', $endDate->format('Y-m-d').' 23:59:59'])
             ->whereRaw("wd.task_id IN ({$billableIds})")
             ->select([
                 'rc.id as category_id',
@@ -293,11 +293,11 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($category) {
                 return [
-                    'category_id'        => $category->category_id,
-                    'category_name'      => $category->category_name,
-                    'total_hours'        => round((float) $category->total_hours, 2),
-                    'user_count'         => (int) $category->user_count,
-                    'entry_count'        => (int) $category->entry_count,
+                    'category_id' => $category->category_id,
+                    'category_name' => $category->category_name,
+                    'total_hours' => round((float) $category->total_hours, 2),
+                    'user_count' => (int) $category->user_count,
+                    'entry_count' => (int) $category->entry_count,
                     'avg_hours_per_user' => $category->user_count > 0 ? round($category->total_hours / $category->user_count, 2) : 0,
                 ];
             })
@@ -333,15 +333,15 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($activity) {
                 return [
-                    'id'           => $activity->id,
-                    'start_time'   => $activity->start_time,
-                    'duration'     => (int) $activity->duration,
-                    'hours'        => round((float) $activity->hours, 2),
-                    'user_id'      => $activity->user_id,
-                    'user_name'    => $activity->user_name,
-                    'work_status'  => $activity->work_status,
-                    'region_name'  => $activity->region_name,
-                    'task_name'    => $activity->task_name ?? 'Unknown Task',
+                    'id' => $activity->id,
+                    'start_time' => $activity->start_time,
+                    'duration' => (int) $activity->duration,
+                    'hours' => round((float) $activity->hours, 2),
+                    'user_id' => $activity->user_id,
+                    'user_name' => $activity->user_name,
+                    'work_status' => $activity->work_status,
+                    'region_name' => $activity->region_name,
+                    'task_name' => $activity->task_name ?? 'Unknown Task',
                     'project_name' => $activity->project_name ?? 'Unknown Project',
                 ];
             });
@@ -372,12 +372,12 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($performer) {
                 return [
-                    'user_id'             => $performer->user_id,
-                    'user_name'           => $performer->user_name,
-                    'work_status'         => $performer->work_status,
-                    'region_name'         => $performer->region_name,
-                    'total_hours'         => round((float) $performer->total_hours, 2),
-                    'total_entries'       => (int) $performer->total_entries,
+                    'user_id' => $performer->user_id,
+                    'user_name' => $performer->user_name,
+                    'work_status' => $performer->work_status,
+                    'region_name' => $performer->region_name,
+                    'total_hours' => round((float) $performer->total_hours, 2),
+                    'total_entries' => (int) $performer->total_entries,
                     'avg_hours_per_entry' => round((float) $performer->avg_hours_per_entry, 2),
                 ];
             });
@@ -389,22 +389,22 @@ class DashboardController extends Controller
     private function getPerformanceTrends()
     {
         $taskCategories = $this->getTaskCategoriesMapping();
-        $trends         = [];
+        $trends = [];
 
         for ($i = 3; $i >= 0; $i--) {
             $weekStart = Carbon::now()->subWeeks($i)->startOfWeek();
-            $weekEnd   = Carbon::now()->subWeeks($i)->endOfWeek();
+            $weekEnd = Carbon::now()->subWeeks($i)->endOfWeek();
 
             $weekData = $this->getWorklogSummary($weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d'), $taskCategories);
 
             $trends[] = [
-                'week_start'         => $weekStart->format('Y-m-d'),
-                'week_end'           => $weekEnd->format('Y-m-d'),
-                'week_label'         => $weekStart->format('M d') . ' - ' . $weekEnd->format('M d'),
-                'billable_hours'     => $weekData['billable_hours'],
+                'week_start' => $weekStart->format('Y-m-d'),
+                'week_end' => $weekEnd->format('Y-m-d'),
+                'week_label' => $weekStart->format('M d').' - '.$weekEnd->format('M d'),
+                'billable_hours' => $weekData['billable_hours'],
                 'non_billable_hours' => $weekData['non_billable_hours'],
-                'total_hours'        => $weekData['total_hours'],
-                'total_entries'      => $weekData['total_entries'],
+                'total_hours' => $weekData['total_hours'],
+                'total_entries' => $weekData['total_entries'],
             ];
         }
 
@@ -428,7 +428,7 @@ class DashboardController extends Controller
             ])
             ->get();
 
-        $billableTaskIds    = [];
+        $billableTaskIds = [];
         $nonBillableTaskIds = [];
 
         foreach ($mappingData as $mapping) {
@@ -440,7 +440,7 @@ class DashboardController extends Controller
         }
 
         return [
-            'billable_task_ids'     => array_unique($billableTaskIds),
+            'billable_task_ids' => array_unique($billableTaskIds),
             'non_billable_task_ids' => array_unique($nonBillableTaskIds),
         ];
     }
@@ -452,13 +452,13 @@ class DashboardController extends Controller
             // Just get total hours without categorization
             $result = DB::table('worklogs_data')
                 ->select([
-                    DB::raw("0 as billable_hours"),
-                    DB::raw("0 as non_billable_hours"),
-                    DB::raw("SUM(duration) / 3600 as total_hours"),
-                    DB::raw("COUNT(*) as total_entries"),
+                    DB::raw('0 as billable_hours'),
+                    DB::raw('0 as non_billable_hours'),
+                    DB::raw('SUM(duration) / 3600 as total_hours'),
+                    DB::raw('COUNT(*) as total_entries'),
                 ])
                 ->where('is_active', true)
-                ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
                 ->first();
         } else {
             $billableIds = $taskCategories['billable_task_ids'] ?? [];
@@ -468,40 +468,40 @@ class DashboardController extends Controller
                 // No categorization available
                 $result = DB::table('worklogs_data')
                     ->where('is_active', true)
-                    ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                    ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
                     ->select([
-                        DB::raw("0 as billable_hours"),
-                        DB::raw("0 as non_billable_hours"), 
-                        DB::raw("SUM(duration) / 3600 as total_hours"),
-                        DB::raw("COUNT(*) as total_entries"),
+                        DB::raw('0 as billable_hours'),
+                        DB::raw('0 as non_billable_hours'),
+                        DB::raw('SUM(duration) / 3600 as total_hours'),
+                        DB::raw('COUNT(*) as total_entries'),
                     ])->first();
             } else {
                 $result = DB::table('worklogs_data')
                     ->where('is_active', true)
-                    ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                    ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
                     ->select([
                         // Billable hours - only tasks explicitly marked as billable
-                        DB::raw(empty($billableIds) ? "0 as billable_hours" : 
-                            "COALESCE(SUM(CASE WHEN task_id IN (" . implode(',', $billableIds) . ") THEN duration END), 0) / 3600 as billable_hours"
+                        DB::raw(empty($billableIds) ? '0 as billable_hours' :
+                            'COALESCE(SUM(CASE WHEN task_id IN ('.implode(',', $billableIds).') THEN duration END), 0) / 3600 as billable_hours'
                         ),
-                        // Non-billable hours - only tasks explicitly marked as non-billable  
-                        DB::raw(empty($nonBillableIds) ? "0 as non_billable_hours" :
-                            "COALESCE(SUM(CASE WHEN task_id IN (" . implode(',', $nonBillableIds) . ") THEN duration END), 0) / 3600 as non_billable_hours"
+                        // Non-billable hours - only tasks explicitly marked as non-billable
+                        DB::raw(empty($nonBillableIds) ? '0 as non_billable_hours' :
+                            'COALESCE(SUM(CASE WHEN task_id IN ('.implode(',', $nonBillableIds).') THEN duration END), 0) / 3600 as non_billable_hours'
                         ),
                         // Total hours - all tasks
-                        DB::raw("COALESCE(SUM(duration), 0) / 3600 as total_hours"),
+                        DB::raw('COALESCE(SUM(duration), 0) / 3600 as total_hours'),
                         // Total entries
-                        DB::raw("COUNT(*) as total_entries"),
+                        DB::raw('COUNT(*) as total_entries'),
                     ])
                     ->first();
             }
         }
 
         return [
-            'billable_hours'     => round((float) ($result->billable_hours ?? 0), 2),
+            'billable_hours' => round((float) ($result->billable_hours ?? 0), 2),
             'non_billable_hours' => round((float) ($result->non_billable_hours ?? 0), 2),
-            'total_hours'        => round((float) ($result->total_hours ?? 0), 2),
-            'total_entries'      => (int) ($result->total_entries ?? 0),
+            'total_hours' => round((float) ($result->total_hours ?? 0), 2),
+            'total_entries' => (int) ($result->total_entries ?? 0),
         ];
     }
 
@@ -511,14 +511,14 @@ class DashboardController extends Controller
 
         $nadData = [
             'start_date' => $startDate,
-            'end_date'   => $endDate,
-            'blab_only'  => 1,
+            'end_date' => $endDate,
+            'blab_only' => 1,
             'email_list' => [],
         ];
 
         $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
-        $nadCount    = 0;
-        $nadHours    = 0;
+        $nadCount = 0;
+        $nadHours = 0;
 
         if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
 
@@ -533,13 +533,12 @@ class DashboardController extends Controller
 
     }
 
-
     /**
      * Clear dashboard cache
      */
     public function clearDashboardCache()
     {
-        $cacheKey = 'dashboard_overview_' . auth()->id();
+        $cacheKey = 'dashboard_overview_'.auth()->id();
         Cache::forget($cacheKey);
 
         return response()->json([

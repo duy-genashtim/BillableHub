@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Jobs\SyncTimeDoctorWorklogs;
@@ -58,9 +59,9 @@ class TimeDoctorController extends Controller
                     $timeDoctorUser = TimedoctorV1User::updateOrCreate(
                         ['timedoctor_id' => $user['user_id']],
                         [
-                            'tm_fullname'    => $user['full_name'],
-                            'tm_email'       => $user['email'],
-                            'is_active'      => true,
+                            'tm_fullname' => $user['full_name'],
+                            'tm_email' => $user['email'],
+                            'is_active' => true,
                             'last_synced_at' => now(),
                         ]
                     );
@@ -80,14 +81,14 @@ class TimeDoctorController extends Controller
                 DB::commit();
 
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor users synced successfully', [
-                    'module'       => 'timedoctor_integration',
+                    'module' => 'timedoctor_integration',
                     'synced_count' => $syncCount,
-                    'total_users'  => count($usersData['users']),
+                    'total_users' => count($usersData['users']),
                 ]);
 
                 return response()->json([
-                    'success'      => true,
-                    'message'      => 'Users synced successfully',
+                    'success' => true,
+                    'message' => 'Users synced successfully',
                     'synced_count' => $syncCount,
                 ]);
             } catch (\Exception $e) {
@@ -102,12 +103,12 @@ class TimeDoctorController extends Controller
 
             ActivityLogService::log('sync_timedoctor_data', 'Failed to sync TimeDoctor users', [
                 'module' => 'timedoctor_integration',
-                'error'  => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error syncing users: ' . $e->getMessage(),
+                'message' => 'Error syncing users: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -134,10 +135,10 @@ class TimeDoctorController extends Controller
                         ['timedoctor_id' => $project['id']],
                         [
                             'timedoctor_version' => 1,
-                            'project_name'       => $project['name'],
-                            'is_active'          => ! ($project['deleted'] ?? false),
-                            'description'        => null,
-                            'last_synced_at'     => now(),
+                            'project_name' => $project['name'],
+                            'is_active' => ! ($project['deleted'] ?? false),
+                            'description' => null,
+                            'last_synced_at' => now(),
                         ]
                     );
 
@@ -147,14 +148,14 @@ class TimeDoctorController extends Controller
                 DB::commit();
 
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor projects synced successfully', [
-                    'module'         => 'timedoctor_integration',
-                    'synced_count'   => $syncCount,
+                    'module' => 'timedoctor_integration',
+                    'synced_count' => $syncCount,
                     'total_projects' => count($projectsData['count']),
                 ]);
 
                 return response()->json([
-                    'success'      => true,
-                    'message'      => 'Projects synced successfully',
+                    'success' => true,
+                    'message' => 'Projects synced successfully',
                     'synced_count' => $syncCount,
                 ]);
             } catch (\Exception $e) {
@@ -169,12 +170,12 @@ class TimeDoctorController extends Controller
 
             ActivityLogService::log('sync_timedoctor_data', 'Failed to sync TimeDoctor projects', [
                 'module' => 'timedoctor_integration',
-                'error'  => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error syncing projects: ' . $e->getMessage(),
+                'message' => 'Error syncing projects: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -192,7 +193,7 @@ class TimeDoctorController extends Controller
             }
 
             $companyId = $companyInfo['accounts'][0]['company_id'];
-            $users     = TimedoctorV1User::where('is_active', true)->whereNotNull('iva_user_id')->get();
+            $users = TimedoctorV1User::where('is_active', true)->whereNotNull('iva_user_id')->get();
 
             if ($users->isEmpty()) {
                 return response()->json([
@@ -223,14 +224,14 @@ class TimeDoctorController extends Controller
 
                         if ($existingTask) {
                             $existingUserList = $existingTask->user_list ?? [];
-                            $userExists       = false;
+                            $userExists = false;
 
                             if (is_array($existingUserList)) {
                                 foreach ($existingUserList as $key => $userData) {
                                     // Check if this task already exists for this user by comparing tId
                                     if (isset($userData['tId']) && $userData['tId'] == ($task['task_id'] ?? null)) {
                                         $existingUserList[$key] = $userListData;
-                                        $userExists             = true;
+                                        $userExists = true;
                                         break;
                                     }
                                 }
@@ -243,15 +244,15 @@ class TimeDoctorController extends Controller
                             }
 
                             $existingTask->update([
-                                'is_active'      => ($task['status'] === 'Active' || $task['active'] ?? false),
+                                'is_active' => ($task['status'] === 'Active' || $task['active'] ?? false),
                                 'last_synced_at' => now(),
-                                'user_list'      => $existingUserList,
+                                'user_list' => $existingUserList,
                             ]);
                         } else {
                             Task::create([
-                                'task_name'      => $task['task_name'],
-                                'user_list'      => [$userListData],
-                                'is_active'      => ($task['status'] === 'Active' || $task['active'] ?? false),
+                                'task_name' => $task['task_name'],
+                                'user_list' => [$userListData],
+                                'is_active' => ($task['status'] === 'Active' || $task['active'] ?? false),
                                 'last_synced_at' => now(),
                             ]);
                         }
@@ -263,14 +264,14 @@ class TimeDoctorController extends Controller
                 DB::commit();
 
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor tasks synced successfully', [
-                    'module'          => 'timedoctor_integration',
-                    'synced_count'    => $syncCount,
+                    'module' => 'timedoctor_integration',
+                    'synced_count' => $syncCount,
                     'users_processed' => $users->count(),
                 ]);
 
                 return response()->json([
-                    'success'      => true,
-                    'message'      => 'Tasks synced successfully',
+                    'success' => true,
+                    'message' => 'Tasks synced successfully',
                     'synced_count' => $syncCount,
                 ]);
             } catch (\Exception $e) {
@@ -285,12 +286,12 @@ class TimeDoctorController extends Controller
 
             ActivityLogService::log('sync_timedoctor_data', 'Failed to sync TimeDoctor tasks', [
                 'module' => 'timedoctor_integration',
-                'error'  => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error syncing tasks: ' . $e->getMessage(),
+                'message' => 'Error syncing tasks: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -299,21 +300,21 @@ class TimeDoctorController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'start_date' => 'required|date_format:Y-m-d',
-            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
-            'queue_job'  => 'sometimes|boolean',
+            'end_date' => 'required|date_format:Y-m-d|after_or_equal:start_date',
+            'queue_job' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $startDate = Carbon::parse($request->input('start_date'));
-        $endDate   = Carbon::parse($request->input('end_date'));
-        $queueJob  = $request->input('queue_job', true);
+        $endDate = Carbon::parse($request->input('end_date'));
+        $queueJob = $request->input('queue_job', true);
 
         if ($startDate->diffInDays($endDate) > 30) {
             return response()->json([
@@ -326,22 +327,22 @@ class TimeDoctorController extends Controller
             SyncTimeDoctorWorklogs::dispatch($startDate->toDateString(), $endDate->toDateString());
 
             ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job queued', [
-                'module'     => 'timedoctor_integration',
+                'module' => 'timedoctor_integration',
                 'start_date' => $startDate->toDateString(),
-                'end_date'   => $endDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
             ]);
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'Worklog sync job has been queued',
+                'success' => true,
+                'message' => 'Worklog sync job has been queued',
                 'start_date' => $startDate->toDateString(),
-                'end_date'   => $endDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
             ]);
         } else {
             return response()->json([
-                'success'    => true,
-                'message'    => 'For immediate sync, please use the streaming endpoint',
-                'stream_url' => url('/api/time-doctor/stream-worklog-sync?start_date=' . $startDate->toDateString() . '&end_date=' . $endDate->toDateString()),
+                'success' => true,
+                'message' => 'For immediate sync, please use the streaming endpoint',
+                'stream_url' => url('/api/time-doctor/stream-worklog-sync?start_date='.$startDate->toDateString().'&end_date='.$endDate->toDateString()),
             ]);
         }
     }
@@ -352,7 +353,7 @@ class TimeDoctorController extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 
@@ -362,7 +363,7 @@ class TimeDoctorController extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 
@@ -372,7 +373,7 @@ class TimeDoctorController extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 
@@ -382,7 +383,7 @@ class TimeDoctorController extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 }

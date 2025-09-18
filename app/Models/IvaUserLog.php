@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,8 +23,8 @@ class IvaUserLog extends Model
 
     protected $casts = [
         'iva_user_id' => 'integer',
-        'created_by'  => 'integer',
-        'is_private'  => 'boolean',
+        'created_by' => 'integer',
+        'is_private' => 'boolean',
     ];
 
     /**
@@ -83,6 +84,7 @@ class IvaUserLog extends Model
     public function getLogTypeDisplayAttribute()
     {
         $config = $this->logTypeConfig;
+
         return $config ? $config->description : ucfirst($this->log_type);
     }
 }

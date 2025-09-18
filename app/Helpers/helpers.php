@@ -21,16 +21,17 @@ if (! function_exists('isGenashtimEmail')) {
         // Check if the string is a valid email
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
             // Extract the domain part of the email
-            $domain = substr(strrchr($email, "@"), 1);
+            $domain = substr(strrchr($email, '@'), 1);
 
             // Define the list of allowed domains
-            $allowedDomains = explode(",", env('SITE_CONFIG_ALLOWED_DOMAINS', 'genashtim.com'));
+            $allowedDomains = explode(',', env('SITE_CONFIG_ALLOWED_DOMAINS', 'genashtim.com'));
 
             // Check if the domain is in the list of allowed domains
             if (in_array($domain, $allowedDomains)) {
                 return true; // Email is valid and from an allowed domain
             }
         }
+
         return false; // Email is not valid or not from an allowed domain
     }
 }
@@ -38,13 +39,13 @@ if (! function_exists('isGenashtimEmail')) {
 if (! function_exists('EncryptData')) {
     function EncryptData($input, $key)
     {
-        $key    = str_pad($key, 256, ' '); // Pad or trim key to 256 characters
-        $input  = (string) $input;
+        $key = str_pad($key, 256, ' '); // Pad or trim key to 256 characters
+        $input = (string) $input;
         $output = '';
 
         for ($i = 0; $i < strlen($input); $i++) {
-            $charCode          = ord($input[$i]);
-            $keyChar           = ord($key[$i % strlen($key)]);
+            $charCode = ord($input[$i]);
+            $keyChar = ord($key[$i % strlen($key)]);
             $encryptedCharCode = $charCode ^ $keyChar;
             $output .= chr($encryptedCharCode);
         }
@@ -56,13 +57,13 @@ if (! function_exists('EncryptData')) {
 if (! function_exists('DecryptData')) {
     function DecryptData($input, $key)
     {
-        $key    = str_pad($key, 256, ' ');
-        $input  = base64_decode($input);
+        $key = str_pad($key, 256, ' ');
+        $input = base64_decode($input);
         $output = '';
 
         for ($i = 0; $i < strlen($input); $i++) {
-            $charCode          = ord($input[$i]);
-            $keyChar           = ord($key[$i % strlen($key)]);
+            $charCode = ord($input[$i]);
+            $keyChar = ord($key[$i % strlen($key)]);
             $decryptedCharCode = $charCode ^ $keyChar;
             $output .= chr($decryptedCharCode);
         }
@@ -84,10 +85,10 @@ if (! function_exists('encryptUserData')) {
         }
 
         $data = [
-            'id'           => $user->id,
-            'employee_id'  => $user->azure_id,
-            'email'        => $user->email,
-            'datetime'     => Carbon::now()->toIso8601String(),
+            'id' => $user->id,
+            'employee_id' => $user->azure_id,
+            'email' => $user->email,
+            'datetime' => Carbon::now()->toIso8601String(),
             'name_request' => 'iva_biilable',
         ];
 
@@ -108,6 +109,7 @@ if (! function_exists('decryptUserToken')) {
         }
 
         $decrypted = DecryptData($token, $key);
+
         return json_decode($decrypted, true);
     }
 }
@@ -122,7 +124,7 @@ if (! function_exists('encryptSecureHRMSToken')) {
 
         $payload = [
             'secret_key' => $key,
-            'datetime'   => Carbon::now()->toIso8601String(),
+            'datetime' => Carbon::now()->toIso8601String(),
         ];
 
         return EncryptData(json_encode($payload), $key);
@@ -139,7 +141,7 @@ if (! function_exists('TestencryptSecureHRMSToken')) {
 
         $payload = [
             'secret_key' => $key,
-            'datetime'   => (new DateTime())->format(DateTime::ATOM),
+            'datetime' => (new DateTime)->format(DateTime::ATOM),
         ];
 
         return EncryptData(json_encode($payload), $key);
@@ -154,7 +156,7 @@ if (! function_exists('decryptAndValidateSecureHRMSToken')) {
         }
 
         $decryptedJson = DecryptData($encrypted, $key);
-        $payload       = json_decode($decryptedJson, true);
+        $payload = json_decode($decryptedJson, true);
 
         if (! $payload || ! isset($payload['datetime'])) {
             return false;
@@ -178,10 +180,6 @@ if (! function_exists('decryptAndValidateSecureHRMSToken')) {
 if (! function_exists('callNADApi')) {
     /**
      * Send a request to the NAD API with encrypted token and given data.
-     *
-     * @param string $action
-     * @param array $data
-     * @return array|null
      */
     function callNADApi(string $action, array $data): ?array
     {
@@ -210,12 +208,14 @@ if (! function_exists('callNADApi')) {
             } else {
                 Log::error('NAD API error', [
                     'status' => $response->status(),
-                    'body'   => $response->body(),
+                    'body' => $response->body(),
                 ]);
+
                 return null;
             }
         } catch (\Throwable $e) {
             Log::error('NAD API connection failed', ['error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -226,9 +226,9 @@ if (! function_exists('fetchNADDataForPeriod')) {
     /**
      * Fetch NAD data for a specific period.
      *
-     * @param object $user The IvaUser model instance
-     * @param string $startDate Start date (Y-m-d format)
-     * @param string $endDate End date (Y-m-d format)
+     * @param  object  $user  The IvaUser model instance
+     * @param  string  $startDate  Start date (Y-m-d format)
+     * @param  string  $endDate  End date (Y-m-d format)
      * @return array NAD data with count, hours, and raw data
      */
     function fetchNADDataForPeriod($user, $startDate, $endDate)
@@ -237,26 +237,26 @@ if (! function_exists('fetchNADDataForPeriod')) {
 
         $nadData = [
             'start_date' => $startDate,
-            'end_date'   => $endDate,
-            'blab_only'  => 1,
+            'end_date' => $endDate,
+            'blab_only' => 1,
             'email_list' => [$user->email],
         ];
 
         $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
         $nadUserData = [];
-        $nadCount    = 0;
-        $nadHours    = 0;
+        $nadCount = 0;
+        $nadHours = 0;
 
         if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
             $nadUserData = collect($nadResponse['data'])->firstWhere('email', $user->email) ?? [];
-            $nadCount    = $nadUserData['nad_count'] ?? 0;
-            $nadHours    = $nadCount * $nadHourRate;
+            $nadCount = $nadUserData['nad_count'] ?? 0;
+            $nadHours = $nadCount * $nadHourRate;
         }
 
         return [
-            'nad_data'      => $nadUserData,
-            'nad_count'     => $nadCount,
-            'nad_hours'     => round($nadHours, 2),
+            'nad_data' => $nadUserData,
+            'nad_count' => $nadCount,
+            'nad_hours' => round($nadHours, 2),
             'nad_hour_rate' => $nadHourRate,
         ];
     }
@@ -265,9 +265,9 @@ if (! function_exists('fetchNADDataByEmails')) {
     /**
      * Fetch NAD data for a specific period.
      *
-     * @param array $emails The array of emails need to fetch
-     * @param string $startDate Start date (Y-m-d format)
-     * @param string $endDate End date (Y-m-d format)
+     * @param  array  $emails  The array of emails need to fetch
+     * @param  string  $startDate  Start date (Y-m-d format)
+     * @param  string  $endDate  End date (Y-m-d format)
      * @return array NAD data with count, hours, and raw data
      */
     function fetchNADDataByEmails($emails, $startDate, $endDate)
@@ -276,26 +276,26 @@ if (! function_exists('fetchNADDataByEmails')) {
 
         $nadData = [
             'start_date' => $startDate,
-            'end_date'   => $endDate,
-            'blab_only'  => 1,
+            'end_date' => $endDate,
+            'blab_only' => 1,
             'email_list' => $emails,
         ];
 
         $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
         $nadUserData = [];
-        $nadCount    = 0;
-        $nadHours    = 0;
+        $nadCount = 0;
+        $nadHours = 0;
 
         if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
             $nadUserData = $nadResponse['data'] ?? [];
-            $nadCount    = is_array($nadUserData) && isset($nadUserData['nad_count']) ? $nadUserData['nad_count'] : 0;
-            $nadHours    = $nadCount * $nadHourRate;
+            $nadCount = is_array($nadUserData) && isset($nadUserData['nad_count']) ? $nadUserData['nad_count'] : 0;
+            $nadHours = $nadCount * $nadHourRate;
         }
 
         return [
-            'nad_data'      => $nadUserData,
-            'nad_count'     => $nadCount,
-            'nad_hours'     => round($nadHours, 2),
+            'nad_data' => $nadUserData,
+            'nad_count' => $nadCount,
+            'nad_hours' => round($nadHours, 2),
             'nad_hour_rate' => $nadHourRate,
         ];
     }
@@ -304,8 +304,8 @@ if (! function_exists('fetchNADDataForUsers')) {
     /**
      * Fetch NAD data for a specific period.
      *
-     * @param string $startDate Start date (Y-m-d format)
-     * @param string $endDate End date (Y-m-d format)
+     * @param  string  $startDate  Start date (Y-m-d format)
+     * @param  string  $endDate  End date (Y-m-d format)
      * @return array NAD data with count, hours, and raw data
      */
     function fetchNADDataForUsers($startDate, $endDate)
@@ -314,26 +314,26 @@ if (! function_exists('fetchNADDataForUsers')) {
 
         $nadData = [
             'start_date' => $startDate,
-            'end_date'   => $endDate,
-            'blab_only'  => 1,
+            'end_date' => $endDate,
+            'blab_only' => 1,
             'email_list' => [],
         ];
 
         $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
         $nadUserData = [];
-        $nadCount    = 0;
-        $nadHours    = 0;
+        $nadCount = 0;
+        $nadHours = 0;
 
         if (! empty($nadResponse['status']) && $nadResponse['status'] === true && ! empty($nadResponse['data'])) {
             $nadUserData = $nadResponse['data'] ?? [];
-            $nadCount    = is_array($nadUserData) && isset($nadUserData['nad_count']) ? $nadUserData['nad_count'] : 0;
-            $nadHours    = $nadCount * $nadHourRate;
+            $nadCount = is_array($nadUserData) && isset($nadUserData['nad_count']) ? $nadUserData['nad_count'] : 0;
+            $nadHours = $nadCount * $nadHourRate;
         }
 
         return [
-            'nad_data'      => $nadUserData,
-            'nad_count'     => $nadCount,
-            'nad_hours'     => round($nadHours, 2),
+            'nad_data' => $nadUserData,
+            'nad_count' => $nadCount,
+            'nad_hours' => round($nadHours, 2),
             'nad_hour_rate' => $nadHourRate,
         ];
     }
@@ -344,9 +344,9 @@ if (! function_exists('generateReportCacheKey')) {
     /**
      * Generate a cache key for performance reports
      *
-     * @param string $reportType - 'daily', 'weekly', 'monthly', 'yearly'
-     * @param array $params - Parameters like year, week_number, month, start_date, end_date, etc.
-     * @param array $filters - Filters like work_status, region, search, sort_by, sort_order
+     * @param  string  $reportType  - 'daily', 'weekly', 'monthly', 'yearly'
+     * @param  array  $params  - Parameters like year, week_number, month, start_date, end_date, etc.
+     * @param  array  $filters  - Filters like work_status, region, search, sort_by, sort_order
      * @return string
      */
     function generateReportCacheKey($reportType, array $params = [], array $filters = [])
@@ -356,28 +356,28 @@ if (! function_exists('generateReportCacheKey')) {
 
         // Add time period parameters
         if (isset($params['year'])) {
-            $keyParts[] = 'year_' . $params['year'];
+            $keyParts[] = 'year_'.$params['year'];
         }
         if (isset($params['week_number'])) {
-            $keyParts[] = 'week_' . $params['week_number'];
+            $keyParts[] = 'week_'.$params['week_number'];
         }
         if (isset($params['month'])) {
-            $keyParts[] = 'month_' . $params['month'];
+            $keyParts[] = 'month_'.$params['month'];
         }
         if (isset($params['start_date']) && isset($params['end_date'])) {
-            $keyParts[] = 'range_' . $params['start_date'] . '_to_' . $params['end_date'];
+            $keyParts[] = 'range_'.$params['start_date'].'_to_'.$params['end_date'];
         }
 
         // Add filter parameters
         $filterParts = [];
         foreach ($filters as $key => $value) {
             if (! empty($value)) {
-                $filterParts[] = $key . '_' . md5($value);
+                $filterParts[] = $key.'_'.md5($value);
             }
         }
 
         if (! empty($filterParts)) {
-            $keyParts[] = 'filters_' . implode('_', $filterParts);
+            $keyParts[] = 'filters_'.implode('_', $filterParts);
         }
 
         return implode(':', $keyParts);
@@ -388,22 +388,26 @@ if (! function_exists('getCachedReportData')) {
     /**
      * Get cached report data
      *
-     * @param string $reportType
-     * @param array $params
-     * @param array $filters
+     * @param  string  $reportType
      * @return mixed|null
      */
     function getCachedReportData($reportType, array $params = [], array $filters = [])
     {
         $cacheKey = generateReportCacheKey($reportType, $params, $filters);
 
+        // Hash long cache keys to match the storage logic
+        if (strlen($cacheKey) > 250) {
+            $cacheKey = 'report:hashed:' . md5($cacheKey);
+        }
+
         try {
             return Cache::get($cacheKey);
         } catch (\Exception $e) {
             Log::warning('Cache retrieval failed', [
                 'cache_key' => $cacheKey,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -413,24 +417,28 @@ if (! function_exists('setCachedReportData')) {
     /**
      * Set cached report data
      *
-     * @param string $reportType
-     * @param array $params
-     * @param array $filters
-     * @param mixed $data
-     * @param int $ttlMinutes - Time to live in minutes
+     * @param  string  $reportType
+     * @param  mixed  $data
+     * @param  int  $ttlMinutes  - Time to live in minutes
      * @return bool
      */
     function setCachedReportData($reportType, array $params = [], array $filters = [], $data = null, $ttlMinutes = 30)
     {
         $cacheKey = generateReportCacheKey($reportType, $params, $filters);
 
+        // Hash long cache keys to prevent database truncation errors
+        if (strlen($cacheKey) > 250) {
+            $cacheKey = 'report:hashed:' . md5($cacheKey);
+        }
+
         try {
             return Cache::put($cacheKey, $data, now()->addMinutes($ttlMinutes));
         } catch (\Exception $e) {
             Log::warning('Cache storage failed', [
                 'cache_key' => $cacheKey,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -440,8 +448,8 @@ if (! function_exists('clearReportCache')) {
     /**
      * Clear cached report data
      *
-     * @param string $reportType - 'daily', 'weekly', 'monthly', 'yearly', 'all'
-     * @param array $params - Optional specific parameters to clear
+     * @param  string  $reportType  - 'daily', 'weekly', 'monthly', 'yearly', 'all'
+     * @param  array  $params  - Optional specific parameters to clear
      * @return bool
      */
     function clearReportCache($reportType = 'all', array $params = [])
@@ -463,6 +471,7 @@ if (! function_exists('clearReportCache')) {
                 }
 
                 Log::info('Cleared all performance report caches');
+
                 return true;
             } else {
                 // Clear specific report type cache
@@ -473,7 +482,7 @@ if (! function_exists('clearReportCache')) {
                 } else {
                     // Clear all caches for this report type
                     $pattern = "performance_report:{$reportType}:*";
-                    $keys    = Cache::getRedis()->keys($pattern);
+                    $keys = Cache::getRedis()->keys($pattern);
 
                     if (! empty($keys)) {
                         foreach ($keys as $key) {
@@ -490,9 +499,10 @@ if (! function_exists('clearReportCache')) {
         } catch (\Exception $e) {
             Log::error('Cache clearing failed', [
                 'report_type' => $reportType,
-                'params'      => $params,
-                'error'       => $e->getMessage(),
+                'params' => $params,
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -502,30 +512,38 @@ if (! function_exists('getReportCacheInfo')) {
     /**
      * Get cache information for debugging
      *
-     * @param string $reportType
-     * @param array $params
-     * @param array $filters
+     * @param  string  $reportType
      * @return array
      */
     function getReportCacheInfo($reportType, array $params = [], array $filters = [])
     {
         $cacheKey = generateReportCacheKey($reportType, $params, $filters);
+        $originalCacheKey = $cacheKey;
+
+        // Hash long cache keys to match the storage and retrieval logic
+        if (strlen($cacheKey) > 250) {
+            $cacheKey = 'report:hashed:' . md5($cacheKey);
+        }
 
         try {
             $exists = Cache::has($cacheKey);
-            $data   = $exists ? Cache::get($cacheKey) : null;
+            $data = $exists ? Cache::get($cacheKey) : null;
 
             return [
+                'original_cache_key' => $originalCacheKey,
                 'cache_key' => $cacheKey,
-                'exists'    => $exists,
+                'key_was_hashed' => $originalCacheKey !== $cacheKey,
+                'exists' => $exists,
                 'data_size' => $data ? strlen(serialize($data)) : 0,
                 'cached_at' => $exists && is_array($data) && isset($data['cached_at']) ? $data['cached_at'] : null,
             ];
         } catch (\Exception $e) {
             return [
+                'original_cache_key' => $originalCacheKey,
                 'cache_key' => $cacheKey,
-                'exists'    => false,
-                'error'     => $e->getMessage(),
+                'key_was_hashed' => $originalCacheKey !== $cacheKey,
+                'exists' => false,
+                'error' => $e->getMessage(),
             ];
         }
     }
@@ -535,14 +553,14 @@ if (! function_exists('wrapDataWithCacheInfo')) {
     /**
      * Wrap data with cache metadata
      *
-     * @param mixed $data
+     * @param  mixed  $data
      * @return array
      */
     function wrapDataWithCacheInfo($data)
     {
         return [
-            'data'          => $data,
-            'cached_at'     => now()->toISOString(),
+            'data' => $data,
+            'cached_at' => now()->toISOString(),
             'cache_version' => '1.0',
         ];
     }
@@ -554,19 +572,20 @@ if (! function_exists('filterWorklogsByDateRange')) {
     /**
      * Filter worklogs by date range with timezone support.
      *
-     * @param \Illuminate\Support\Collection $worklogs
-     * @param string $startDate
-     * @param string $endDate
-     * @param string $timezone
+     * @param  \Illuminate\Support\Collection  $worklogs
+     * @param  string  $startDate
+     * @param  string  $endDate
+     * @param  string  $timezone
      * @return \Illuminate\Support\Collection
      */
     function filterWorklogsByDateRange($worklogs, $startDate, $endDate, $timezone = 'Asia/Singapore')
     {
         $start = Carbon::parse($startDate, $timezone)->startOfDay();
-        $end   = Carbon::parse($endDate, $timezone)->endOfDay();
+        $end = Carbon::parse($endDate, $timezone)->endOfDay();
 
         return $worklogs->filter(function ($worklog) use ($start, $end, $timezone) {
             $worklogDate = Carbon::parse($worklog->start_time)->setTimezone($timezone);
+
             return $worklogDate->between($start, $end);
         });
     }
@@ -577,9 +596,9 @@ if (! function_exists('checkTaskCategoryType')) {
     /**
      * Check if a task belongs to a specific category type.
      *
-     * @param int $taskId
-     * @param \Illuminate\Support\Collection $taskCategoryMappings
-     * @param string $categoryType 'billable' or 'non-billable'
+     * @param  int  $taskId
+     * @param  \Illuminate\Support\Collection  $taskCategoryMappings
+     * @param  string  $categoryType  'billable' or 'non-billable'
      * @return bool
      */
     function checkTaskCategoryType($taskId, $taskCategoryMappings, $categoryType)
@@ -591,6 +610,7 @@ if (! function_exists('checkTaskCategoryType')) {
         $mapping = $taskCategoryMappings[$taskId]->first();
         if ($mapping && $mapping->category && $mapping->category->categoryType) {
             $actualCategoryType = $mapping->category->categoryType->setting_value;
+
             return strtolower($actualCategoryType) === strtolower($categoryType);
         }
 
@@ -603,19 +623,19 @@ if (! function_exists('ivaAdjustStartDate')) {
     /**
      * Adjust start date based on user hire date
      *
-     * @param object $user - The IvaUser model instance
-     * @param string $startDate - The original start date
-     * @param string $endDate - The end date for validation
-     * @param bool $getMonday - Whether to get Monday of hire date week
+     * @param  object  $user  - The IvaUser model instance
+     * @param  string  $startDate  - The original start date
+     * @param  string  $endDate  - The end date for validation
+     * @param  bool  $getMonday  - Whether to get Monday of hire date week
      * @return array - Returns adjusted start date and validation status
      */
     function ivaAdjustStartDate($user, $startDate, $endDate, $getMonday = false)
     {
         $originalStartDate = Carbon::parse($startDate);
-        $originalEndDate   = Carbon::parse($endDate);
+        $originalEndDate = Carbon::parse($endDate);
         $adjustedStartDate = $originalStartDate;
-        $adjustedEndDate   = $originalEndDate;
-        $changedStartDate  = false;
+        $adjustedEndDate = $originalEndDate;
+        $changedStartDate = false;
         $adjustmentMessage = '';
         // Check if hire date is in the middle of start and end date
         if (Carbon::parse($user->hire_date)->between($originalStartDate, $originalEndDate)) {
@@ -624,7 +644,7 @@ if (! function_exists('ivaAdjustStartDate')) {
             if ($getMonday) {
                 // Get Monday of the week that hire date falls in
                 $adjustedStartDate = $hireDate->copy()->startOfWeek(Carbon::MONDAY);
-                $adjustmentMessage = 'The start date is the Monday of the week of the hire date. ' . $hireDate->format('M d, Y');
+                $adjustmentMessage = 'The start date is the Monday of the week of the hire date. '.$hireDate->format('M d, Y');
             } else {
                 // Use hire date as is
                 $adjustedStartDate = $hireDate;
@@ -639,12 +659,12 @@ if (! function_exists('ivaAdjustStartDate')) {
             if ($getMonday) {
                 // Get Monday of the week that hire date falls in
                 $adjustedStartDate = $hireDate->copy()->startOfWeek(Carbon::MONDAY);
-                $adjustedEndDate   = $hireDate->copy()->startOfWeek(Carbon::MONDAY);
+                $adjustedEndDate = $hireDate->copy()->startOfWeek(Carbon::MONDAY);
                 $adjustmentMessage = 'Hire date is after end date, both start and end dates set to Monday of hire date week';
             } else {
                 // Use hire date as is
                 $adjustedStartDate = $hireDate;
-                $adjustedEndDate   = $hireDate;
+                $adjustedEndDate = $hireDate;
                 $adjustmentMessage = 'Hire date is after end date, both start and end dates set to hire date';
             }
             $changedStartDate = true;
@@ -655,14 +675,14 @@ if (! function_exists('ivaAdjustStartDate')) {
 
         return [
             'adjusted_start_date' => $adjustedStartDate->format('Y-m-d'),
-            'adjusted_end_date'   => $adjustedEndDate->format('Y-m-d'),
+            'adjusted_end_date' => $adjustedEndDate->format('Y-m-d'),
             'original_start_date' => $originalStartDate->format('Y-m-d'),
-            'original_end_date'   => $originalEndDate->format('Y-m-d'),
+            'original_end_date' => $originalEndDate->format('Y-m-d'),
             'is_valid_week_range' => $daysDiffInclusive >= 7,
-            'days_difference'     => $daysDiffInclusive,
+            'days_difference' => $daysDiffInclusive,
             // 'hire_date_used'      => ! is_null($user->hire_date) && Carbon::parse($user->hire_date)->gte($originalStartDate),
-            'changed_start_date'  => $changedStartDate,
-            'adjustment_message'  => $adjustmentMessage,
+            'changed_start_date' => $changedStartDate,
+            'adjustment_message' => $adjustmentMessage,
         ];
         //  if (!is_null($user->hire_date)) {
         //     $hireDate = Carbon::parse($user->hire_date);
@@ -714,9 +734,9 @@ if (! function_exists('calculateWorkStatusPeriods')) {
      */
     function calculateWorkStatusPeriods($user, $startDate, $endDate, $workStatusChanges)
     {
-        $periods   = [];
+        $periods = [];
         $startDate = Carbon::parse($startDate);
-        $endDate   = Carbon::parse($endDate);
+        $endDate = Carbon::parse($endDate);
 
         // Get the Monday of the week containing startDate
         $currentWeekStart = $startDate->copy()->startOfWeek(Carbon::MONDAY);
@@ -733,33 +753,34 @@ if (! function_exists('calculateWorkStatusPeriods')) {
             // Find all changes that occur in this week
             $changesInWeek = $workStatusChanges->filter(function ($change) use ($currentWeekStart, $currentWeekEnd) {
                 $changeDate = Carbon::parse($change->effective_date);
+
                 return $changeDate->gte($currentWeekStart) && $changeDate->lte($currentWeekEnd);
             })->sortBy('effective_date');
 
             // If there are changes in this week, use the last change
             if ($changesInWeek->isNotEmpty()) {
-                $lastChange        = $changesInWeek->last();
+                $lastChange = $changesInWeek->last();
                 $currentWorkStatus = json_decode($lastChange->new_value, true);
             }
 
             // Calculate the actual start and end dates for this period
             // (constrain to the original date range)
             $periodStart = $currentWeekStart->lt($startDate) ? $startDate : $currentWeekStart;
-            $periodEnd   = $currentWeekEnd->gt($endDate) ? $endDate : $currentWeekEnd;
+            $periodEnd = $currentWeekEnd->gt($endDate) ? $endDate : $currentWeekEnd;
 
             // Only add period if it's within our date range
             if ($periodStart->lte($endDate) && $periodEnd->gte($startDate)) {
                 // Ensure we're working with date-only for accurate day calculation
                 $startDateOnly = Carbon::parse($periodStart->toDateString());
-                $endDateOnly   = Carbon::parse($periodEnd->toDateString());
+                $endDateOnly = Carbon::parse($periodEnd->toDateString());
 
                 $periods[] = [
                     'work_status' => $currentWorkStatus,
-                    'start_date'  => $periodStart->toDateString(),
-                    'end_date'    => $periodEnd->toDateString(),
-                    'days'        => $startDateOnly->diffInDays($endDateOnly) + 1,
-                    'week_start'  => $currentWeekStart->toDateString(),
-                    'week_end'    => $currentWeekEnd->toDateString(),
+                    'start_date' => $periodStart->toDateString(),
+                    'end_date' => $periodEnd->toDateString(),
+                    'days' => $startDateOnly->diffInDays($endDateOnly) + 1,
+                    'week_start' => $currentWeekStart->toDateString(),
+                    'week_end' => $currentWeekEnd->toDateString(),
                 ];
             }
 
@@ -787,7 +808,7 @@ if (! function_exists('getInitialWorkStatus')) {
             return $user->work_status ?: 'full-time';
         }
 
-        $firstChange     = $sortedChanges->first();
+        $firstChange = $sortedChanges->first();
         $firstChangeDate = Carbon::parse($firstChange->effective_date);
 
         // If target date is before the first change, use the old_value from first change
@@ -842,16 +863,16 @@ if (! function_exists('getWorkHourSettings')) {
 
         foreach ($settings as $setting) {
             $defaultHours = (float) $setting->setting_value;
-            $customHours  = getCustomValueForPeriod($user->id, $setting->id, $periodStartDate, $periodEndDate);
-            $actualHours  = $customHours !== null ? $customHours : $defaultHours;
+            $customHours = getCustomValueForPeriod($user->id, $setting->id, $periodStartDate, $periodEndDate);
+            $actualHours = $customHours !== null ? $customHours : $defaultHours;
 
             $hourSettings[] = [
-                'id'            => $setting->id,
-                'setting_name'  => $setting->setting_value,
-                'hours'         => $actualHours,
-                'is_custom'     => $customHours !== null,
+                'id' => $setting->id,
+                'setting_name' => $setting->setting_value,
+                'hours' => $actualHours,
+                'is_custom' => $customHours !== null,
                 'default_hours' => $defaultHours,
-                'custom_hours'  => $customHours,
+                'custom_hours' => $customHours,
             ];
         }
 
@@ -875,7 +896,7 @@ if (! function_exists('getCustomValueForPeriod')) {
         }
 
         $periodStart = Carbon::parse($periodStartDate);
-        $periodEnd   = Carbon::parse($periodEndDate);
+        $periodEnd = Carbon::parse($periodEndDate);
 
         // Find customizations that overlap with the given period
         $customSetting = IvaUserCustomize::where('iva_user_id', $userId)
@@ -910,11 +931,11 @@ if (! function_exists('calculatePerformanceMetrics')) {
     /**
      * Calculate performance metrics for a user and period.
      *
-     * @param object $user The IvaUser model instance
-     * @param \Illuminate\Support\Collection $worklogs
-     * @param string $startDate
-     * @param string $endDate
-     * @param \Illuminate\Support\Collection $workStatusChanges
+     * @param  object  $user  The IvaUser model instance
+     * @param  \Illuminate\Support\Collection  $worklogs
+     * @param  string  $startDate
+     * @param  string  $endDate
+     * @param  \Illuminate\Support\Collection  $workStatusChanges
      * @return array Performance metrics
      */
     function calculatePerformanceMetrics($user, $worklogs, $startDate, $endDate, $workStatusChanges)
@@ -933,18 +954,18 @@ if (! function_exists('calculatePerformanceMetrics')) {
         $performances = [];
 
         foreach ($settingCombinations as $combination) {
-            $targetTotalHours  = 0;
-            $totalPeriodWeeks  = 0;
-            $totalPeriodDays   = 0;
+            $targetTotalHours = 0;
+            $totalPeriodWeeks = 0;
+            $totalPeriodDays = 0;
             $workStatusDisplay = [];
 
             // Sum target hours across all periods for this setting combination
             foreach ($workStatusPeriods as $periodIndex => $period) {
-                $workStatus  = $period['work_status'] ?: 'full-time';
-                $periodDays  = $period['days'];
+                $workStatus = $period['work_status'] ?: 'full-time';
+                $periodDays = $period['days'];
                 $periodWeeks = $periodDays / 7;
                 $periodStart = $period['start_date'];
-                $periodEnd   = $period['end_date'];
+                $periodEnd = $period['end_date'];
 
                 // Get setting for this period based on the combination
                 $settingForPeriod = getSettingForPeriod($user, $workStatus, $periodStart, $periodEnd, $combination, $periodIndex);
@@ -972,17 +993,17 @@ if (! function_exists('calculatePerformanceMetrics')) {
             }
 
             $performances[] = [
-                'target_id'             => $combination['id'],
-                'work_status'           => implode(' + ', $workStatusDisplay),
+                'target_id' => $combination['id'],
+                'work_status' => implode(' + ', $workStatusDisplay),
                 'target_hours_per_week' => $combination['display_hours'],
-                'target_total_hours'    => round($targetTotalHours, 2),
-                'actual_hours'          => round($billableHours, 2),
-                'percentage'            => round($percentage, 1),
-                'status'                => $status,
-                'actual_vs_target'      => round($billableHours - $targetTotalHours, 2),
-                'period_weeks'          => round($totalPeriodWeeks, 1),
-                'period_days'           => $totalPeriodDays,
-                'combination_details'   => $combination['details'],
+                'target_total_hours' => round($targetTotalHours, 2),
+                'actual_hours' => round($billableHours, 2),
+                'percentage' => round($percentage, 1),
+                'status' => $status,
+                'actual_vs_target' => round($billableHours - $targetTotalHours, 2),
+                'period_weeks' => round($totalPeriodWeeks, 1),
+                'period_days' => $totalPeriodDays,
+                'combination_details' => $combination['details'],
             ];
         }
 
@@ -1021,16 +1042,16 @@ if (! function_exists('determineSettingCombinations')) {
 
         if (count($uniqueStatuses) === 1) {
             // Single work status throughout the period
-            $status   = $uniqueStatuses[0];
+            $status = $uniqueStatuses[0];
             $settings = $statusSettings[$status];
 
             foreach ($settings as $setting) {
                 $combinations[] = [
-                    'id'            => $setting['id'],
+                    'id' => $setting['id'],
                     'display_hours' => $setting['hours'],
-                    'details'       => [
-                        'type'       => 'single_status',
-                        'status'     => $status,
+                    'details' => [
+                        'type' => 'single_status',
+                        'status' => $status,
                         'setting_id' => $setting['id'],
                     ],
                 ];
@@ -1042,12 +1063,12 @@ if (! function_exists('determineSettingCombinations')) {
 
             foreach ($fullTimeSettings as $setting) {
                 $combinations[] = [
-                    'id'            => $setting['id'],
+                    'id' => $setting['id'],
                     'display_hours' => $setting['hours'],
-                    'details'       => [
-                        'type'               => 'mixed_status',
+                    'details' => [
+                        'type' => 'mixed_status',
                         'primary_setting_id' => $setting['id'],
-                        'statuses'           => $uniqueStatuses,
+                        'statuses' => $uniqueStatuses,
                     ],
                 ];
             }
@@ -1068,6 +1089,7 @@ if (! function_exists('getSettingForPeriod')) {
         if ($combination['details']['type'] === 'single_status') {
             // Single status - use the setting directly
             $periodHourSettings = getWorkHourSettings($user, $workStatus, $periodStart, $periodEnd);
+
             return collect($periodHourSettings)->firstWhere('id', $combination['details']['setting_id']) ?? $periodHourSettings[0] ?? ['hours' => 0];
         } else {
             // Mixed status - use combination logic
@@ -1162,8 +1184,8 @@ if (! function_exists('convertToTimeDoctorTimezone')) {
      * Convert local time to UTC for TimeDoctor API
      * TimeDoctor stores data in UTC, so we need to convert from local timezone
      *
-     * @param string|Carbon $dateTime
-     * @param string $timezone Default to Singapore timezone (Asia/Singapore)
+     * @param  string|Carbon  $dateTime
+     * @param  string  $timezone  Default to Singapore timezone (Asia/Singapore)
      * @return Carbon
      */
     function convertToTimeDoctorTimezone($dateTime, $timezone = 'Asia/Singapore')
@@ -1187,8 +1209,8 @@ if (! function_exists('convertFromTimeDoctorTimezone')) {
     /**
      * Convert UTC time from TimeDoctor API to local timezone
      *
-     * @param string|Carbon $dateTime
-     * @param string $timezone Default to Singapore timezone (Asia/Singapore)
+     * @param  string|Carbon  $dateTime
+     * @param  string  $timezone  Default to Singapore timezone (Asia/Singapore)
      * @return Carbon
      */
     function convertFromTimeDoctorTimezone($dateTime, $timezone = 'Asia/Singapore')
@@ -1209,13 +1231,14 @@ if (! function_exists('formatTimeDoctorApiDateTime')) {
     /**
      * Format datetime for TimeDoctor API (ISO 8601 format in UTC)
      *
-     * @param string|Carbon $dateTime
-     * @param string $localTimezone
+     * @param  string|Carbon  $dateTime
+     * @param  string  $localTimezone
      * @return string
      */
     function formatTimeDoctorApiDateTime($dateTime, $localTimezone = 'Asia/Singapore')
     {
         $utcDateTime = convertToTimeDoctorTimezone($dateTime, $localTimezone);
+
         return $utcDateTime->format('Y-m-d\TH:i:s.v\Z');
     }
 }
@@ -1230,42 +1253,42 @@ if (! function_exists('getTimeDoctorDateRange')) {
      * - Start: 2025-06-22 00:00:00 GMT+8 = 2025-06-21 16:00:00 UTC
      * - End: 2025-06-22 23:59:59 GMT+8 = 2025-06-22 15:59:59 UTC
      *
-     * @param string $startDate Y-m-d format
-     * @param string $endDate Y-m-d format
-     * @param string $localTimezone
+     * @param  string  $startDate  Y-m-d format
+     * @param  string  $endDate  Y-m-d format
+     * @param  string  $localTimezone
      * @return array ['from' => string, 'to' => string]
      */
     function getTimeDoctorDateRange($startDate, $endDate, $localTimezone = 'Asia/Singapore')
     {
         // Create start of day in local timezone (GMT+8)
-        $fromLocal = Carbon::createFromFormat('Y-m-d H:i:s', $startDate . ' 00:00:00', $localTimezone);
+        $fromLocal = Carbon::createFromFormat('Y-m-d H:i:s', $startDate.' 00:00:00', $localTimezone);
 
         // Create end of day in local timezone (GMT+8)
-        $toLocal = Carbon::createFromFormat('Y-m-d H:i:s', $endDate . ' 23:59:59', $localTimezone);
+        $toLocal = Carbon::createFromFormat('Y-m-d H:i:s', $endDate.' 23:59:59', $localTimezone);
 
         // Convert to UTC as required by TimeDoctor API
         $fromUtc = $fromLocal->utc();
-        $toUtc   = $toLocal->utc();
+        $toUtc = $toLocal->utc();
 
         // Format for TimeDoctor API (exact format as in your example)
         $fromFormatted = $fromUtc->format('Y-m-d\TH:i:s.v\Z');
-        $toFormatted   = $toUtc->format('Y-m-d\TH:i:s.v\Z');
+        $toFormatted = $toUtc->format('Y-m-d\TH:i:s.v\Z');
 
-        Log::debug("TimeDoctor date range conversion", [
-            'input_start'    => $startDate,
-            'input_end'      => $endDate,
+        Log::debug('TimeDoctor date range conversion', [
+            'input_start' => $startDate,
+            'input_end' => $endDate,
             'local_timezone' => $localTimezone,
-            'from_local'     => $fromLocal->format('Y-m-d H:i:s T'),
-            'to_local'       => $toLocal->format('Y-m-d H:i:s T'),
-            'from_utc'       => $fromUtc->format('Y-m-d H:i:s T'),
-            'to_utc'         => $toUtc->format('Y-m-d H:i:s T'),
+            'from_local' => $fromLocal->format('Y-m-d H:i:s T'),
+            'to_local' => $toLocal->format('Y-m-d H:i:s T'),
+            'from_utc' => $fromUtc->format('Y-m-d H:i:s T'),
+            'to_utc' => $toUtc->format('Y-m-d H:i:s T'),
             'from_formatted' => $fromFormatted,
-            'to_formatted'   => $toFormatted,
+            'to_formatted' => $toFormatted,
         ]);
 
         return [
             'from' => $fromFormatted,
-            'to'   => $toFormatted,
+            'to' => $toFormatted,
         ];
     }
 }
@@ -1274,10 +1297,11 @@ if (! function_exists('getWeekRangeForDates')) {
     /**
      * Generate week ranges between two dates.
      *
-     * @param string $startDate Start date (must be a Monday)
-     * @param string $endDate End date (must be a Sunday)
-     * @param int $weekNumber Starting week number
+     * @param  string  $startDate  Start date (must be a Monday)
+     * @param  string  $endDate  End date (must be a Sunday)
+     * @param  int  $weekNumber  Starting week number
      * @return array
+     *
      * @throws \Exception
      */
     function getWeekRangeForDates($startDate, $endDate, $weekNumber = 1)
@@ -1286,19 +1310,19 @@ if (! function_exists('getWeekRangeForDates')) {
 
         // Create Carbon instances
         $start = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
-        $end   = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
+        $end = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
 
         // Validation
         if (! $start->isMonday()) {
-            throw new \Exception("Start date must be a Monday.");
+            throw new \Exception('Start date must be a Monday.');
         }
 
         if (! $end->isSunday()) {
-            throw new \Exception("End date must be a Sunday.");
+            throw new \Exception('End date must be a Sunday.');
         }
 
         if ($start->gt($end)) {
-            throw new \Exception("Start date must be before end date.");
+            throw new \Exception('Start date must be before end date.');
         }
 
         $weeks = [];
@@ -1307,13 +1331,13 @@ if (! function_exists('getWeekRangeForDates')) {
 
         while ($current->lte($end)) {
             $weekStart = $current->copy();
-            $weekEnd   = $current->copy()->addDays(6);
+            $weekEnd = $current->copy()->addDays(6);
 
             $weeks[] = [
                 'week_number' => $weekNumber,
-                'start_date'  => $weekStart->format('Y-m-d'),
-                'end_date'    => $weekEnd->format('Y-m-d'),
-                'label'       => sprintf(
+                'start_date' => $weekStart->format('Y-m-d'),
+                'end_date' => $weekEnd->format('Y-m-d'),
+                'label' => sprintf(
                     'Week %d (%s - %s)',
                     $weekNumber,
                     $weekStart->format('M d'),
@@ -1335,11 +1359,12 @@ if (! function_exists('getMonthRangeForDates')) {
      * Generate simplified month-like ranges (each consisting of 4 weeks = 28 days).
      * Optionally adjusts start date to a given adjusted date if it falls inside a range.
      *
-     * @param string      $startDate     Must be a Monday (Y-m-d format)
-     * @param string      $endDate       Must be a Sunday (Y-m-d format)
-     * @param int         $monthCount    Number of 28-day periods to generate
-     * @param string|null $adjustedDate  Optional date to shift start within a matching 28-day period
+     * @param  string  $startDate  Must be a Monday (Y-m-d format)
+     * @param  string  $endDate  Must be a Sunday (Y-m-d format)
+     * @param  int  $monthCount  Number of 28-day periods to generate
+     * @param  string|null  $adjustedDate  Optional date to shift start within a matching 28-day period
      * @return array
+     *
      * @throws \Exception
      */
     function getMonthRangeForDates($startDate, $endDate, $monthCount = 1, $adjustedDate = null)
@@ -1347,29 +1372,29 @@ if (! function_exists('getMonthRangeForDates')) {
         $timezone = config('app.timezone', 'Asia/Singapore');
 
         // Create Carbon instances
-        $start    = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
-        $end      = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
+        $start = Carbon::createFromFormat('Y-m-d', $startDate, $timezone)->startOfDay();
+        $end = Carbon::createFromFormat('Y-m-d', $endDate, $timezone)->endOfDay();
         $adjusted = $adjustedDate ? Carbon::createFromFormat('Y-m-d', $adjustedDate, $timezone)->startOfDay() : null;
 
         // Validation
         if (! $start->isMonday()) {
-            throw new \Exception("Start date must be a Monday.");
+            throw new \Exception('Start date must be a Monday.');
         }
 
         if (! $end->isSunday()) {
-            throw new \Exception("End date must be a Sunday.");
+            throw new \Exception('End date must be a Sunday.');
         }
 
         if ($start->gt($end)) {
-            throw new \Exception("Start date must be before end date.");
+            throw new \Exception('Start date must be before end date.');
         }
 
-        $months  = [];
+        $months = [];
         $current = $start->copy();
 
         for ($i = 0; $i < $monthCount; $i++) {
             $rangeStart = $current->copy();
-            $rangeEnd   = $current->copy()->addDays(27); // 28-day period
+            $rangeEnd = $current->copy()->addDays(27); // 28-day period
 
             if ($rangeEnd->gt($end)) {
                 break; // skip if we exceed allowed range
@@ -1383,14 +1408,15 @@ if (! function_exists('getMonthRangeForDates')) {
             // If adjusted date is AFTER this 28-day period, skip
             if ($adjusted && $adjusted->gt($rangeEnd)) {
                 $current->addDays(28);
+
                 continue;
             }
 
             $months[] = [
                 'month_number' => $i + 1,
-                'start_date'   => $rangeStart->format('Y-m-d'),
-                'end_date'     => $rangeEnd->format('Y-m-d'),
-                'label'        => $rangeStart->format('F'),
+                'start_date' => $rangeStart->format('Y-m-d'),
+                'end_date' => $rangeEnd->format('Y-m-d'),
+                'label' => $rangeStart->format('F'),
             ];
 
             $current->addDays(28);

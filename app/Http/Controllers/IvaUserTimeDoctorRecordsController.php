@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -18,12 +19,15 @@ use Illuminate\Support\Facades\Validator;
 class IvaUserTimeDoctorRecordsController extends Controller
 {
     protected $timeDoctorService;
+
     protected $timeDoctorV2Service;
+
     protected $dailyWorklogSummaryService;
+
     const BATCH_SIZE = 100;
 
     public function __construct(
-        TimeDoctorService $timeDoctorService, 
+        TimeDoctorService $timeDoctorService,
         TimeDoctorV2Service $timeDoctorV2Service,
         DailyWorklogSummaryService $dailyWorklogSummaryService
     ) {
@@ -68,7 +72,6 @@ class IvaUserTimeDoctorRecordsController extends Controller
             $query->where('task_id', $request->task_id);
         }
 
-
         // Apply API type filter
         if ($request->has('api_type') && ! empty($request->api_type)) {
             $query->where('api_type', $request->api_type);
@@ -79,6 +82,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
         // Transform duration to hours for frontend
         $worklogs->transform(function ($worklog) {
             $worklog->duration_hours = $worklog->duration / 3600; // Convert seconds to hours
+
             return $worklog;
         });
 
@@ -97,14 +101,14 @@ class IvaUserTimeDoctorRecordsController extends Controller
         // );
 
         return response()->json([
-            'success'  => true,
+            'success' => true,
             'worklogs' => [
-                'data'         => $worklogs,
-                'total'        => $total,
+                'data' => $worklogs,
+                'total' => $total,
                 'current_page' => 1,
-                'per_page'     => $total,
+                'per_page' => $total,
             ],
-            'user'     => $user,
+            'user' => $user,
         ]);
     }
 
@@ -117,19 +121,19 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
         $validator = Validator::make($request->all(), [
             'start_date' => 'required|date',
-            'end_date'   => 'required|date|after_or_equal:start_date',
+            'end_date' => 'required|date|after_or_equal:start_date',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $startDate = Carbon::parse($request->start_date)->startOfDay();
-        $endDate   = Carbon::parse($request->end_date)->endOfDay();
+        $endDate = Carbon::parse($request->end_date)->endOfDay();
 
         // Check date range limit (31 days)
         if ($startDate->diffInDays($endDate) > 31) {
@@ -149,29 +153,29 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error syncing Time Doctor records for user', [
-                'user_id'            => $id,
-                'user_name'          => $user->full_name,
+                'user_id' => $id,
+                'user_name' => $user->full_name,
                 'timedoctor_version' => $user->timedoctor_version,
-                'error'              => $e->getMessage(),
-                'trace'              => $e->getTraceAsString(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             // Log the failed sync activity
             ActivityLogService::log(
                 'sync_timedoctor_records',
-                'Failed to sync Time Doctor records for user: ' . $user->full_name,
+                'Failed to sync Time Doctor records for user: '.$user->full_name,
                 [
-                    'user_id'            => $id,
-                    'start_date'         => $request->start_date,
-                    'end_date'           => $request->end_date,
+                    'user_id' => $id,
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
                     'timedoctor_version' => $user->timedoctor_version,
-                    'error'              => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]
             );
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to sync Time Doctor records: ' . $e->getMessage(),
+                'message' => 'Failed to sync Time Doctor records: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -186,7 +190,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
             ->get(['id', 'project_name', 'timedoctor_id']);
 
         return response()->json([
-            'success'  => true,
+            'success' => true,
             'projects' => $projects,
         ]);
     }
@@ -202,7 +206,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
         return response()->json([
             'success' => true,
-            'tasks'   => $tasks,
+            'tasks' => $tasks,
         ]);
     }
 
@@ -222,7 +226,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -271,7 +275,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch daily summaries: ' . $e->getMessage(),
+                'message' => 'Failed to fetch daily summaries: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -296,7 +300,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
         }
 
         $syncedCount = 0;
-        $errorCount  = 0;
+        $errorCount = 0;
 
         DB::beginTransaction();
 
@@ -314,13 +318,13 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
             while ($currentDate->lte($endDate)) {
                 $dayStart = $currentDate->copy()->startOfDay();
-                $dayEnd   = $currentDate->copy()->endOfDay();
+                $dayEnd = $currentDate->copy()->endOfDay();
 
                 Log::info("Syncing V1 worklogs for user {$user->full_name} on {$currentDate->format('Y-m-d')}");
 
                 // Fetch worklogs from TimeDoctor V1 for this day
-                $offset      = 1;
-                $limit       = 250;
+                $offset = 1;
+                $limit = 250;
                 $hasMoreData = true;
 
                 while ($hasMoreData) {
@@ -350,12 +354,13 @@ class IvaUserTimeDoctorRecordsController extends Controller
                         try {
                             if (! isset($worklog['id']) || ! isset($worklog['start_time']) || ! isset($worklog['end_time'])) {
                                 $errorCount++;
+
                                 continue;
                             }
 
                             $worklogStartTime = Carbon::parse($worklog['start_time']);
-                            $worklogEndTime   = Carbon::parse($worklog['end_time']);
-                            $duration         = isset($worklog['length']) ? (int) $worklog['length'] : $worklogEndTime->diffInSeconds($worklogStartTime);
+                            $worklogEndTime = Carbon::parse($worklog['end_time']);
+                            $duration = isset($worklog['length']) ? (int) $worklog['length'] : $worklogEndTime->diffInSeconds($worklogStartTime);
 
                             // Find project mapping
                             $projectId = null;
@@ -371,8 +376,8 @@ class IvaUserTimeDoctorRecordsController extends Controller
                             // Find task mapping
                             $taskId = null;
                             if (isset($worklog['task_id'])) {
-                                $task = Task::where('user_list', 'like', '%"tId":"' . $worklog['task_id'] . '"%')
-                                    ->orWhere('user_list', 'like', '%"tId":' . $worklog['task_id'] . '%')
+                                $task = Task::where('user_list', 'like', '%"tId":"'.$worklog['task_id'].'"%')
+                                    ->orWhere('user_list', 'like', '%"tId":'.$worklog['task_id'].'%')
                                     ->first();
 
                                 if ($task) {
@@ -388,28 +393,28 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
                             // Create new worklog (we already deleted existing ones)
                             WorklogsData::create([
-                                'iva_id'                => $user->id,
+                                'iva_id' => $user->id,
                                 'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                                'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                                'project_id'            => $projectId,
-                                'task_id'               => $taskId,
-                                'work_mode'             => $worklog['work_mode'] ?? '0',
-                                'start_time'            => $worklogStartTime,
-                                'end_time'              => $worklogEndTime,
-                                'duration'              => $duration,
-                                'device_id'             => null,
-                                'comment'               => $comment,
-                                'api_type'              => 'timedoctor',
+                                'timedoctor_task_id' => $worklog['task_id'] ?? null,
+                                'project_id' => $projectId,
+                                'task_id' => $taskId,
+                                'work_mode' => $worklog['work_mode'] ?? '0',
+                                'start_time' => $worklogStartTime,
+                                'end_time' => $worklogEndTime,
+                                'duration' => $duration,
+                                'device_id' => null,
+                                'comment' => $comment,
+                                'api_type' => 'timedoctor',
                                 'timedoctor_worklog_id' => $worklog['id'],
-                                'timedoctor_version'    => 1,
-                                'tm_user_id'            => $worklog['user_id'] ?? null,
-                                'is_active'             => true,
+                                'timedoctor_version' => 1,
+                                'tm_user_id' => $worklog['user_id'] ?? null,
+                                'is_active' => true,
                             ]);
                             $syncedCount++;
                         } catch (\Exception $e) {
                             Log::error("Error processing V1 worklog item for user {$user->full_name}", [
                                 'worklog' => $worklog,
-                                'error'   => $e->getMessage(),
+                                'error' => $e->getMessage(),
                             ]);
                             $errorCount++;
                         }
@@ -418,7 +423,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
                     $hasMoreData = count($worklogItems) >= $limit;
                     $offset += $limit;
 
-                                    // Add a small delay to avoid rate limiting
+                    // Add a small delay to avoid rate limiting
                     usleep(200000); // 200ms
                 }
 
@@ -430,16 +435,16 @@ class IvaUserTimeDoctorRecordsController extends Controller
             // Log the sync activity
             ActivityLogService::log(
                 'sync_timedoctor_records',
-                'Synced TimeDoctor V1 records for user: ' . $user->full_name,
+                'Synced TimeDoctor V1 records for user: '.$user->full_name,
                 [
-                    'user_id'            => $user->id,
-                    'start_date'         => $startDate->format('Y-m-d'),
-                    'end_date'           => $endDate->format('Y-m-d'),
+                    'user_id' => $user->id,
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
                     'timedoctor_version' => 1,
-                    'synced_count'       => $syncedCount,
-                    'deleted_count'      => $deletedCount,
-                    'error_count'        => $errorCount,
-                    'total_processed'    => $syncedCount,
+                    'synced_count' => $syncedCount,
+                    'deleted_count' => $deletedCount,
+                    'error_count' => $errorCount,
+                    'total_processed' => $syncedCount,
                 ]
             );
 
@@ -448,25 +453,25 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 $this->calculateDailySummariesAfterSync($user->id, $startDate, $endDate);
                 Log::info('Daily worklog summaries calculated after TimeDoctor V1 sync', [
                     'user_id' => $user->id,
-                    'date_range' => [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]
+                    'date_range' => [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')],
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to calculate daily summaries after TimeDoctor V1 sync', [
                     'user_id' => $user->id,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
             }
 
             return response()->json([
-                'success'       => true,
-                'message'       => 'TimeDoctor V1 records sync completed successfully',
-                'synced_count'  => $syncedCount,
+                'success' => true,
+                'message' => 'TimeDoctor V1 records sync completed successfully',
+                'synced_count' => $syncedCount,
                 'deleted_count' => $deletedCount,
-                'error_count'   => $errorCount,
+                'error_count' => $errorCount,
                 'total_records' => $syncedCount,
-                'date_range'    => [
+                'date_range' => [
                     'start' => $startDate->format('Y-m-d'),
-                    'end'   => $endDate->format('Y-m-d'),
+                    'end' => $endDate->format('Y-m-d'),
                 ],
             ]);
 
@@ -476,7 +481,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
         }
     }
 
-// 4. Add new method for V2 sync
+    // 4. Add new method for V2 sync
     private function syncTimeDoctorV2Records($user, $startDate, $endDate)
     {
         // Check if user has TimeDoctor V2 integration
@@ -488,7 +493,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
         }
 
         $syncedCount = 0;
-        $errorCount  = 0;
+        $errorCount = 0;
 
         DB::beginTransaction();
 
@@ -508,8 +513,8 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 Log::info("Syncing V2 worklogs for user {$user->full_name} on {$currentDate->format('Y-m-d')}");
 
                 // Use the helper functions for proper timezone conversion
-                $localStartOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d') . ' 00:00:00', config('app.timezone-timedoctor', 'Asia/Singapore'));
-                $localEndOfDay   = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d') . ' 23:59:59', config('app.timezone-timedoctor', 'Asia/Singapore'));
+                $localStartOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d').' 00:00:00', config('app.timezone-timedoctor', 'Asia/Singapore'));
+                $localEndOfDay = Carbon::createFromFormat('Y-m-d H:i:s', $currentDate->format('Y-m-d').' 23:59:59', config('app.timezone-timedoctor', 'Asia/Singapore'));
 
                 $worklogData = $this->timeDoctorV2Service->getUserWorklogs(
                     $user->timedoctorV2User->timedoctor_id,
@@ -519,6 +524,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
                 if (! is_array($worklogData) || ! isset($worklogData['data']) || empty($worklogData['data'])) {
                     $currentDate->addDay();
+
                     continue;
                 }
 
@@ -532,6 +538,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
                 if (empty($worklogItems)) {
                     $currentDate->addDay();
+
                     continue;
                 }
 
@@ -540,13 +547,14 @@ class IvaUserTimeDoctorRecordsController extends Controller
                     try {
                         if (! isset($worklog['start']) || ! isset($worklog['time'])) {
                             $errorCount++;
+
                             continue;
                         }
 
                         // Convert from UTC to local timezone for proper storage
                         $startTimeUtc = Carbon::parse($worklog['start'], 'UTC');
-                        $startTime    = convertFromTimeDoctorTimezone($startTimeUtc, config('app.timezone-timedoctor', 'Asia/Singapore'));
-                        $endTime      = $startTime->copy()->addSeconds($worklog['time']);
+                        $startTime = convertFromTimeDoctorTimezone($startTimeUtc, config('app.timezone-timedoctor', 'Asia/Singapore'));
+                        $endTime = $startTime->copy()->addSeconds($worklog['time']);
 
                         // Duration is already in seconds from V2 API
                         $duration = (int) $worklog['time'];
@@ -574,7 +582,7 @@ class IvaUserTimeDoctorRecordsController extends Controller
                         }
 
                         // Create unique identifier for V2 worklogs
-                        $worklogId = $worklog['userId'] . '_' . $worklog['start'] . '_' . $worklog['time'];
+                        $worklogId = $worklog['userId'].'_'.$worklog['start'].'_'.$worklog['time'];
 
                         // Determine comment based on edited status
                         $comment = null;
@@ -584,28 +592,28 @@ class IvaUserTimeDoctorRecordsController extends Controller
 
                         // Create new worklog (we already deleted existing ones)
                         WorklogsData::create([
-                            'iva_id'                => $user->id,
+                            'iva_id' => $user->id,
                             'timedoctor_project_id' => $worklog['projectId'] ?? null,
-                            'timedoctor_task_id'    => $worklog['taskId'] ?? null,
-                            'project_id'            => $projectId,
-                            'task_id'               => $taskId,
-                            'work_mode'             => $worklog['mode'] ?? 'computer',
-                            'start_time'            => $startTime,
-                            'end_time'              => $endTime,
-                            'duration'              => $duration,
-                            'device_id'             => $worklog['deviceId'] ?? null,
-                            'comment'               => $comment,
-                            'api_type'              => 'timedoctor',
+                            'timedoctor_task_id' => $worklog['taskId'] ?? null,
+                            'project_id' => $projectId,
+                            'task_id' => $taskId,
+                            'work_mode' => $worklog['mode'] ?? 'computer',
+                            'start_time' => $startTime,
+                            'end_time' => $endTime,
+                            'duration' => $duration,
+                            'device_id' => $worklog['deviceId'] ?? null,
+                            'comment' => $comment,
+                            'api_type' => 'timedoctor',
                             'timedoctor_worklog_id' => $worklogId,
-                            'timedoctor_version'    => 2,
-                            'tm_user_id'            => $worklog['userId'] ?? null,
-                            'is_active'             => true,
+                            'timedoctor_version' => 2,
+                            'tm_user_id' => $worklog['userId'] ?? null,
+                            'is_active' => true,
                         ]);
                         $syncedCount++;
                     } catch (\Exception $e) {
                         Log::error("Error processing V2 worklog item for user {$user->full_name}", [
                             'worklog' => $worklog,
-                            'error'   => $e->getMessage(),
+                            'error' => $e->getMessage(),
                         ]);
                         $errorCount++;
                     }
@@ -619,16 +627,16 @@ class IvaUserTimeDoctorRecordsController extends Controller
             // Log the sync activity
             ActivityLogService::log(
                 'sync_timedoctor_records',
-                'Synced TimeDoctor V2 records for user: ' . $user->full_name,
+                'Synced TimeDoctor V2 records for user: '.$user->full_name,
                 [
-                    'user_id'            => $user->id,
-                    'start_date'         => $startDate->format('Y-m-d'),
-                    'end_date'           => $endDate->format('Y-m-d'),
+                    'user_id' => $user->id,
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
                     'timedoctor_version' => 2,
-                    'synced_count'       => $syncedCount,
-                    'deleted_count'      => $deletedCount,
-                    'error_count'        => $errorCount,
-                    'total_processed'    => $syncedCount,
+                    'synced_count' => $syncedCount,
+                    'deleted_count' => $deletedCount,
+                    'error_count' => $errorCount,
+                    'total_processed' => $syncedCount,
                 ]
             );
 
@@ -637,25 +645,25 @@ class IvaUserTimeDoctorRecordsController extends Controller
                 $this->calculateDailySummariesAfterSync($user->id, $startDate, $endDate);
                 Log::info('Daily worklog summaries calculated after TimeDoctor V2 sync', [
                     'user_id' => $user->id,
-                    'date_range' => [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]
+                    'date_range' => [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')],
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to calculate daily summaries after TimeDoctor V2 sync', [
                     'user_id' => $user->id,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
             }
 
             return response()->json([
-                'success'       => true,
-                'message'       => 'TimeDoctor V2 records sync completed successfully',
-                'synced_count'  => $syncedCount,
+                'success' => true,
+                'message' => 'TimeDoctor V2 records sync completed successfully',
+                'synced_count' => $syncedCount,
                 'deleted_count' => $deletedCount,
-                'error_count'   => $errorCount,
+                'error_count' => $errorCount,
                 'total_records' => $syncedCount,
-                'date_range'    => [
+                'date_range' => [
                     'start' => $startDate->format('Y-m-d'),
-                    'end'   => $endDate->format('Y-m-d'),
+                    'end' => $endDate->format('Y-m-d'),
                 ],
             ]);
 
@@ -674,13 +682,13 @@ class IvaUserTimeDoctorRecordsController extends Controller
             'start_date' => $startDate->format('Y-m-d'),
             'end_date' => $endDate->format('Y-m-d'),
             'calculate_all' => false,
-            'iva_user_ids' => [$userId]
+            'iva_user_ids' => [$userId],
         ];
 
         $result = $this->dailyWorklogSummaryService->calculateSummaries($params);
-        
-        if (!$result['success']) {
-            throw new \Exception('Failed to calculate daily summaries: ' . $result['message']);
+
+        if (! $result['success']) {
+            throw new \Exception('Failed to calculate daily summaries: '.$result['message']);
         }
 
         return $result;

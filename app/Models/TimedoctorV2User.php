@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,13 +30,13 @@ class TimedoctorV2User extends Model
     ];
 
     protected $casts = [
-        'is_active'        => 'boolean',
-        'last_synced_at'   => 'datetime:Y-m-d\TH:i:s',
-        'last_login'       => 'datetime:Y-m-d\TH:i:s',
+        'is_active' => 'boolean',
+        'last_synced_at' => 'datetime:Y-m-d\TH:i:s',
+        'last_login' => 'datetime:Y-m-d\TH:i:s',
         'only_project_ids' => 'array',
-        'manager_ids'      => 'array',
-        'tag_ids'          => 'array',
-        'silent_info'      => 'array',
+        'manager_ids' => 'array',
+        'tag_ids' => 'array',
+        'silent_info' => 'array',
     ];
 
     public function ivaUser(): BelongsTo

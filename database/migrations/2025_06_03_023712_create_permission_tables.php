@@ -11,17 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        $teams           = config('permission.teams');
-        $tableNames      = config('permission.table_names');
-        $columnNames     = config('permission.column_names');
-        $pivotRole       = $columnNames['role_pivot_key'] ?? 'role_id';
+        $teams = config('permission.teams');
+        $tableNames = config('permission.table_names');
+        $columnNames = config('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'] ?? 'role_id';
         $pivotPermission = $columnNames['permission_pivot_key'] ?? 'permission_id';
 
         throw_if(empty($tableNames), new Exception('Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.'));
         throw_if($teams && empty($columnNames['team_foreign_key'] ?? null), new Exception('Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.'));
 
         Schema::create($tableNames['permissions'], static function (Blueprint $table) {
-                                              // $table->engine('InnoDB');
+            // $table->engine('InnoDB');
             $table->bigIncrements('id');      // permission id
             $table->string('name', 225);      // For MyISAM use string('name', 225); // (or 166 for InnoDB with Redundant/Compact row format)
             $table->string('guard_name', 25); // For MyISAM use string('guard_name', 25);
@@ -31,7 +31,7 @@ return new class extends Migration
         });
 
         Schema::create($tableNames['roles'], static function (Blueprint $table) use ($teams, $columnNames) {
-                                                          // $table->engine('InnoDB');
+            // $table->engine('InnoDB');
             $table->bigIncrements('id');                  // role id
             if ($teams || config('permission.testing')) { // permission.testing is a fix for sqlite testing
                 $table->unsignedBigInteger($columnNames['team_foreign_key'])->nullable();

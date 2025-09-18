@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Jobs;
 
 use App\Http\Controllers\TimeDoctorV2LongOperationController;
@@ -18,26 +19,28 @@ class SyncTimeDoctorV2Worklogs implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $startDate;
+
     protected $endDate;
 
     public $timeout = 3600; // 1 hour timeout
-    public $tries   = 1;
+
+    public $tries = 1;
 
     public function __construct(string $startDate, string $endDate)
     {
         $this->startDate = $startDate;
-        $this->endDate   = $endDate;
+        $this->endDate = $endDate;
     }
 
     public function handle(TimeDoctorV2Service $timeDoctorV2Service, DailyWorklogSummaryService $dailyWorklogSummaryService)
     {
         Log::info('Starting TimeDoctor V2 worklog sync job', [
             'start_date' => $this->startDate,
-            'end_date'   => $this->endDate,
+            'end_date' => $this->endDate,
         ]);
 
         $startDate = Carbon::parse($this->startDate);
-        $endDate   = Carbon::parse($this->endDate);
+        $endDate = Carbon::parse($this->endDate);
 
         try {
             $users = IvaUser::with('timedoctorV2User')
@@ -50,10 +53,11 @@ class SyncTimeDoctorV2Worklogs implements ShouldQueue
 
             if ($users->isEmpty()) {
                 Log::warning('No active TimeDoctor V2 users found for sync job');
+
                 return;
             }
 
-            $controller  = new TimeDoctorV2LongOperationController($timeDoctorV2Service);
+            $controller = new TimeDoctorV2LongOperationController($timeDoctorV2Service);
             $currentDate = clone $startDate;
             $totalSynced = 0;
 
@@ -69,8 +73,8 @@ class SyncTimeDoctorV2Worklogs implements ShouldQueue
             }
 
             Log::info('TimeDoctor V2 worklog sync job completed', [
-                'start_date'   => $this->startDate,
-                'end_date'     => $this->endDate,
+                'start_date' => $this->startDate,
+                'end_date' => $this->endDate,
                 'total_synced' => $totalSynced,
             ]);
 
@@ -82,34 +86,34 @@ class SyncTimeDoctorV2Worklogs implements ShouldQueue
                     'start_date' => $this->startDate,
                     'end_date' => $this->endDate,
                     'calculate_all' => false,
-                    'iva_user_ids' => $userIds
+                    'iva_user_ids' => $userIds,
                 ];
 
                 $summaryResult = $dailyWorklogSummaryService->calculateSummaries($params);
-                
+
                 if ($summaryResult['success']) {
                     Log::info('Daily summaries calculated successfully after TimeDoctor V2 sync', [
                         'processed' => $summaryResult['summary']['total_processed'],
-                        'errors' => $summaryResult['summary']['total_errors']
+                        'errors' => $summaryResult['summary']['total_errors'],
                     ]);
                 } else {
                     Log::warning('Daily summaries calculation had issues after TimeDoctor V2 sync', [
-                        'message' => $summaryResult['message']
+                        'message' => $summaryResult['message'],
                     ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to calculate daily summaries after TimeDoctor V2 sync', [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
 
         } catch (\Exception $e) {
             Log::error('TimeDoctor V2 worklog sync job failed', [
                 'start_date' => $this->startDate,
-                'end_date'   => $this->endDate,
-                'error'      => $e->getMessage(),
-                'trace'      => $e->getTraceAsString(),
+                'end_date' => $this->endDate,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             throw $e;

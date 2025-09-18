@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,9 +23,9 @@ class Task extends Model
 
     protected $casts = [
         // 'timedoctor_version' => 'integer',
-        'is_active'      => 'boolean',
+        'is_active' => 'boolean',
         'last_synced_at' => 'datetime',
-        'user_list'      => 'json',
+        'user_list' => 'json',
     ];
 
     protected $hidden = [
@@ -50,9 +51,9 @@ class Task extends Model
 
     public function generateUniqueSlug()
     {
-        $slug         = Str::slug($this->task_name);
+        $slug = Str::slug($this->task_name);
         $originalSlug = $slug;
-        $count        = 2;
+        $count = 2;
 
         while (static::where('slug', $slug)->where('id', '!=', $this->id ?? 0)->exists()) {
             $slug = "{$originalSlug}-{$count}";
@@ -195,8 +196,8 @@ class Task extends Model
     {
         return $query->where(function ($q) use ($userId) {
             $q->whereJsonContains('user_list', ['userId' => $userId])
-                ->orWhere('user_list', 'like', '%"userId":"' . $userId . '"%')
-                ->orWhere('user_list', 'like', '%"userId":' . $userId . '%');
+                ->orWhere('user_list', 'like', '%"userId":"'.$userId.'"%')
+                ->orWhere('user_list', 'like', '%"userId":'.$userId.'%');
         });
     }
 
@@ -207,8 +208,8 @@ class Task extends Model
     {
         return $query->where(function ($q) use ($timeDoctorId) {
             $q->whereJsonContains('user_list', ['tId' => $timeDoctorId])
-                ->orWhere('user_list', 'like', '%"tId":"' . $timeDoctorId . '"%')
-                ->orWhere('user_list', 'like', '%"tId":' . $timeDoctorId . '%');
+                ->orWhere('user_list', 'like', '%"tId":"'.$timeDoctorId.'"%')
+                ->orWhere('user_list', 'like', '%"tId":'.$timeDoctorId.'%');
         });
     }
 
@@ -232,14 +233,14 @@ class Task extends Model
         }
 
         $worklogsCollection = $worklogs->get();
-        $totalHours         = $worklogsCollection->sum('duration') / 3600;
-        $entriesCount       = $worklogsCollection->count();
+        $totalHours = $worklogsCollection->sum('duration') / 3600;
+        $entriesCount = $worklogsCollection->count();
 
         return [
-            'total_hours'      => round($totalHours, 2),
-            'entries_count'    => $entriesCount,
+            'total_hours' => round($totalHours, 2),
+            'entries_count' => $entriesCount,
             'average_duration' => $entriesCount > 0 ? round($totalHours / $entriesCount, 2) : 0,
-            'is_billable'      => $this->isBillable(),
+            'is_billable' => $this->isBillable(),
         ];
     }
 }

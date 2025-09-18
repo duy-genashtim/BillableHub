@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,9 +22,9 @@ class IvaUserCustomize extends Model
 
     protected $casts = [
         'iva_user_id' => 'integer',
-        'setting_id'  => 'integer',
-        'start_date'  => 'date:Y-m-d',
-        'end_date'    => 'date:Y-m-d',
+        'setting_id' => 'integer',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
     ];
 
     /**
@@ -91,7 +92,7 @@ class IvaUserCustomize extends Model
         $date = $date ?: now()->toDateString();
 
         $startValid = is_null($this->start_date) || $this->start_date <= $date;
-        $endValid   = is_null($this->end_date) || $this->end_date >= $date;
+        $endValid = is_null($this->end_date) || $this->end_date >= $date;
 
         return $startValid && $endValid;
     }

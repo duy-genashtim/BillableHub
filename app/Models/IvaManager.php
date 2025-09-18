@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,10 +20,10 @@ class IvaManager extends Model
     ];
 
     protected $casts = [
-        'iva_id'          => 'integer',
-        'iva_manager_id'  => 'integer',
+        'iva_id' => 'integer',
+        'iva_manager_id' => 'integer',
         'manager_type_id' => 'integer',
-        'region_id'       => 'integer',
+        'region_id' => 'integer',
     ];
 
     /**

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,9 +28,9 @@ class IvaUser extends Model
     ];
 
     protected $casts = [
-        'hire_date'          => 'date:Y-m-d',
-        'end_date'           => 'date:Y-m-d',
-        'is_active'          => 'boolean',
+        'hire_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
+        'is_active' => 'boolean',
         'timedoctor_version' => 'integer',
     ];
 
@@ -113,10 +114,10 @@ class IvaUser extends Model
             ->get()
             ->map(function ($manager) {
                 return [
-                    'id'           => $manager->id,
+                    'id' => $manager->id,
                     'manager_name' => $manager->manager ? $manager->manager->full_name : null,
                     'manager_type' => $manager->managerType ? $manager->managerType->setting_value : null,
-                    'region_name'  => $manager->region ? $manager->region->name : null,
+                    'region_name' => $manager->region ? $manager->region->name : null,
                 ];
             });
 

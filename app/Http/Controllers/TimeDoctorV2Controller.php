@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Jobs\SyncTimeDoctorV2Worklogs;
@@ -48,17 +49,17 @@ class TimeDoctorV2Controller extends Controller
                     $timeDoctorUser = TimedoctorV2User::updateOrCreate(
                         ['timedoctor_id' => $user['id']],
                         [
-                            'tm_fullname'      => $user['full_name'] ?? $user['name'] ?? '',
-                            'tm_email'         => $user['email'] ?? '',
-                            'timezone'         => $user['timezone'] ?? null,
+                            'tm_fullname' => $user['full_name'] ?? $user['name'] ?? '',
+                            'tm_email' => $user['email'] ?? '',
+                            'timezone' => $user['timezone'] ?? null,
                             'profile_timezone' => $user['profile_timezone'] ?? null,
-                            'role'             => $user['role'] ?? 'user',
+                            'role' => $user['role'] ?? 'user',
                             'only_project_ids' => $user['only_project_ids'] ?? null,
-                            'manager_ids'      => $user['manager_ids'] ?? null,
-                            'tag_ids'          => $user['tag_ids'] ?? null,
-                            'silent_info'      => $user['silent_info'] ?? null,
-                            'is_active'        => $user['active'] ?? true,
-                            'last_synced_at'   => now(),
+                            'manager_ids' => $user['manager_ids'] ?? null,
+                            'tag_ids' => $user['tag_ids'] ?? null,
+                            'silent_info' => $user['silent_info'] ?? null,
+                            'is_active' => $user['active'] ?? true,
+                            'last_synced_at' => now(),
                         ]
                     );
 
@@ -81,15 +82,15 @@ class TimeDoctorV2Controller extends Controller
                 DB::commit();
 
                 ActivityLogService::log('sync_timedoctor_v2_data', 'TimeDoctor V2 users synced successfully', [
-                    'module'       => 'timedoctor_v2_integration',
+                    'module' => 'timedoctor_v2_integration',
                     'synced_count' => $syncCount,
-                    'total_users'  => count($users),
-                    'version'      => 2,
+                    'total_users' => count($users),
+                    'version' => 2,
                 ]);
 
                 return response()->json([
-                    'success'      => true,
-                    'message'      => 'Users synced successfully',
+                    'success' => true,
+                    'message' => 'Users synced successfully',
                     'synced_count' => $syncCount,
                 ]);
             } catch (\Exception $e) {
@@ -103,14 +104,14 @@ class TimeDoctorV2Controller extends Controller
             ]);
 
             ActivityLogService::log('sync_timedoctor_v2_data', 'Failed to sync TimeDoctor V2 users', [
-                'module'  => 'timedoctor_v2_integration',
-                'error'   => $e->getMessage(),
+                'module' => 'timedoctor_v2_integration',
+                'error' => $e->getMessage(),
                 'version' => 2,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error syncing users: ' . $e->getMessage(),
+                'message' => 'Error syncing users: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -135,13 +136,13 @@ class TimeDoctorV2Controller extends Controller
                 foreach ($projects as $project) {
                     Project::updateOrCreate(
                         [
-                            'timedoctor_id'      => $project['id'],
+                            'timedoctor_id' => $project['id'],
                             'timedoctor_version' => 2,
                         ],
                         [
-                            'project_name'   => $project['name'] ?? '',
-                            'is_active'      => $project['active'] ?? true,
-                            'description'    => $project['description'] ?? null,
+                            'project_name' => $project['name'] ?? '',
+                            'is_active' => $project['active'] ?? true,
+                            'description' => $project['description'] ?? null,
                             'last_synced_at' => now(),
                         ]
                     );
@@ -152,15 +153,15 @@ class TimeDoctorV2Controller extends Controller
                 DB::commit();
 
                 ActivityLogService::log('sync_timedoctor_v2_data', 'TimeDoctor V2 projects synced successfully', [
-                    'module'         => 'timedoctor_v2_integration',
-                    'synced_count'   => $syncCount,
+                    'module' => 'timedoctor_v2_integration',
+                    'synced_count' => $syncCount,
                     'total_projects' => count($projects),
-                    'version'        => 2,
+                    'version' => 2,
                 ]);
 
                 return response()->json([
-                    'success'      => true,
-                    'message'      => 'Projects synced successfully',
+                    'success' => true,
+                    'message' => 'Projects synced successfully',
                     'synced_count' => $syncCount,
                 ]);
             } catch (\Exception $e) {
@@ -174,14 +175,14 @@ class TimeDoctorV2Controller extends Controller
             ]);
 
             ActivityLogService::log('sync_timedoctor_v2_data', 'Failed to sync TimeDoctor V2 projects', [
-                'module'  => 'timedoctor_v2_integration',
-                'error'   => $e->getMessage(),
+                'module' => 'timedoctor_v2_integration',
+                'error' => $e->getMessage(),
                 'version' => 2,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error syncing projects: ' . $e->getMessage(),
+                'message' => 'Error syncing projects: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -213,14 +214,14 @@ class TimeDoctorV2Controller extends Controller
 
                     if ($existingTask) {
                         $existingUserList = $existingTask->user_list ?? [];
-                        $userExists       = false;
+                        $userExists = false;
 
                         if (is_array($existingUserList)) {
                             foreach ($existingUserList as $key => $userData) {
                                 if (isset($userData['tId']) && $userData['tId'] == ($task['id'] ?? null) &&
                                     isset($userData['vId']) && $userData['vId'] == 2) {
                                     $existingUserList[$key] = $userListData;
-                                    $userExists             = true;
+                                    $userExists = true;
                                     break;
                                 }
                             }
@@ -233,16 +234,16 @@ class TimeDoctorV2Controller extends Controller
                         }
 
                         $existingTask->update([
-                            'is_active'      => ! ($task['deleted'] ?? false),
+                            'is_active' => ! ($task['deleted'] ?? false),
                             'last_synced_at' => now(),
-                            'user_list'      => $existingUserList,
+                            'user_list' => $existingUserList,
                         ]);
                     } else {
                         Task::create([
-                            'task_name'      => $task['name'],
-                            'slug'           => \Str::slug($task['name']),
-                            'user_list'      => [$userListData],
-                            'is_active'      => ! ($task['deleted'] ?? false),
+                            'task_name' => $task['name'],
+                            'slug' => \Str::slug($task['name']),
+                            'user_list' => [$userListData],
+                            'is_active' => ! ($task['deleted'] ?? false),
                             'last_synced_at' => now(),
                         ]);
                     }
@@ -253,15 +254,15 @@ class TimeDoctorV2Controller extends Controller
                 DB::commit();
 
                 ActivityLogService::log('sync_timedoctor_v2_data', 'TimeDoctor V2 tasks synced successfully', [
-                    'module'       => 'timedoctor_v2_integration',
+                    'module' => 'timedoctor_v2_integration',
                     'synced_count' => $syncCount,
-                    'total_tasks'  => count($tasks),
-                    'version'      => 2,
+                    'total_tasks' => count($tasks),
+                    'version' => 2,
                 ]);
 
                 return response()->json([
-                    'success'      => true,
-                    'message'      => 'Tasks synced successfully',
+                    'success' => true,
+                    'message' => 'Tasks synced successfully',
                     'synced_count' => $syncCount,
                 ]);
             } catch (\Exception $e) {
@@ -275,14 +276,14 @@ class TimeDoctorV2Controller extends Controller
             ]);
 
             ActivityLogService::log('sync_timedoctor_v2_data', 'Failed to sync TimeDoctor V2 tasks', [
-                'module'  => 'timedoctor_v2_integration',
-                'error'   => $e->getMessage(),
+                'module' => 'timedoctor_v2_integration',
+                'error' => $e->getMessage(),
                 'version' => 2,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error syncing tasks: ' . $e->getMessage(),
+                'message' => 'Error syncing tasks: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -291,21 +292,21 @@ class TimeDoctorV2Controller extends Controller
     {
         $validator = Validator::make($request->all(), [
             'start_date' => 'required|date_format:Y-m-d',
-            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
-            'queue_job'  => 'sometimes|boolean',
+            'end_date' => 'required|date_format:Y-m-d|after_or_equal:start_date',
+            'queue_job' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $startDate = Carbon::parse($request->input('start_date'));
-        $endDate   = Carbon::parse($request->input('end_date'));
-        $queueJob  = $request->input('queue_job', true);
+        $endDate = Carbon::parse($request->input('end_date'));
+        $queueJob = $request->input('queue_job', true);
 
         if ($startDate->diffInDays($endDate) > 30) {
             return response()->json([
@@ -318,23 +319,23 @@ class TimeDoctorV2Controller extends Controller
             SyncTimeDoctorV2Worklogs::dispatch($startDate->toDateString(), $endDate->toDateString());
 
             ActivityLogService::log('sync_timedoctor_v2_data', 'TimeDoctor V2 worklog sync job queued', [
-                'module'     => 'timedoctor_v2_integration',
+                'module' => 'timedoctor_v2_integration',
                 'start_date' => $startDate->toDateString(),
-                'end_date'   => $endDate->toDateString(),
-                'version'    => 2,
+                'end_date' => $endDate->toDateString(),
+                'version' => 2,
             ]);
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'Worklog sync job has been queued',
+                'success' => true,
+                'message' => 'Worklog sync job has been queued',
                 'start_date' => $startDate->toDateString(),
-                'end_date'   => $endDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
             ]);
         } else {
             return response()->json([
-                'success'    => true,
-                'message'    => 'For immediate sync, please use the streaming endpoint',
-                'stream_url' => url('/api/timedoctor-v2/stream-worklog-sync?start_date=' . $startDate->toDateString() . '&end_date=' . $endDate->toDateString()),
+                'success' => true,
+                'message' => 'For immediate sync, please use the streaming endpoint',
+                'stream_url' => url('/api/timedoctor-v2/stream-worklog-sync?start_date='.$startDate->toDateString().'&end_date='.$endDate->toDateString()),
             ]);
         }
     }
@@ -345,7 +346,7 @@ class TimeDoctorV2Controller extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 
@@ -355,7 +356,7 @@ class TimeDoctorV2Controller extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 
@@ -365,7 +366,7 @@ class TimeDoctorV2Controller extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 
@@ -377,7 +378,7 @@ class TimeDoctorV2Controller extends Controller
 
         return response()->json([
             'success' => true,
-            'count'   => $count,
+            'count' => $count,
         ]);
     }
 }

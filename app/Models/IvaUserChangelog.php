@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,7 +24,7 @@ class IvaUserChangelog extends Model
     ];
 
     protected $casts = [
-        'iva_user_id'    => 'integer',
+        'iva_user_id' => 'integer',
         'effective_date' => 'date:Y-m-d',
     ];
 

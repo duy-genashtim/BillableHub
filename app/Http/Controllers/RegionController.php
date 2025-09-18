@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -36,7 +37,7 @@ class RegionController extends Controller
             }
 
             // Sort
-            $sortBy    = $request->get('sort_by', 'region_order');
+            $sortBy = $request->get('sort_by', 'region_order');
             $sortOrder = $request->get('sort_order', 'asc');
 
             if (in_array($sortBy, ['id', 'name', 'region_order', 'is_active', 'created_at'])) {
@@ -46,22 +47,22 @@ class RegionController extends Controller
             $regions = $query->paginate($perPage);
 
             return response()->json([
-                'success'    => true,
-                'regions'    => $regions->items(),
+                'success' => true,
+                'regions' => $regions->items(),
                 'pagination' => [
                     'current_page' => $regions->currentPage(),
-                    'last_page'    => $regions->lastPage(),
-                    'per_page'     => $regions->perPage(),
-                    'total'        => $regions->total(),
-                    'from'         => $regions->firstItem(),
-                    'to'           => $regions->lastItem(),
+                    'last_page' => $regions->lastPage(),
+                    'per_page' => $regions->perPage(),
+                    'total' => $regions->total(),
+                    'from' => $regions->firstItem(),
+                    'to' => $regions->lastItem(),
                 ],
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch regions',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -72,23 +73,23 @@ class RegionController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255|unique:regions,name',
-            'description'  => 'nullable|string|max:1000',
+            'name' => 'required|string|max:255|unique:regions,name',
+            'description' => 'nullable|string|max:1000',
             'region_order' => 'nullable|integer|min:1',
-            'is_active'    => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $regionData                 = $request->only(['name', 'description', 'is_active']);
+            $regionData = $request->only(['name', 'description', 'is_active']);
             $regionData['region_order'] = $request->region_order ?? Region::getNextOrder();
 
             $region = Region::create($regionData);
@@ -98,10 +99,10 @@ class RegionController extends Controller
                 'region_create',
                 "Created region: {$region->name}",
                 [
-                    'region_id'   => $region->id,
+                    'region_id' => $region->id,
                     'region_name' => $region->name,
                     'region_data' => $regionData,
-                    'module'      => 'regions',
+                    'module' => 'regions',
                 ]
             );
 
@@ -110,14 +111,15 @@ class RegionController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Region created successfully',
-                'region'  => $region,
+                'region' => $region,
             ], 201);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create region',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -134,13 +136,13 @@ class RegionController extends Controller
 
             return response()->json([
                 'success' => true,
-                'region'  => $region,
+                'region' => $region,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Region not found',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 404);
         }
     }
@@ -151,23 +153,23 @@ class RegionController extends Controller
     public function update(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255|unique:regions,name,' . $id,
-            'description'  => 'nullable|string|max:1000',
+            'name' => 'required|string|max:255|unique:regions,name,'.$id,
+            'description' => 'nullable|string|max:1000',
             'region_order' => 'nullable|integer|min:1',
-            'is_active'    => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $region  = Region::findOrFail($id);
+            $region = Region::findOrFail($id);
             $oldData = $region->toArray();
 
             $regionData = $request->only(['name', 'description', 'region_order', 'is_active']);
@@ -178,11 +180,11 @@ class RegionController extends Controller
                 'region_update',
                 "Updated region: {$region->name}",
                 [
-                    'region_id'   => $region->id,
+                    'region_id' => $region->id,
                     'region_name' => $region->name,
-                    'old_data'    => $oldData,
-                    'new_data'    => $region->fresh()->toArray(),
-                    'module'      => 'regions',
+                    'old_data' => $oldData,
+                    'new_data' => $region->fresh()->toArray(),
+                    'module' => 'regions',
                 ]
             );
 
@@ -191,14 +193,15 @@ class RegionController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Region updated successfully',
-                'region'  => $region,
+                'region' => $region,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update region',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -210,7 +213,7 @@ class RegionController extends Controller
     {
         DB::beginTransaction();
         try {
-            $region     = Region::findOrFail($id);
+            $region = Region::findOrFail($id);
             $regionName = $region->name;
             $usersCount = $region->ivaUsers()->count();
 
@@ -229,9 +232,9 @@ class RegionController extends Controller
                 'region_deactivate',
                 "Deactivated region: {$regionName}",
                 [
-                    'region_id'   => $region->id,
+                    'region_id' => $region->id,
                     'region_name' => $regionName,
-                    'module'      => 'regions',
+                    'module' => 'regions',
                 ]
             );
 
@@ -243,10 +246,11 @@ class RegionController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to deactivate region',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -265,13 +269,13 @@ class RegionController extends Controller
 
             return response()->json([
                 'success' => true,
-                'users'   => $users,
+                'users' => $users,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch available users',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -282,7 +286,7 @@ class RegionController extends Controller
     public function assignUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -290,13 +294,13 @@ class RegionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $region  = Region::findOrFail($id);
+            $region = Region::findOrFail($id);
             $userIds = $request->user_ids;
 
             // Update IVA users' region
@@ -309,27 +313,28 @@ class RegionController extends Controller
                 'region_assign_users',
                 "Assigned {$assignedUsers->count()} IVA user(s) to region: {$region->name}",
                 [
-                    'region_id'      => $region->id,
-                    'region_name'    => $region->name,
-                    'user_ids'       => $userIds,
+                    'region_id' => $region->id,
+                    'region_name' => $region->name,
+                    'user_ids' => $userIds,
                     'assigned_users' => $assignedUsers->toArray(),
-                    'module'         => 'regions',
+                    'module' => 'regions',
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'success'        => true,
-                'message'        => 'IVA users assigned to region successfully',
+                'success' => true,
+                'message' => 'IVA users assigned to region successfully',
                 'assigned_users' => $assignedUsers,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to assign IVA users to region',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -340,7 +345,7 @@ class RegionController extends Controller
     public function removeUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -348,13 +353,13 @@ class RegionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $region  = Region::findOrFail($id);
+            $region = Region::findOrFail($id);
             $userIds = $request->user_ids;
 
             $removedUsers = IvaUser::whereIn('id', $userIds)
@@ -369,27 +374,28 @@ class RegionController extends Controller
                 'region_remove_users',
                 "Removed {$removedUsers->count()} IVA user(s) from region: {$region->name}",
                 [
-                    'region_id'     => $region->id,
-                    'region_name'   => $region->name,
-                    'user_ids'      => $userIds,
+                    'region_id' => $region->id,
+                    'region_name' => $region->name,
+                    'user_ids' => $userIds,
                     'removed_users' => $removedUsers->toArray(),
-                    'module'        => 'regions',
+                    'module' => 'regions',
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'success'       => true,
-                'message'       => 'IVA users removed from region successfully',
+                'success' => true,
+                'message' => 'IVA users removed from region successfully',
                 'removed_users' => $removedUsers,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to remove IVA users from region',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Jobs;
 
 use App\Models\IvaUser;
@@ -23,30 +24,34 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $startDate;
+
     protected $endDate;
 
-    const BATCH_SIZE       = 100;
+    const BATCH_SIZE = 100;
+
     const PAGINATION_LIMIT = 250;
 
-    public $timeout       = 1800; // 30 minutes
-    public $tries         = 3;
+    public $timeout = 1800; // 30 minutes
+
+    public $tries = 3;
+
     public $maxExceptions = 1;
 
     public function __construct(string $startDate, string $endDate)
     {
         $this->startDate = $startDate;
-        $this->endDate   = $endDate;
+        $this->endDate = $endDate;
     }
 
     public function handle(TimeDoctorService $timeDoctorService, DailyWorklogSummaryService $dailyWorklogSummaryService): void
     {
         $startDate = Carbon::parse($this->startDate);
-        $endDate   = Carbon::parse($this->endDate);
+        $endDate = Carbon::parse($this->endDate);
 
-        Log::info("Starting TimeDoctor worklog sync job", [
+        Log::info('Starting TimeDoctor worklog sync job', [
             'start_date' => $startDate->format('Y-m-d'),
-            'end_date'   => $endDate->format('Y-m-d'),
-            'job_id'     => $this->job->getJobId(),
+            'end_date' => $endDate->format('Y-m-d'),
+            'job_id' => $this->job->getJobId(),
         ]);
 
         try {
@@ -71,9 +76,9 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                 throw new \Exception('No active TimeDoctor users found');
             }
 
-            $totalDays     = $startDate->diffInDays($endDate) + 1;
+            $totalDays = $startDate->diffInDays($endDate) + 1;
             $processedDays = 0;
-            $totalSynced   = 0;
+            $totalSynced = 0;
 
             // Process each day in the range
             $currentDate = clone $startDate;
@@ -88,9 +93,9 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                 $syncMeta = TimeDoctorWorklogSyncMetadata::updateOrCreate(
                     ['sync_date' => $currentDate->format('Y-m-d')],
                     [
-                        'status'     => 'in_progress',
+                        'status' => 'in_progress',
                         'started_at' => now(),
-                        'is_synced'  => false,
+                        'is_synced' => false,
                     ]
                 );
 
@@ -107,17 +112,17 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
 
                     // Update sync metadata
                     $syncMeta->update([
-                        'status'         => 'completed',
-                        'is_synced'      => true,
+                        'status' => 'completed',
+                        'is_synced' => true,
                         'synced_records' => $daySynced,
-                        'total_records'  => $dayResult['total_processed'] ?? $daySynced,
-                        'completed_at'   => now(),
+                        'total_records' => $dayResult['total_processed'] ?? $daySynced,
+                        'completed_at' => now(),
                     ]);
 
                     Log::info("Completed day {$dayStr}", [
                         'inserted' => $dayResult['inserted'],
-                        'updated'  => $dayResult['updated'],
-                        'errors'   => $dayResult['errors'],
+                        'updated' => $dayResult['updated'],
+                        'errors' => $dayResult['errors'],
                     ]);
 
                 } catch (\Exception $e) {
@@ -128,7 +133,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
 
                     // Update sync metadata with error
                     $syncMeta->update([
-                        'status'        => 'failed',
+                        'status' => 'failed',
                         'error_message' => $e->getMessage(),
                     ]);
 
@@ -139,19 +144,19 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
             }
 
             ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job completed', [
-                'module'       => 'timedoctor_integration',
-                'start_date'   => $startDate->format('Y-m-d'),
-                'end_date'     => $endDate->format('Y-m-d'),
+                'module' => 'timedoctor_integration',
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
                 'total_synced' => $totalSynced,
-                'total_days'   => $totalDays,
-                'job_id'       => $this->job->getJobId(),
+                'total_days' => $totalDays,
+                'job_id' => $this->job->getJobId(),
             ]);
 
-            Log::info("Completed TimeDoctor worklog sync job", [
-                'start_date'   => $startDate->format('Y-m-d'),
-                'end_date'     => $endDate->format('Y-m-d'),
+            Log::info('Completed TimeDoctor worklog sync job', [
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
                 'total_synced' => $totalSynced,
-                'total_days'   => $totalDays,
+                'total_days' => $totalDays,
             ]);
 
             // Auto-calculate daily worklog summaries for all affected users
@@ -162,43 +167,43 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                     'start_date' => $startDate->format('Y-m-d'),
                     'end_date' => $endDate->format('Y-m-d'),
                     'calculate_all' => false,
-                    'iva_user_ids' => $userIds
+                    'iva_user_ids' => $userIds,
                 ];
 
                 $summaryResult = $dailyWorklogSummaryService->calculateSummaries($params);
-                
+
                 if ($summaryResult['success']) {
                     Log::info('Daily summaries calculated successfully after TimeDoctor sync', [
                         'processed' => $summaryResult['summary']['total_processed'],
-                        'errors' => $summaryResult['summary']['total_errors']
+                        'errors' => $summaryResult['summary']['total_errors'],
                     ]);
                 } else {
                     Log::warning('Daily summaries calculation had issues after TimeDoctor sync', [
-                        'message' => $summaryResult['message']
+                        'message' => $summaryResult['message'],
                     ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to calculate daily summaries after TimeDoctor sync', [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
 
         } catch (\Exception $e) {
             Log::error('TimeDoctor worklog sync job failed', [
                 'start_date' => $startDate->format('Y-m-d'),
-                'end_date'   => $endDate->format('Y-m-d'),
-                'error'      => $e->getMessage(),
-                'trace'      => $e->getTraceAsString(),
-                'job_id'     => $this->job->getJobId(),
+                'end_date' => $endDate->format('Y-m-d'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'job_id' => $this->job->getJobId(),
             ]);
 
             ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job failed', [
-                'module'     => 'timedoctor_integration',
+                'module' => 'timedoctor_integration',
                 'start_date' => $startDate->format('Y-m-d'),
-                'end_date'   => $endDate->format('Y-m-d'),
-                'error'      => $e->getMessage(),
-                'job_id'     => $this->job->getJobId(),
+                'end_date' => $endDate->format('Y-m-d'),
+                'error' => $e->getMessage(),
+                'job_id' => $this->job->getJobId(),
             ]);
 
             throw $e;
@@ -211,16 +216,17 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
         $users,
         Carbon $date
     ): array {
-        $totalUsers     = $users->count();
+        $totalUsers = $users->count();
         $processedUsers = 0;
-        $totalInserted  = 0;
-        $totalUpdated   = 0;
-        $totalErrors    = 0;
+        $totalInserted = 0;
+        $totalUpdated = 0;
+        $totalErrors = 0;
         $totalProcessed = 0;
 
         foreach ($users as $user) {
             if (! $user->timedoctorUser) {
                 $processedUsers++;
+
                 continue;
             }
 
@@ -229,11 +235,11 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
             try {
                 Log::debug("Fetching worklogs for user: {$userName} on {$date->format('Y-m-d')}");
 
-                $offset       = 1;
-                $hasMoreData  = true;
-                $batchNumber  = 1;
+                $offset = 1;
+                $hasMoreData = true;
+                $batchNumber = 1;
                 $userInserted = 0;
-                $userUpdated  = 0;
+                $userUpdated = 0;
 
                 while ($hasMoreData) {
                     $worklogData = $timeDoctorService->getUserWorklogs(
@@ -258,7 +264,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
 
                     if (isset($worklogData['worklogs']['items'])) {
                         $worklogItems = $worklogData['worklogs']['items'];
-                    } else if (is_array($worklogData['worklogs'])) {
+                    } elseif (is_array($worklogData['worklogs'])) {
                         $worklogItems = $worklogData['worklogs'];
                     } else {
                         Log::warning("Unexpected worklog response format for user: {$userName}");
@@ -287,7 +293,7 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                     $offset += self::PAGINATION_LIMIT;
                     $batchNumber++;
 
-                                    // Small delay to avoid overloading the API
+                    // Small delay to avoid overloading the API
                     usleep(200000); // 200ms
                 }
 
@@ -300,9 +306,9 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
             } catch (\Exception $e) {
                 Log::error("Error processing worklogs for user {$userName}", [
                     'user_id' => $user->id,
-                    'date'    => $date->format('Y-m-d'),
-                    'error'   => $e->getMessage(),
-                    'trace'   => $e->getTraceAsString(),
+                    'date' => $date->format('Y-m-d'),
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
 
                 $totalErrors++;
@@ -311,16 +317,16 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
         }
 
         Log::info("Completed worklog sync for date {$date->format('Y-m-d')}", [
-            'total_inserted'  => $totalInserted,
-            'total_updated'   => $totalUpdated,
-            'total_errors'    => $totalErrors,
+            'total_inserted' => $totalInserted,
+            'total_updated' => $totalUpdated,
+            'total_errors' => $totalErrors,
             'total_processed' => $totalProcessed,
         ]);
 
         return [
-            'inserted'        => $totalInserted,
-            'updated'         => $totalUpdated,
-            'errors'          => $totalErrors,
+            'inserted' => $totalInserted,
+            'updated' => $totalUpdated,
+            'errors' => $totalErrors,
             'total_processed' => $totalProcessed,
         ];
     }
@@ -332,8 +338,8 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
         }
 
         $insertedCount = 0;
-        $updatedCount  = 0;
-        $errorCount    = 0;
+        $updatedCount = 0;
+        $errorCount = 0;
 
         try {
             DB::beginTransaction();
@@ -343,17 +349,18 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
             foreach ($worklogItems as $worklog) {
                 try {
                     if (! isset($worklog['id']) || ! isset($worklog['start_time']) || ! isset($worklog['end_time'])) {
-                        Log::warning("Missing required fields in worklog item", ['worklog' => $worklog]);
+                        Log::warning('Missing required fields in worklog item', ['worklog' => $worklog]);
                         $errorCount++;
+
                         continue;
                     }
 
                     $startTime = Carbon::parse($worklog['start_time']);
-                    $endTime   = Carbon::parse($worklog['end_time']);
-                    $duration  = isset($worklog['length']) ? (int) $worklog['length'] : $endTime->diffInSeconds($startTime);
+                    $endTime = Carbon::parse($worklog['end_time']);
+                    $duration = isset($worklog['length']) ? (int) $worklog['length'] : $endTime->diffInSeconds($startTime);
 
                     $projectId = null;
-                    $taskId    = null;
+                    $taskId = null;
 
                     if (isset($worklog['project_id'])) {
                         $project = Project::where('timedoctor_id', $worklog['project_id'])->first();
@@ -364,8 +371,8 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
 
                     if (isset($worklog['task_id'])) {
                         $task = Task::whereJsonContains('user_list', ['tId' => $worklog['task_id']])
-                            ->orWhere('user_list', 'like', '%"tId":"' . $worklog['task_id'] . '"%')
-                            ->orWhere('user_list', 'like', '%"tId":' . $worklog['task_id'] . '%')
+                            ->orWhere('user_list', 'like', '%"tId":"'.$worklog['task_id'].'"%')
+                            ->orWhere('user_list', 'like', '%"tId":'.$worklog['task_id'].'%')
                             ->first();
 
                         if ($task) {
@@ -380,43 +387,43 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
                     if ($existingWorklog) {
                         $existingWorklog->update([
                             'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                            'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                            'project_id'            => $projectId,
-                            'task_id'               => $taskId,
-                            'work_mode'             => $worklog['work_mode'] ?? '0',
-                            'end_time'              => $endTime,
-                            'duration'              => $duration,
-                            'is_active'             => true,
+                            'timedoctor_task_id' => $worklog['task_id'] ?? null,
+                            'project_id' => $projectId,
+                            'task_id' => $taskId,
+                            'work_mode' => $worklog['work_mode'] ?? '0',
+                            'end_time' => $endTime,
+                            'duration' => $duration,
+                            'is_active' => true,
                         ]);
                         $updatedCount++;
                     } else {
                         $worklogsToInsert[] = [
-                            'iva_id'                => $user->id,
+                            'iva_id' => $user->id,
                             'timedoctor_project_id' => $worklog['project_id'] ?? null,
-                            'timedoctor_task_id'    => $worklog['task_id'] ?? null,
-                            'project_id'            => $projectId,
-                            'task_id'               => $taskId,
-                            'work_mode'             => $worklog['work_mode'] ?? '0',
-                            'start_time'            => $startTime,
-                            'end_time'              => $endTime,
-                            'duration'              => $duration,
-                            'device_id'             => null,
-                            'comment'               => null,
-                            'api_type'              => 'timedoctor',
+                            'timedoctor_task_id' => $worklog['task_id'] ?? null,
+                            'project_id' => $projectId,
+                            'task_id' => $taskId,
+                            'work_mode' => $worklog['work_mode'] ?? '0',
+                            'start_time' => $startTime,
+                            'end_time' => $endTime,
+                            'duration' => $duration,
+                            'device_id' => null,
+                            'comment' => null,
+                            'api_type' => 'timedoctor',
                             'timedoctor_worklog_id' => $worklog['id'],
-                            'timedoctor_version'    => 1,
-                            'tm_user_id'            => $worklog['user_id'] ?? null,
-                            'is_active'             => true,
-                            'created_at'            => now(),
-                            'updated_at'            => now(),
+                            'timedoctor_version' => 1,
+                            'tm_user_id' => $worklog['user_id'] ?? null,
+                            'is_active' => true,
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ];
                         $insertedCount++;
                     }
                 } catch (\Exception $e) {
-                    Log::error("Error processing individual worklog", [
+                    Log::error('Error processing individual worklog', [
                         'worklog' => $worklog ?? 'unknown',
-                        'error'   => $e->getMessage(),
-                        'trace'   => $e->getTraceAsString(),
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
                     ]);
                     $errorCount++;
                 }
@@ -433,14 +440,14 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
 
             return [
                 'inserted' => $insertedCount,
-                'updated'  => $updatedCount,
-                'errors'   => $errorCount,
+                'updated' => $updatedCount,
+                'errors' => $errorCount,
             ];
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Error in processWorklogBatch", [
-                'user'  => $user->timedoctorUser->tm_fullname ?? 'unknown',
+            Log::error('Error in processWorklogBatch', [
+                'user' => $user->timedoctorUser->tm_fullname ?? 'unknown',
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -453,18 +460,18 @@ class SyncTimeDoctorWorklogs implements ShouldQueue
     {
         Log::error('TimeDoctor worklog sync job failed permanently', [
             'start_date' => $this->startDate,
-            'end_date'   => $this->endDate,
-            'error'      => $exception->getMessage(),
-            'trace'      => $exception->getTraceAsString(),
-            'job_id'     => $this->job?->getJobId(),
+            'end_date' => $this->endDate,
+            'error' => $exception->getMessage(),
+            'trace' => $exception->getTraceAsString(),
+            'job_id' => $this->job?->getJobId(),
         ]);
 
         ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync job failed permanently', [
-            'module'     => 'timedoctor_integration',
+            'module' => 'timedoctor_integration',
             'start_date' => $this->startDate,
-            'end_date'   => $this->endDate,
-            'error'      => $exception->getMessage(),
-            'job_id'     => $this->job?->getJobId(),
+            'end_date' => $this->endDate,
+            'error' => $exception->getMessage(),
+            'job_id' => $this->job?->getJobId(),
         ]);
     }
 }
