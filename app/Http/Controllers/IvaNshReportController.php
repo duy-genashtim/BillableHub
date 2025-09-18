@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -17,25 +18,25 @@ class IvaNshReportController extends Controller
     public function getNshReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'date'        => 'nullable|date',
-            'search'      => 'nullable|string',
+            'date' => 'nullable|date',
+            'search' => 'nullable|string',
             'work_status' => 'nullable|string|in:full-time,part-time',
-            'page'        => 'nullable|integer|min:1',
-            'per_page'    => 'nullable|integer|min:1|max:100',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // Get date (default to yesterday)
-        $date       = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::yesterday();
+        $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::yesterday();
         $startOfDay = $date->copy()->startOfDay();
-        $endOfDay   = $date->copy()->endOfDay();
+        $endOfDay = $date->copy()->endOfDay();
 
         // Build user query with optimized loading
         $usersQuery = IvaUser::select([
@@ -89,27 +90,27 @@ class IvaNshReportController extends Controller
 
         // Calculate summary statistics
         $summary = [
-            'total_users'           => $total,
-            'total_hours'           => collect($nshData)->sum('hours'),
-            'average_hours'         => $total > 0 ? collect($nshData)->avg('hours') : 0,
-            'max_hours'            => $total > 0 ? collect($nshData)->max('hours') : 0,
-            'users_over_6h'        => collect($nshData)->where('hours', '>=', 6)->count(),
-            'users_over_10h'       => collect($nshData)->where('hours', '>=', 10)->count(),
+            'total_users' => $total,
+            'total_hours' => collect($nshData)->sum('hours'),
+            'average_hours' => $total > 0 ? collect($nshData)->avg('hours') : 0,
+            'max_hours' => $total > 0 ? collect($nshData)->max('hours') : 0,
+            'users_over_6h' => collect($nshData)->where('hours', '>=', 6)->count(),
+            'users_over_10h' => collect($nshData)->where('hours', '>=', 10)->count(),
         ];
 
         return response()->json([
-            'success'    => true,
-            'date'       => $date->format('Y-m-d'),
+            'success' => true,
+            'date' => $date->format('Y-m-d'),
             'is_yesterday' => $date->isYesterday(),
-            'nsh_data'   => $paginatedData,
-            'summary'    => $summary,
+            'nsh_data' => $paginatedData,
+            'summary' => $summary,
             'pagination' => [
                 'current_page' => $page,
-                'per_page'     => $perPage,
-                'total'        => $total,
-                'last_page'    => ceil($total / $perPage),
-                'from'         => $offset + 1,
-                'to'           => min($offset + $perPage, $total),
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => ceil($total / $perPage),
+                'from' => $offset + 1,
+                'to' => min($offset + $perPage, $total),
             ],
         ]);
     }
@@ -138,9 +139,9 @@ class IvaNshReportController extends Controller
             ->join(
                 DB::raw('(SELECT iva_id, MAX(duration) as max_duration
                          FROM worklogs_data
-                         WHERE iva_id IN (' . implode(',', $userIds) . ')
+                         WHERE iva_id IN ('.implode(',', $userIds).')
                          AND is_active = 1
-                         AND start_time BETWEEN "' . $startDateTime . '" AND "' . $endDateTime . '"
+                         AND start_time BETWEEN "'.$startDateTime.'" AND "'.$endDateTime.'"
                          GROUP BY iva_id) as w2'),
                 function ($join) {
                     $join->on('w1.iva_id', '=', 'w2.iva_id')
@@ -164,25 +165,26 @@ class IvaNshReportController extends Controller
 
         foreach ($uniqueRecords as $record) {
             $user = $userMap->get($record->iva_id);
-            if (!$user) continue;
+            if (! $user) {
+                continue;
+            }
 
             $nshData[] = [
-                'id'           => $user->id,
-                'full_name'    => $user->full_name,
-                'email'        => $user->email,
-                'job_title'    => $user->job_title,
-                'work_status'  => $user->work_status,
-                'region'       => $user->region ? $user->region->name : 'Unknown Region',
-                'hours'        => round($record->duration / 3600, 2),
-                'task_name'    => $record->task ? $record->task->task_name : 'Unknown Task',
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'job_title' => $user->job_title,
+                'work_status' => $user->work_status,
+                'region' => $user->region ? $user->region->name : 'Unknown Region',
+                'hours' => round($record->duration / 3600, 2),
+                'task_name' => $record->task ? $record->task->task_name : 'Unknown Task',
                 'project_name' => $record->project ? $record->project->project_name : 'Unknown Project',
-                'start_time'   => $record->start_time,
-                'end_time'     => $record->end_time,
-                'comment'      => $record->comment,
+                'start_time' => $record->start_time,
+                'end_time' => $record->end_time,
+                'comment' => $record->comment,
             ];
         }
 
         return $nshData;
     }
-
 }

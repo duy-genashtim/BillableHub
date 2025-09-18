@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Console\Commands;
 
 use App\Models\IvaUser;
@@ -29,10 +30,13 @@ class SyncTimeDoctorWorklogs extends Command
     protected $description = 'Sync TimeDoctor v1 worklog data for all IVA users within a date range';
 
     protected $timeDoctorService;
+
     protected $dailyWorklogSummaryService;
 
-    const BATCH_SIZE       = 100;
-    const MAX_RETRIES      = 3;
+    const BATCH_SIZE = 100;
+
+    const MAX_RETRIES = 3;
+
     const PAGINATION_LIMIT = 250;
 
     public function __construct(
@@ -57,15 +61,15 @@ class SyncTimeDoctorWorklogs extends Command
             // Parse and validate date range
             $dateRange = $this->parseDateRange();
             $startDate = $dateRange['start'];
-            $endDate   = $dateRange['end'];
-            $isDryRun  = $this->option('dry-run');
+            $endDate = $dateRange['end'];
+            $isDryRun = $this->option('dry-run');
 
             if ($isDryRun) {
                 $this->warn('DRY RUN MODE - No data will be modified');
             }
 
             $this->info("Sync Date Range: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
-            $this->info("Total Days: " . ($startDate->diffInDays($endDate) + 1));
+            $this->info('Total Days: '.($startDate->diffInDays($endDate) + 1));
 
             // Get TimeDoctor company info
             $this->info('Connecting to TimeDoctor API...');
@@ -101,13 +105,13 @@ class SyncTimeDoctorWorklogs extends Command
             // Log activity
             if (! $isDryRun) {
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync completed via Artisan command', [
-                    'module'          => 'timedoctor_integration',
-                    'start_date'      => $startDate->format('Y-m-d'),
-                    'end_date'        => $endDate->format('Y-m-d'),
-                    'total_synced'    => $results['total_inserted'] + $results['total_updated'],
-                    'total_days'      => $startDate->diffInDays($endDate) + 1,
+                    'module' => 'timedoctor_integration',
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
+                    'total_synced' => $results['total_inserted'] + $results['total_updated'],
+                    'total_days' => $startDate->diffInDays($endDate) + 1,
                     'users_processed' => $users->count(),
-                    'command'         => 'artisan',
+                    'command' => 'artisan',
                 ]);
 
                 // Auto-calculate daily worklog summaries for all affected users
@@ -118,24 +122,25 @@ class SyncTimeDoctorWorklogs extends Command
                         'start_date' => $startDate->format('Y-m-d'),
                         'end_date' => $endDate->format('Y-m-d'),
                         'calculate_all' => false,
-                        'iva_user_ids' => $userIds
+                        'iva_user_ids' => $userIds,
                     ];
 
                     $summaryResult = $this->dailyWorklogSummaryService->calculateSummaries($params);
-                    
+
                     if ($summaryResult['success']) {
-                        $this->info('✅ Daily summaries calculated successfully! ' . 
-                            'Processed: ' . $summaryResult['summary']['total_processed'] . 
-                            ', Errors: ' . $summaryResult['summary']['total_errors']);
+                        $this->info('✅ Daily summaries calculated successfully! '.
+                            'Processed: '.$summaryResult['summary']['total_processed'].
+                            ', Errors: '.$summaryResult['summary']['total_errors']);
                     } else {
-                        $this->warn('⚠️  Daily summaries calculation had issues: ' . $summaryResult['message']);
+                        $this->warn('⚠️  Daily summaries calculation had issues: '.$summaryResult['message']);
                     }
                 } catch (\Exception $e) {
-                    $this->error('❌ Failed to calculate daily summaries: ' . $e->getMessage());
+                    $this->error('❌ Failed to calculate daily summaries: '.$e->getMessage());
                 }
             }
 
             $this->info('✅ Sync completed successfully!');
+
             return Command::SUCCESS;
 
         } catch (\Exception $e) {
@@ -148,8 +153,8 @@ class SyncTimeDoctorWorklogs extends Command
             // ]);
 
             ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync failed via Artisan command', [
-                'module'  => 'timedoctor_integration',
-                'error'   => $e->getMessage(),
+                'module' => 'timedoctor_integration',
+                'error' => $e->getMessage(),
                 'command' => 'artisan',
             ]);
 
@@ -163,13 +168,13 @@ class SyncTimeDoctorWorklogs extends Command
     private function parseDateRange(): array
     {
         $startDateInput = $this->option('start-date');
-        $endDateInput   = $this->option('end-date');
+        $endDateInput = $this->option('end-date');
 
         // Default to yesterday if no dates provided
         if (! $startDateInput && ! $endDateInput) {
             $yesterday = Carbon::yesterday();
             $startDate = $yesterday->copy();
-            $endDate   = $yesterday->copy();
+            $endDate = $yesterday->copy();
             $this->info("No date range specified, defaulting to yesterday: {$yesterday->format('Y-m-d')}");
         } else {
             // Validate start date
@@ -183,7 +188,7 @@ class SyncTimeDoctorWorklogs extends Command
 
             try {
                 $startDate = Carbon::createFromFormat('Y-m-d', $startDateInput);
-                $endDate   = Carbon::createFromFormat('Y-m-d', $endDateInput);
+                $endDate = Carbon::createFromFormat('Y-m-d', $endDateInput);
             } catch (\Exception $e) {
                 throw new \InvalidArgumentException('Invalid date format. Use Y-m-d format (e.g., 2024-01-15)');
             }
@@ -200,7 +205,7 @@ class SyncTimeDoctorWorklogs extends Command
 
         return [
             'start' => $startDate,
-            'end'   => $endDate,
+            'end' => $endDate,
         ];
     }
 
@@ -209,11 +214,11 @@ class SyncTimeDoctorWorklogs extends Command
      */
     private function syncWorklogsForDateRange($companyId, $users, Carbon $startDate, Carbon $endDate, bool $isDryRun): array
     {
-        $totalDays     = $startDate->diffInDays($endDate) + 1;
+        $totalDays = $startDate->diffInDays($endDate) + 1;
         $processedDays = 0;
         $totalInserted = 0;
-        $totalUpdated  = 0;
-        $totalErrors   = 0;
+        $totalUpdated = 0;
+        $totalErrors = 0;
 
         $progressBar = $this->output->createProgressBar($totalDays);
         $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s% -- %message%');
@@ -257,8 +262,8 @@ class SyncTimeDoctorWorklogs extends Command
 
         return [
             'total_inserted' => $totalInserted,
-            'total_updated'  => $totalUpdated,
-            'total_errors'   => $totalErrors,
+            'total_updated' => $totalUpdated,
+            'total_errors' => $totalErrors,
             'processed_days' => $processedDays,
         ];
     }
@@ -269,26 +274,27 @@ class SyncTimeDoctorWorklogs extends Command
      */
     private function processUsersWorklogsForDay($companyId, $users, Carbon $date, bool $isDryRun): array
     {
-        $totalUsers     = $users->count();
+        $totalUsers = $users->count();
         $processedUsers = 0;
-        $totalInserted  = 0;
-        $totalUpdated   = 0;
-        $totalErrors    = 0;
+        $totalInserted = 0;
+        $totalUpdated = 0;
+        $totalErrors = 0;
 
         foreach ($users as $user) {
             if (! $user->timedoctorUser) {
                 $processedUsers++;
+
                 continue;
             }
 
             $userName = $user->timedoctorUser->tm_fullname;
 
             try {
-                $offset       = 1;
-                $hasMoreData  = true;
-                $batchNumber  = 1;
+                $offset = 1;
+                $hasMoreData = true;
+                $batchNumber = 1;
                 $userInserted = 0;
-                $userUpdated  = 0;
+                $userUpdated = 0;
 
                 while ($hasMoreData) {
                     $worklogData = $this->timeDoctorService->getUserWorklogs(
@@ -311,7 +317,7 @@ class SyncTimeDoctorWorklogs extends Command
 
                     if (isset($worklogData['worklogs']['items'])) {
                         $worklogItems = $worklogData['worklogs']['items'];
-                    } else if (is_array($worklogData['worklogs'])) {
+                    } elseif (is_array($worklogData['worklogs'])) {
                         $worklogItems = $worklogData['worklogs'];
                     } else {
                         $totalErrors++;
@@ -363,8 +369,8 @@ class SyncTimeDoctorWorklogs extends Command
 
         return [
             'inserted' => $totalInserted,
-            'updated'  => $totalUpdated,
-            'errors'   => $totalErrors,
+            'updated' => $totalUpdated,
+            'errors' => $totalErrors,
         ];
     }
 
@@ -383,7 +389,7 @@ class SyncTimeDoctorWorklogs extends Command
 
         // Use reflection to call the private method
         $reflection = new \ReflectionClass($controller);
-        $method     = $reflection->getMethod('processWorklogBatch');
+        $method = $reflection->getMethod('processWorklogBatch');
         $method->setAccessible(true);
 
         return $method->invokeArgs($controller, [$worklogItems, $user]);
@@ -405,12 +411,12 @@ class SyncTimeDoctorWorklogs extends Command
         $this->info("Days Processed: {$results['processed_days']}");
         $this->info("Records Inserted: {$results['total_inserted']}");
         $this->info("Records Updated: {$results['total_updated']}");
-        $this->info("Total Records Synced: " . ($results['total_inserted'] + $results['total_updated']));
+        $this->info('Total Records Synced: '.($results['total_inserted'] + $results['total_updated']));
 
         if ($results['total_errors'] > 0) {
             $this->warn("Errors Encountered: {$results['total_errors']}");
         } else {
-            $this->info("Errors: 0");
+            $this->info('Errors: 0');
         }
 
         $this->newLine();

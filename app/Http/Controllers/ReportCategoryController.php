@@ -1,7 +1,7 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\ConfigurationSetting;
 use App\Models\ReportCategory;
 use App\Models\Task;
@@ -36,7 +36,7 @@ class ReportCategoryController extends Controller
         // );
 
         return response()->json([
-            'categories'    => $categories,
+            'categories' => $categories,
             'categoryTypes' => $categoryTypes,
         ]);
     }
@@ -47,11 +47,11 @@ class ReportCategoryController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'cat_name'        => 'required|string|max:255|unique:report_categories',
+            'cat_name' => 'required|string|max:255|unique:report_categories',
             'cat_description' => 'nullable|string',
-            'is_active'       => 'boolean',
-            'category_order'  => 'nullable|integer|min:1',
-            'category_type'   => 'required|exists:configuration_settings,id',
+            'is_active' => 'boolean',
+            'category_order' => 'nullable|integer|min:1',
+            'category_type' => 'required|exists:configuration_settings,id',
         ]);
 
         if ($validator->fails()) {
@@ -65,19 +65,19 @@ class ReportCategoryController extends Controller
 
         ActivityLogService::log(
             'create_category',
-            'Created new report category: ' . $category->cat_name,
+            'Created new report category: '.$category->cat_name,
             [
-                'category_id'    => $category->id,
-                'category_name'  => $category->cat_name,
-                'category_type'  => $category->categoryType?->setting_value,
-                'is_active'      => $category->is_active,
+                'category_id' => $category->id,
+                'category_name' => $category->cat_name,
+                'category_type' => $category->categoryType?->setting_value,
+                'is_active' => $category->is_active,
                 'category_order' => $category->category_order,
-                'module'         => 'task_categories',
+                'module' => 'task_categories',
             ]
         );
 
         return response()->json([
-            'message'  => 'Category created successfully',
+            'message' => 'Category created successfully',
             'category' => $category,
         ], 201);
     }
@@ -91,19 +91,19 @@ class ReportCategoryController extends Controller
 
         // Get tasks associated with this category
         $taskIds = $category->taskCategories()->pluck('task_id');
-        $tasks   = Task::whereIn('id', $taskIds)->get();
+        $tasks = Task::whereIn('id', $taskIds)->get();
 
-        $categoryData          = $category->toArray();
+        $categoryData = $category->toArray();
         $categoryData['tasks'] = $tasks;
 
         ActivityLogService::log(
             'view_category',
-            'Viewed report category: ' . $category->cat_name,
+            'Viewed report category: '.$category->cat_name,
             [
-                'category_id'   => $id,
+                'category_id' => $id,
                 'category_name' => $category->cat_name,
-                'tasks_count'   => $tasks->count(),
-                'module'        => 'task_categories',
+                'tasks_count' => $tasks->count(),
+                'module' => 'task_categories',
             ]
         );
 
@@ -115,20 +115,20 @@ class ReportCategoryController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $category  = ReportCategory::findOrFail($id);
+        $category = ReportCategory::findOrFail($id);
         $oldValues = $category->toArray();
 
         $validator = Validator::make($request->all(), [
-            'cat_name'        => [
+            'cat_name' => [
                 'required',
                 'string',
                 'max:255',
                 Rule::unique('report_categories')->ignore($id),
             ],
             'cat_description' => 'nullable|string',
-            'is_active'       => 'boolean',
-            'category_order'  => 'nullable|integer|min:1',
-            'category_type'   => 'required|exists:configuration_settings,id',
+            'is_active' => 'boolean',
+            'category_order' => 'nullable|integer|min:1',
+            'category_type' => 'required|exists:configuration_settings,id',
         ]);
 
         if ($validator->fails()) {
@@ -142,18 +142,18 @@ class ReportCategoryController extends Controller
 
         ActivityLogService::log(
             'update_category',
-            'Updated report category: ' . $category->cat_name,
+            'Updated report category: '.$category->cat_name,
             [
-                'category_id'   => $id,
+                'category_id' => $id,
                 'category_name' => $category->cat_name,
-                'old_values'    => $oldValues,
-                'new_values'    => $category->toArray(),
-                'module'        => 'task_categories',
+                'old_values' => $oldValues,
+                'new_values' => $category->toArray(),
+                'module' => 'task_categories',
             ]
         );
 
         return response()->json([
-            'message'  => 'Category updated successfully',
+            'message' => 'Category updated successfully',
             'category' => $category,
         ]);
     }
@@ -179,12 +179,12 @@ class ReportCategoryController extends Controller
 
         ActivityLogService::log(
             'delete_category',
-            'Deleted report category: ' . $categoryName,
+            'Deleted report category: '.$categoryName,
             [
-                'category_id'   => $id,
+                'category_id' => $id,
                 'category_name' => $categoryName,
-                'deleted_data'  => $categoryData,
-                'module'        => 'task_categories',
+                'deleted_data' => $categoryData,
+                'module' => 'task_categories',
             ]
         );
 
@@ -198,7 +198,7 @@ class ReportCategoryController extends Controller
      */
     public function toggleStatus($id)
     {
-        $category  = ReportCategory::findOrFail($id);
+        $category = ReportCategory::findOrFail($id);
         $oldStatus = $category->is_active;
 
         $category->is_active = ! $category->is_active;
@@ -206,18 +206,18 @@ class ReportCategoryController extends Controller
 
         ActivityLogService::log(
             'toggle_category_status',
-            'Toggled status of category: ' . $category->cat_name,
+            'Toggled status of category: '.$category->cat_name,
             [
-                'category_id'   => $id,
+                'category_id' => $id,
                 'category_name' => $category->cat_name,
-                'old_status'    => $oldStatus,
-                'new_status'    => $category->is_active,
-                'module'        => 'task_categories',
+                'old_status' => $oldStatus,
+                'new_status' => $category->is_active,
+                'module' => 'task_categories',
             ]
         );
 
         return response()->json([
-            'message'  => 'Category status updated successfully',
+            'message' => 'Category status updated successfully',
             'category' => $category,
         ]);
     }
@@ -234,7 +234,7 @@ class ReportCategoryController extends Controller
             'Viewed available tasks for category assignment',
             [
                 'total_tasks' => $tasks->count(),
-                'module'      => 'task_categories',
+                'module' => 'task_categories',
             ]
         );
 
@@ -247,7 +247,7 @@ class ReportCategoryController extends Controller
     public function assignTasks(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'task_ids'   => 'required|array',
+            'task_ids' => 'required|array',
             'task_ids.*' => 'exists:tasks,id',
         ]);
 
@@ -273,8 +273,8 @@ class ReportCategoryController extends Controller
         $assignments = [];
         foreach ($newTaskIds as $taskId) {
             $assignments[] = [
-                'task_id'    => $taskId,
-                'cat_id'     => $id,
+                'task_id' => $taskId,
+                'cat_id' => $id,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -286,19 +286,19 @@ class ReportCategoryController extends Controller
 
         ActivityLogService::log(
             'assign_tasks_to_category',
-            'Assigned tasks to category: ' . $category->cat_name,
+            'Assigned tasks to category: '.$category->cat_name,
             [
-                'category_id'   => $id,
+                'category_id' => $id,
                 'category_name' => $category->cat_name,
-                'task_ids'      => $newTaskIds,
-                'task_names'    => $assignedTasks,
-                'task_count'    => count($newTaskIds),
-                'module'        => 'task_categories',
+                'task_ids' => $newTaskIds,
+                'task_names' => $assignedTasks,
+                'task_count' => count($newTaskIds),
+                'module' => 'task_categories',
             ]
         );
 
         return response()->json([
-            'message'        => 'Tasks assigned to category successfully',
+            'message' => 'Tasks assigned to category successfully',
             'assigned_count' => count($newTaskIds),
         ]);
     }
@@ -309,7 +309,7 @@ class ReportCategoryController extends Controller
     public function removeTasks(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'task_ids'   => 'required|array',
+            'task_ids' => 'required|array',
             'task_ids.*' => 'exists:tasks,id',
         ]);
 
@@ -328,19 +328,19 @@ class ReportCategoryController extends Controller
 
         ActivityLogService::log(
             'remove_tasks_from_category',
-            'Removed tasks from category: ' . $category->cat_name,
+            'Removed tasks from category: '.$category->cat_name,
             [
-                'category_id'   => $id,
+                'category_id' => $id,
                 'category_name' => $category->cat_name,
-                'task_ids'      => $request->task_ids,
-                'task_names'    => $removedTasks,
+                'task_ids' => $request->task_ids,
+                'task_names' => $removedTasks,
                 'removed_count' => $removedCount,
-                'module'        => 'task_categories',
+                'module' => 'task_categories',
             ]
         );
 
         return response()->json([
-            'message'       => 'Tasks removed from category successfully',
+            'message' => 'Tasks removed from category successfully',
             'removed_count' => $removedCount,
         ]);
     }

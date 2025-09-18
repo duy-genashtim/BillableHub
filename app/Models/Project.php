@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,8 +21,8 @@ class Project extends Model
 
     protected $casts = [
         'timedoctor_version' => 'integer',
-        'is_active'          => 'boolean',
-        'last_synced_at'     => 'datetime',
+        'is_active' => 'boolean',
+        'last_synced_at' => 'datetime',
     ];
 
     public function worklogs(): HasMany

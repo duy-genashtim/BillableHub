@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\ConfigurationSetting;
@@ -70,18 +71,19 @@ class ConfigurationSettingsSeeder extends Seeder
 
         if (! $settingType) {
             $this->command->error("Setting type with key '$typeKey' not found.");
+
             return;
         }
 
         foreach ($settings as $setting) {
             ConfigurationSetting::create([
                 'setting_type_id' => $settingType->id,
-                'setting_value'   => $setting['setting_value'],
-                'description'     => $setting['description'] ?? null,
-                'is_active'       => true,
-                'added_by'        => 'System Seeder',
-                'order'           => $setting['order'] ?? 0,
-                'is_system'       => true, // Mark as system settings so they can't be deleted
+                'setting_value' => $setting['setting_value'],
+                'description' => $setting['description'] ?? null,
+                'is_active' => true,
+                'added_by' => 'System Seeder',
+                'order' => $setting['order'] ?? 0,
+                'is_system' => true, // Mark as system settings so they can't be deleted
             ]);
         }
     }

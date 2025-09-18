@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\User;
@@ -16,14 +17,14 @@ class RolePermissionSeeder extends Seeder
         // Reset cached roles and permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $permissions     = config('constants.permissions');
-        $roles           = config('constants.roles');
+        $permissions = config('constants.permissions');
+        $roles = config('constants.roles');
         $rolePermissions = config('constants.role_permissions');
 
         // Create permissions
         foreach ($permissions as $key => $name) {
             Permission::firstOrCreate([
-                'name'       => $key,
+                'name' => $key,
                 'guard_name' => 'web',
             ]);
         }
@@ -31,7 +32,7 @@ class RolePermissionSeeder extends Seeder
         // Create roles and assign permissions
         foreach ($roles as $roleKey => $roleName) {
             $role = Role::firstOrCreate([
-                'name'       => $roleKey,
+                'name' => $roleKey,
                 'guard_name' => 'web',
             ]);
 

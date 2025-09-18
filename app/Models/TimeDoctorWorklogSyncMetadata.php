@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,11 +23,11 @@ class TimeDoctorWorklogSyncMetadata extends Model
     ];
 
     protected $casts = [
-        'sync_date'      => 'date:Y-m-d',
-        'started_at'     => 'datetime:Y-m-d\TH:i:s',
-        'completed_at'   => 'datetime:Y-m-d\TH:i:s',
-        'is_synced'      => 'boolean',
-        'total_records'  => 'integer',
+        'sync_date' => 'date:Y-m-d',
+        'started_at' => 'datetime:Y-m-d\TH:i:s',
+        'completed_at' => 'datetime:Y-m-d\TH:i:s',
+        'is_synced' => 'boolean',
+        'total_records' => 'integer',
         'synced_records' => 'integer',
     ];
 }

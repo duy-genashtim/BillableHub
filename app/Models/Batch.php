@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,9 +19,9 @@ class Batch extends Model
     ];
 
     protected $casts = [
-        'is_active'   => 'boolean',
+        'is_active' => 'boolean',
         'batch_order' => 'integer',
-        'start_date'  => 'date:Y-m-d',
+        'start_date' => 'date:Y-m-d',
     ];
 
     /**

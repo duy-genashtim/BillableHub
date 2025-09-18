@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -17,6 +18,7 @@ class TaskCategorySeeder extends Seeder
 
         if ($taskCount === 0) {
             $this->command->info('No tasks found in tasks table. Seeder will not run.');
+
             return;
         }
 
@@ -33,16 +35,17 @@ class TaskCategorySeeder extends Seeder
 
         if (! $billableTypeId || ! $nonBillableTypeId) {
             $this->command->error('Could not find billable/non-billable configuration settings. Please ensure they exist.');
+
             return;
         }
 
         // Define categories and their tasks
         $categories = [
             [
-                'name'    => 'Actual Non-Billable Hours',
-                'type'    => 'non-billable',
+                'name' => 'Actual Non-Billable Hours',
+                'type' => 'non-billable',
                 'type_id' => $nonBillableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     'On Department Call',
                     'Genashtim Training',
                     'G-Tribe Meeting',
@@ -51,43 +54,43 @@ class TaskCategorySeeder extends Seeder
                 ],
             ],
             [
-                'name'    => 'Administrative work',
-                'type'    => 'billable',
+                'name' => 'Administrative work',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Administrative work] Administrative activities (Slack, Office Hours, 1-on-1 Sessions with Partnership Managers and Regional Team Leads, Pipeline Management, Meetings with B Lab Global)',
                 ],
             ],
             [
-                'name'    => 'Evaluation work',
-                'type'    => 'billable',
+                'name' => 'Evaluation work',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Evaluation work] Evaluation Standard Approach',
                 ],
             ],
             [
-                'name'    => 'Support services',
-                'type'    => 'billable',
+                'name' => 'Support services',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Support services] Risk Review Support',
                     '[Support services] Background Check (BGC) and Transparent Documents Support',
                 ],
             ],
             [
-                'name'    => 'Training',
-                'type'    => 'billable',
+                'name' => 'Training',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Training] B Lab Training (Thinkific, live Q&A sessions, B Lab required webinars)',
                 ],
             ],
             [
-                'name'    => 'Verification work - Others',
-                'type'    => 'billable',
+                'name' => 'Verification work - Others',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Verification work] Medium Enterprise Approach (MEA) & Recert 4 (R4)',
                     '[Verification work] Small Enterprise Approach (SEA)',
                     '[Verification work] Small-Medium Enterprise Approach (SMEA) & Recert 3 (R3)',
@@ -99,18 +102,18 @@ class TaskCategorySeeder extends Seeder
                 ],
             ],
             [
-                'name'    => 'Verification work - Large',
-                'type'    => 'billable',
+                'name' => 'Verification work - Large',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Verification work] Large Enterprise Approach & Multinational Companies (LE/MNC)',
                 ],
             ],
             [
-                'name'    => 'BLAB RTLs, aRTLs and QET',
-                'type'    => 'billable',
+                'name' => 'BLAB RTLs, aRTLs and QET',
+                'type' => 'billable',
                 'type_id' => $billableTypeId,
-                'tasks'   => [
+                'tasks' => [
                     '[Support services] Mentorship activities',
                     '[Management] Support to IVAs (Touchbase Meetings, Office Hours, 1-on-1 Sessions, Performance Monitoring)',
                     '[Management] Quality Enhancement (Data Analysis, Quality Management, Performance Tracking)',
@@ -134,13 +137,13 @@ class TaskCategorySeeder extends Seeder
 
                 if (! $categoryId) {
                     $categoryId = DB::table('report_categories')->insertGetId([
-                        'cat_name'        => $categoryData['name'],
+                        'cat_name' => $categoryData['name'],
                         'cat_description' => "Auto-generated category for {$categoryData['type']} tasks",
-                        'is_active'       => true,
-                        'category_order'  => 20,
-                        'category_type'   => $categoryData['type_id'],
-                        'created_at'      => now(),
-                        'updated_at'      => now(),
+                        'is_active' => true,
+                        'category_order' => 20,
+                        'category_type' => $categoryData['type_id'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
 
                     $this->command->info("  ✓ Created category: {$categoryData['name']} (ID: {$categoryId})");
@@ -149,7 +152,7 @@ class TaskCategorySeeder extends Seeder
                 }
 
                 // Process tasks for this category
-                $tasksFound      = 0;
+                $tasksFound = 0;
                 $tasksAssociated = 0;
 
                 foreach ($categoryData['tasks'] as $taskName) {
@@ -162,7 +165,7 @@ class TaskCategorySeeder extends Seeder
                     // If not found, try partial match (useful for tasks with brackets)
                     if (! $task) {
                         $task = DB::table('tasks')
-                            ->where('task_name', 'LIKE', '%' . trim($taskName, '[]') . '%')
+                            ->where('task_name', 'LIKE', '%'.trim($taskName, '[]').'%')
                             ->where('is_active', true)
                             ->first();
                     }
@@ -178,8 +181,8 @@ class TaskCategorySeeder extends Seeder
 
                         if (! $existingAssociation) {
                             DB::table('task_report_categories')->insert([
-                                'task_id'    => $task->id,
-                                'cat_id'     => $categoryId,
+                                'task_id' => $task->id,
+                                'cat_id' => $categoryId,
                                 'created_at' => now(),
                                 'updated_at' => now(),
                             ]);
@@ -205,8 +208,8 @@ class TaskCategorySeeder extends Seeder
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->command->error('❌ Error occurred during seeding: ' . $e->getMessage());
-            Log::error('TaskCategorySeeder failed: ' . $e->getMessage(), [
+            $this->command->error('❌ Error occurred during seeding: '.$e->getMessage());
+            Log::error('TaskCategorySeeder failed: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
         }
@@ -220,9 +223,9 @@ class TaskCategorySeeder extends Seeder
         $this->command->line('');
         $this->command->info('=== SEEDING SUMMARY ===');
 
-        $totalCategories   = DB::table('report_categories')->count();
+        $totalCategories = DB::table('report_categories')->count();
         $totalAssociations = DB::table('task_report_categories')->count();
-        $totalTasks        = DB::table('tasks')->count();
+        $totalTasks = DB::table('tasks')->count();
 
         $this->command->info("Total Categories: {$totalCategories}");
         $this->command->info("Total Task-Category Associations: {$totalAssociations}");

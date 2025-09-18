@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\Region;
@@ -12,11 +13,11 @@ class RegionSeeder extends Seeder
     public function run(): void
     {
         $regions = [
-            "America (Cohorts 1-5)",
-            "EMEA",
-            "ID/PH",
-            "MY/SG",
-            "America (Cohort 6)",
+            'America (Cohorts 1-5)',
+            'EMEA',
+            'ID/PH',
+            'MY/SG',
+            'America (Cohort 6)',
         ];
 
         foreach ($regions as $regionName) {
@@ -24,7 +25,7 @@ class RegionSeeder extends Seeder
                 ['name' => $regionName],
                 [
                     'description' => $regionName,
-                    'is_active'   => true,
+                    'is_active' => true,
                 ]
             );
         }

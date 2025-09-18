@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Cohort;
@@ -90,9 +91,9 @@ class IvaUserController extends Controller
         // );
 
         return response()->json([
-            'users'               => $users,
-            'regions'             => $regions,
-            'cohorts'             => $cohorts,
+            'users' => $users,
+            'regions' => $regions,
+            'cohorts' => $cohorts,
             'work_status_options' => $workStatusOptions,
             'timedoctor_versions' => $timedoctorOptions,
         ]);
@@ -104,15 +105,15 @@ class IvaUserController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'full_name'          => 'required|string|max:255',
-            'job_title'          => 'nullable|string|max:255',
-            'email'              => 'required|email|unique:iva_user,email',
-            'hire_date'          => 'nullable|date',
-            'region_id'          => 'nullable|exists:regions,id',
-            'cohort_id'          => 'nullable|exists:cohorts,id',
-            'work_status'        => ['nullable', 'string'],
+            'full_name' => 'required|string|max:255',
+            'job_title' => 'nullable|string|max:255',
+            'email' => 'required|email|unique:iva_user,email',
+            'hire_date' => 'nullable|date',
+            'region_id' => 'nullable|exists:regions,id',
+            'cohort_id' => 'nullable|exists:cohorts,id',
+            'work_status' => ['nullable', 'string'],
             'timedoctor_version' => 'required|integer|in:1,2',
-            'is_active'          => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -134,15 +135,15 @@ class IvaUserController extends Controller
         try {
             // Create the user
             $user = IvaUser::create([
-                'full_name'          => $request->full_name,
-                'job_title'          => $request->job_title,
-                'email'              => $request->email,
-                'hire_date'          => $request->hire_date,
-                'region_id'          => $request->region_id,
-                'cohort_id'          => $request->cohort_id,
-                'work_status'        => $request->work_status,
+                'full_name' => $request->full_name,
+                'job_title' => $request->job_title,
+                'email' => $request->email,
+                'hire_date' => $request->hire_date,
+                'region_id' => $request->region_id,
+                'cohort_id' => $request->cohort_id,
+                'work_status' => $request->work_status,
                 'timedoctor_version' => $request->timedoctor_version,
-                'is_active'          => $request->is_active ?? true,
+                'is_active' => $request->is_active ?? true,
             ]);
 
             // Check if email exists in TimeDoctor tables and link
@@ -151,7 +152,7 @@ class IvaUserController extends Controller
             // Log the creation
             ActivityLogService::log(
                 'create_iva_user',
-                'Created new IVA user: ' . $user->full_name,
+                'Created new IVA user: '.$user->full_name,
                 $user->toArray()
             );
 
@@ -159,14 +160,14 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'User created successfully',
-                'user'    => $user->load(['region', 'cohort', 'timedoctorUser']),
+                'user' => $user->load(['region', 'cohort', 'timedoctorUser']),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
                 'message' => 'Failed to create user',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -187,7 +188,7 @@ class IvaUserController extends Controller
                 $query->orderBy('created_at', 'desc');
             },
             'customizations.setting.settingType',
-            'logs'       => function ($query) {
+            'logs' => function ($query) {
                 $query->with('creator')->orderBy('created_at', 'desc');
             },
         ])->findOrFail($id);
@@ -232,14 +233,14 @@ class IvaUserController extends Controller
         // );
 
         return response()->json([
-            'user'                 => $user,
-            'regions'              => $regions,
-            'cohorts'              => $cohorts,
-            'timedoctorVersions'   => $timedoctorVersions,
-            'workStatusOptions'    => $workStatusOptions,
-            'customizationTypes'   => $customizationTypes,
-            'managerTypes'         => $managerTypes,
-            'logTypes'             => $logTypes,
+            'user' => $user,
+            'regions' => $regions,
+            'cohorts' => $cohorts,
+            'timedoctorVersions' => $timedoctorVersions,
+            'workStatusOptions' => $workStatusOptions,
+            'customizationTypes' => $customizationTypes,
+            'managerTypes' => $managerTypes,
+            'logTypes' => $logTypes,
             'timeDoctorSyncStatus' => $timeDoctorSyncStatus,
         ]);
     }
@@ -252,26 +253,26 @@ class IvaUserController extends Controller
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'full_name'                             => 'required|string|max:255',
-            'job_title'                             => 'nullable|string|max:255',
-            'email'                                 => [
+            'full_name' => 'required|string|max:255',
+            'job_title' => 'nullable|string|max:255',
+            'email' => [
                 'required',
                 'email',
                 Rule::unique('iva_user')->ignore($id),
             ],
-            'hire_date'                             => 'nullable|date',
-            'end_date'                              => 'nullable|date',
-            'region_id'                             => 'nullable|exists:regions,id',
-            'cohort_id'                             => 'nullable|exists:cohorts,id',
-            'work_status'                           => ['nullable', 'string'],
-            'timedoctor_version'                    => 'required|integer|in:1,2',
-            'is_active'                             => 'boolean',
-            'region_change_info.reason'             => 'required_if:region_id,!' . $user->region_id . '|string|nullable',
-            'region_change_info.effectiveDate'      => 'required_if:region_id,!' . $user->region_id . '|date|nullable',
-            'cohort_change_info.reason'             => 'required_if:cohort_id,!' . $user->cohort_id . '|string|nullable',
-            'cohort_change_info.effectiveDate'      => 'required_if:cohort_id,!' . $user->cohort_id . '|date|nullable',
-            'work_status_change_info.reason'        => 'required_if:work_status,!' . $user->work_status . '|string|nullable',
-            'work_status_change_info.effectiveDate' => 'required_if:work_status,!' . $user->work_status . '|date|nullable',
+            'hire_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+            'region_id' => 'nullable|exists:regions,id',
+            'cohort_id' => 'nullable|exists:cohorts,id',
+            'work_status' => ['nullable', 'string'],
+            'timedoctor_version' => 'required|integer|in:1,2',
+            'is_active' => 'boolean',
+            'region_change_info.reason' => 'required_if:region_id,!'.$user->region_id.'|string|nullable',
+            'region_change_info.effectiveDate' => 'required_if:region_id,!'.$user->region_id.'|date|nullable',
+            'cohort_change_info.reason' => 'required_if:cohort_id,!'.$user->cohort_id.'|string|nullable',
+            'cohort_change_info.effectiveDate' => 'required_if:cohort_id,!'.$user->cohort_id.'|date|nullable',
+            'work_status_change_info.reason' => 'required_if:work_status,!'.$user->work_status.'|string|nullable',
+            'work_status_change_info.effectiveDate' => 'required_if:work_status,!'.$user->work_status.'|date|nullable',
         ]);
 
         if ($validator->fails()) {
@@ -297,9 +298,9 @@ class IvaUserController extends Controller
             // Update user
             $user->full_name = $request->full_name;
             $user->job_title = $request->job_title;
-            $user->email     = $request->email;
+            $user->email = $request->email;
             $user->hire_date = $request->hire_date;
-            $user->end_date  = $request->end_date;
+            $user->end_date = $request->end_date;
 
             // Track changes to specific fields that need changelog entries
             $changedFields = [];
@@ -307,9 +308,9 @@ class IvaUserController extends Controller
             // For region changes
             if ($user->region_id != $request->region_id) {
                 $changedFields['region'] = [
-                    'old'            => $user->region_id,
-                    'new'            => $request->region_id,
-                    'reason'         => $request->region_change_info['reason'] ?? 'Region updated',
+                    'old' => $user->region_id,
+                    'new' => $request->region_id,
+                    'reason' => $request->region_change_info['reason'] ?? 'Region updated',
                     'effective_date' => $request->region_change_info['effectiveDate'] ?? now(),
                 ];
                 $user->region_id = $request->region_id;
@@ -318,9 +319,9 @@ class IvaUserController extends Controller
             // For cohort changes
             if ($user->cohort_id != $request->cohort_id) {
                 $changedFields['cohort'] = [
-                    'old'            => $user->cohort_id,
-                    'new'            => $request->cohort_id,
-                    'reason'         => $request->cohort_change_info['reason'] ?? 'Cohort updated',
+                    'old' => $user->cohort_id,
+                    'new' => $request->cohort_id,
+                    'reason' => $request->cohort_change_info['reason'] ?? 'Cohort updated',
                     'effective_date' => $request->cohort_change_info['effectiveDate'] ?? now(),
                 ];
                 $user->cohort_id = $request->cohort_id;
@@ -329,16 +330,16 @@ class IvaUserController extends Controller
             // For work status changes
             if ($user->work_status != $request->work_status) {
                 $changedFields['work_status'] = [
-                    'old'            => $user->work_status,
-                    'new'            => $request->work_status,
-                    'reason'         => $request->work_status_change_info['reason'] ?? 'Work status updated',
+                    'old' => $user->work_status,
+                    'new' => $request->work_status,
+                    'reason' => $request->work_status_change_info['reason'] ?? 'Work status updated',
                     'effective_date' => $request->work_status_change_info['effectiveDate'] ?? now(),
                 ];
                 $user->work_status = $request->work_status;
             }
 
             $user->timedoctor_version = $request->timedoctor_version;
-            $user->is_active          = $request->is_active;
+            $user->is_active = $request->is_active;
             $user->save();
 
             // Update TimeDoctor user info if exists and re-link if needed
@@ -347,21 +348,21 @@ class IvaUserController extends Controller
             // Create changelog entries for tracked fields
             foreach ($changedFields as $field => $values) {
                 IvaUserChangelog::create([
-                    'iva_user_id'      => $user->id,
-                    'field_changed'    => $field,
-                    'old_value'        => json_encode($values['old']),
-                    'new_value'        => json_encode($values['new']),
-                    'change_reason'    => $values['reason'],
-                    'changed_by_name'  => request()->user() ? request()->user()->name : 'System',
+                    'iva_user_id' => $user->id,
+                    'field_changed' => $field,
+                    'old_value' => json_encode($values['old']),
+                    'new_value' => json_encode($values['new']),
+                    'change_reason' => $values['reason'],
+                    'changed_by_name' => request()->user() ? request()->user()->name : 'System',
                     'changed_by_email' => request()->user() ? request()->user()->email : 'system@example.com',
-                    'effective_date'   => $values['effective_date'],
+                    'effective_date' => $values['effective_date'],
                 ]);
             }
 
             // Log the activity
             ActivityLogService::log(
                 'update_iva_user',
-                'Updated IVA user: ' . $user->full_name,
+                'Updated IVA user: '.$user->full_name,
                 [
                     'old' => $oldValues,
                     'new' => $user->toArray(),
@@ -372,14 +373,14 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'User updated successfully',
-                'user'    => $user->fresh(['region', 'cohort', 'timedoctorUser', 'managers.manager', 'managers.managerType']),
+                'user' => $user->fresh(['region', 'cohort', 'timedoctorUser', 'managers.manager', 'managers.managerType']),
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
                 'message' => 'Failed to update user',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -391,8 +392,8 @@ class IvaUserController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'sync_type' => 'required|in:manager,specific',
-            'emails'    => 'required_if:sync_type,specific|array',
-            'emails.*'  => 'required_if:sync_type,specific|email',
+            'emails' => 'required_if:sync_type,specific|array',
+            'emails.*' => 'required_if:sync_type,specific|email',
         ]);
 
         if ($validator->fails()) {
@@ -407,7 +408,7 @@ class IvaUserController extends Controller
                 ], 500);
             }
 
-            $apiUrl  = config('services.hrms.ivas_info_url');
+            $apiUrl = config('services.hrms.ivas_info_url');
             $payload = ['token' => $token];
 
             if ($request->sync_type === 'manager') {
@@ -434,12 +435,12 @@ class IvaUserController extends Controller
             if (! $response->successful()) {
                 Log::error('Employee API sync failed', [
                     'status' => $response->status(),
-                    'body'   => $response->body(),
+                    'body' => $response->body(),
                 ]);
 
                 return response()->json([
                     'message' => 'Failed to sync users from external API',
-                    'error'   => $response->body(),
+                    'error' => $response->body(),
                 ], 500);
             }
 
@@ -458,10 +459,10 @@ class IvaUserController extends Controller
                 'sync_iva_users',
                 'Synced IVA users from external API',
                 [
-                    'sync_type'            => $request->sync_type,
-                    'total_processed'      => count($responseData['data']),
-                    'created'              => $syncResults['created'],
-                    'updated'              => $syncResults['updated'],
+                    'sync_type' => $request->sync_type,
+                    'total_processed' => count($responseData['data']),
+                    'created' => $syncResults['created'],
+                    'updated' => $syncResults['updated'],
                     'work_status_warnings' => $syncResults['work_status_warnings'],
                 ]
             );
@@ -479,7 +480,7 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to sync users',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -504,7 +505,7 @@ class IvaUserController extends Controller
 
         return response()->json([
             'email' => $cooEmailSetting->setting_value,
-            'name'  => $cooEmailSetting->description,
+            'name' => $cooEmailSetting->description,
         ]);
     }
 
@@ -513,15 +514,15 @@ class IvaUserController extends Controller
      */
     private function processUserSyncData($usersData)
     {
-        $created            = [];
-        $updated            = [];
+        $created = [];
+        $updated = [];
         $workStatusWarnings = [];
 
         DB::beginTransaction();
 
         try {
             foreach ($usersData as $userData) {
-                $email        = $userData['email'];
+                $email = $userData['email'];
                 $existingUser = IvaUser::where('email', $email)->first();
 
                 // Map type_of_work to our work_status format
@@ -536,12 +537,12 @@ class IvaUserController extends Controller
                 }
 
                 $syncData = [
-                    'full_name'          => $userData['full_name'],
-                    'job_title'          => $userData['job_title'] ?? null,
-                    'email'              => $email,
-                    'hire_date'          => $userData['start_date'] ?? null,
-                    'end_date'           => $userData['leaving_date'] ?? null,
-                    'is_active'          => $userData['current_status'] ?? true,
+                    'full_name' => $userData['full_name'],
+                    'job_title' => $userData['job_title'] ?? null,
+                    'email' => $email,
+                    'hire_date' => $userData['start_date'] ?? null,
+                    'end_date' => $userData['leaving_date'] ?? null,
+                    'is_active' => $userData['current_status'] ?? true,
                     'timedoctor_version' => 1, // Default to version 1
                 ];
 
@@ -551,7 +552,7 @@ class IvaUserController extends Controller
                         'full_name' => $syncData['full_name'],
                         'job_title' => $syncData['job_title'],
                         'hire_date' => $syncData['hire_date'],
-                        'end_date'  => $syncData['end_date'],
+                        'end_date' => $syncData['end_date'],
                         'is_active' => $syncData['is_active'],
                         // Note: we don't update work_status automatically
                     ]);
@@ -559,20 +560,20 @@ class IvaUserController extends Controller
                     // Check if work status needs to be updated manually
                     if ($workStatus && $existingUser->work_status !== $workStatus) {
                         $workStatusWarnings[] = [
-                            'user'           => $existingUser->full_name,
-                            'email'          => $existingUser->email,
+                            'user' => $existingUser->full_name,
+                            'email' => $existingUser->email,
                             'current_status' => $existingUser->work_status,
-                            'api_status'     => $workStatus,
-                            'message'        => "Work status needs manual update from '{$existingUser->work_status}' to '{$workStatus}'",
+                            'api_status' => $workStatus,
+                            'message' => "Work status needs manual update from '{$existingUser->work_status}' to '{$workStatus}'",
                         ];
                     }
 
                     $updated[] = [
-                        'id'        => $existingUser->id,
+                        'id' => $existingUser->id,
                         'full_name' => $existingUser->full_name,
-                        'email'     => $existingUser->email,
+                        'email' => $existingUser->email,
                         'job_title' => $existingUser->job_title,
-                        'action'    => 'updated',
+                        'action' => 'updated',
                     ];
                 } else {
                     // Create new user
@@ -586,11 +587,11 @@ class IvaUserController extends Controller
                     $this->linkTimeDoctorUser($newUser);
 
                     $created[] = [
-                        'id'        => $newUser->id,
+                        'id' => $newUser->id,
                         'full_name' => $newUser->full_name,
-                        'email'     => $newUser->email,
+                        'email' => $newUser->email,
                         'job_title' => $newUser->job_title,
-                        'action'    => 'created',
+                        'action' => 'created',
                     ];
                 }
             }
@@ -598,12 +599,12 @@ class IvaUserController extends Controller
             DB::commit();
 
             return [
-                'created'              => $created,
-                'updated'              => $updated,
+                'created' => $created,
+                'updated' => $updated,
                 'work_status_warnings' => $workStatusWarnings,
-                'total_created'        => count($created),
-                'total_updated'        => count($updated),
-                'total_warnings'       => count($workStatusWarnings),
+                'total_created' => count($created),
+                'total_updated' => count($updated),
+                'total_warnings' => count($workStatusWarnings),
             ];
 
         } catch (\Exception $e) {
@@ -624,7 +625,7 @@ class IvaUserController extends Controller
         }
 
         $cohortId = json_decode($value, true) ?? $value;
-        $cohort   = Cohort::find($cohortId);
+        $cohort = Cohort::find($cohortId);
 
         if ($cohort) {
             return $cohort->name;
@@ -660,8 +661,8 @@ class IvaUserController extends Controller
                 break;
 
             case 'is_active':
-                $oldValue                     = json_decode($changelog->old_value, true);
-                $newValue                     = json_decode($changelog->new_value, true);
+                $oldValue = json_decode($changelog->old_value, true);
+                $newValue = json_decode($changelog->new_value, true);
                 $displayValues['old_display'] = $oldValue ? 'Active' : 'Inactive';
                 $displayValues['new_display'] = $newValue ? 'Active' : 'Inactive';
                 break;
@@ -691,7 +692,7 @@ class IvaUserController extends Controller
         }
 
         $regionId = json_decode($value, true) ?? $value;
-        $region   = Region::find($regionId);
+        $region = Region::find($regionId);
 
         if ($region) {
             // Use description if available, otherwise use name
@@ -735,11 +736,11 @@ class IvaUserController extends Controller
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'customizations'                => 'required|array|min:1',
-            'customizations.*.setting_id'   => 'required|exists:configuration_settings,id',
+            'customizations' => 'required|array|min:1',
+            'customizations.*.setting_id' => 'required|exists:configuration_settings,id',
             'customizations.*.custom_value' => 'required|string',
-            'customizations.*.start_date'   => 'required|date',
-            'customizations.*.end_date'     => 'nullable|date|after_or_equal:customizations.*.start_date',
+            'customizations.*.start_date' => 'required|date',
+            'customizations.*.end_date' => 'nullable|date|after_or_equal:customizations.*.start_date',
         ]);
 
         if ($validator->fails()) {
@@ -770,19 +771,19 @@ class IvaUserController extends Controller
 
                 if ($overlappingCustomization) {
                     return response()->json([
-                        'message' => 'Date range overlaps with existing customization for setting: ' . $setting->setting_value . 
-                                   '. Existing period: ' . $overlappingCustomization['start_date'] . 
-                                   ' to ' . ($overlappingCustomization['end_date'] ?? 'ongoing'),
+                        'message' => 'Date range overlaps with existing customization for setting: '.$setting->setting_value.
+                                   '. Existing period: '.$overlappingCustomization['start_date'].
+                                   ' to '.($overlappingCustomization['end_date'] ?? 'ongoing'),
                     ], 422);
                 }
 
                 // Create the customization
                 $customization = IvaUserCustomize::create([
-                    'iva_user_id'  => $user->id,
-                    'setting_id'   => $customizationData['setting_id'],
+                    'iva_user_id' => $user->id,
+                    'setting_id' => $customizationData['setting_id'],
                     'custom_value' => $customizationData['custom_value'],
-                    'start_date'   => $customizationData['start_date'] ? Carbon::parse($customizationData['start_date'])->format('Y-m-d') : null,
-                    'end_date'     => $customizationData['end_date'] ? Carbon::parse($customizationData['end_date'])->format('Y-m-d') : null,
+                    'start_date' => $customizationData['start_date'] ? Carbon::parse($customizationData['start_date'])->format('Y-m-d') : null,
+                    'end_date' => $customizationData['end_date'] ? Carbon::parse($customizationData['end_date'])->format('Y-m-d') : null,
                 ]);
 
                 $addedCustomizations[] = $customization->load(['setting.settingType']);
@@ -790,16 +791,16 @@ class IvaUserController extends Controller
                 // Log the activity
                 ActivityLogService::log(
                     'add_iva_user_customization',
-                    'Added customization for user: ' . $user->full_name,
+                    'Added customization for user: '.$user->full_name,
                     [
-                        'user_id'          => $user->id,
+                        'user_id' => $user->id,
                         'customization_id' => $customization->id,
-                        'setting_id'       => $customization->setting_id,
-                        'setting_name'     => $setting->setting_value,
-                        'setting_type'     => $setting->settingType->name,
-                        'custom_value'     => $customization->custom_value,
-                        'start_date'       => $customization->start_date,
-                        'end_date'         => $customization->end_date,
+                        'setting_id' => $customization->setting_id,
+                        'setting_name' => $setting->setting_value,
+                        'setting_type' => $setting->settingType->name,
+                        'custom_value' => $customization->custom_value,
+                        'start_date' => $customization->start_date,
+                        'end_date' => $customization->end_date,
                     ]
                 );
             }
@@ -812,7 +813,7 @@ class IvaUserController extends Controller
                 ->get();
 
             return response()->json([
-                'message'        => 'Customization(s) added successfully',
+                'message' => 'Customization(s) added successfully',
                 'customizations' => $allCustomizations,
             ], 201);
         } catch (\Exception $e) {
@@ -820,7 +821,7 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to add customization(s)',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -830,7 +831,7 @@ class IvaUserController extends Controller
      */
     public function removeCustomization($userId, $customizationId)
     {
-        $user          = IvaUser::findOrFail($userId);
+        $user = IvaUser::findOrFail($userId);
         $customization = IvaUserCustomize::with('setting.settingType')
             ->where('iva_user_id', $userId)
             ->where('id', $customizationId)
@@ -842,16 +843,16 @@ class IvaUserController extends Controller
             // Log for activity tracking before deletion
             ActivityLogService::log(
                 'remove_iva_user_customization',
-                'Removed customization for user: ' . $user->full_name,
+                'Removed customization for user: '.$user->full_name,
                 [
-                    'user_id'          => $user->id,
+                    'user_id' => $user->id,
                     'customization_id' => $customization->id,
-                    'setting_id'       => $customization->setting_id,
-                    'setting_name'     => $customization->setting?->setting_value,
-                    'setting_type'     => $customization->setting?->settingType?->name,
-                    'custom_value'     => $customization->custom_value,
-                    'start_date'       => $customization->start_date,
-                    'end_date'         => $customization->end_date,
+                    'setting_id' => $customization->setting_id,
+                    'setting_name' => $customization->setting?->setting_value,
+                    'setting_type' => $customization->setting?->settingType?->name,
+                    'custom_value' => $customization->custom_value,
+                    'start_date' => $customization->start_date,
+                    'end_date' => $customization->end_date,
                 ]
             );
 
@@ -868,7 +869,7 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to remove customization',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -988,9 +989,9 @@ class IvaUserController extends Controller
     {
         if ($user->timedoctor_version == 1 && $user->timedoctorUser) {
             $user->timedoctorUser->update([
-                'tm_fullname'    => $user->full_name,
-                'tm_email'       => $user->email,
-                'is_active'      => $user->is_active,
+                'tm_fullname' => $user->full_name,
+                'tm_email' => $user->email,
+                'is_active' => $user->is_active,
                 'last_synced_at' => now(),
             ]);
         }
@@ -1005,30 +1006,30 @@ class IvaUserController extends Controller
     private function getTimeDoctorSyncStatus($user)
     {
         $status = [
-            'is_linked'      => false,
-            'can_sync'       => false,
-            'td_version'     => $user->timedoctor_version,
-            'td_user_id'     => null,
-            'last_synced'    => null,
+            'is_linked' => false,
+            'can_sync' => false,
+            'td_version' => $user->timedoctor_version,
+            'td_user_id' => null,
+            'last_synced' => null,
             'sync_available' => false,
         ];
 
         if ($user->timedoctor_version == 1) {
             $tdUser = TimedoctorV1User::where('iva_user_id', $user->id)->first();
             if ($tdUser) {
-                $status['is_linked']      = true;
-                $status['can_sync']       = true;
-                $status['td_user_id']     = $tdUser->timedoctor_id;
-                $status['last_synced']    = $tdUser->last_synced_at;
+                $status['is_linked'] = true;
+                $status['can_sync'] = true;
+                $status['td_user_id'] = $tdUser->timedoctor_id;
+                $status['last_synced'] = $tdUser->last_synced_at;
                 $status['sync_available'] = true;
             }
         } elseif ($user->timedoctor_version == 2) {
             $tdUser = TimedoctorV2User::where('iva_user_id', $user->id)->first();
             if ($tdUser) {
-                $status['is_linked']      = true;
-                $status['can_sync']       = true;
-                $status['td_user_id']     = $tdUser->timedoctor_id;
-                $status['last_synced']    = $tdUser->last_synced_at;
+                $status['is_linked'] = true;
+                $status['can_sync'] = true;
+                $status['td_user_id'] = $tdUser->timedoctor_id;
+                $status['last_synced'] = $tdUser->last_synced_at;
                 $status['sync_available'] = false;
             }
         }
@@ -1086,15 +1087,15 @@ class IvaUserController extends Controller
      */
     public function updateCustomization(Request $request, $id, $customizationId)
     {
-        $user          = IvaUser::findOrFail($id);
+        $user = IvaUser::findOrFail($id);
         $customization = IvaUserCustomize::where('iva_user_id', $id)
             ->where('id', $customizationId)
             ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
             'custom_value' => 'required|string',
-            'start_date'   => 'nullable|date',
-            'end_date'     => 'nullable|date|after_or_equal:start_date',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
         if ($validator->fails()) {
@@ -1120,40 +1121,40 @@ class IvaUserController extends Controller
 
         if ($overlappingCustomization) {
             return response()->json([
-                'message' => 'Date range overlaps with existing customization for setting: ' . $setting->setting_value . 
-                           '. Existing period: ' . $overlappingCustomization['start_date'] . 
-                           ' to ' . ($overlappingCustomization['end_date'] ?? 'ongoing'),
+                'message' => 'Date range overlaps with existing customization for setting: '.$setting->setting_value.
+                           '. Existing period: '.$overlappingCustomization['start_date'].
+                           ' to '.($overlappingCustomization['end_date'] ?? 'ongoing'),
             ], 422);
         }
 
         DB::beginTransaction();
 
         try {
-            $oldValue     = $customization->custom_value;
+            $oldValue = $customization->custom_value;
             $oldStartDate = $customization->start_date;
-            $oldEndDate   = $customization->end_date;
+            $oldEndDate = $customization->end_date;
 
             $customization->update([
                 'custom_value' => $request->custom_value,
-                'start_date'   => $request->start_date ? Carbon::parse($request->start_date)->format('Y-m-d') : null,
-                'end_date'     => $request->end_date ? Carbon::parse($request->end_date)->format('Y-m-d') : null,
+                'start_date' => $request->start_date ? Carbon::parse($request->start_date)->format('Y-m-d') : null,
+                'end_date' => $request->end_date ? Carbon::parse($request->end_date)->format('Y-m-d') : null,
             ]);
 
             // Log the update
             ActivityLogService::log(
                 'update_iva_user_customization',
-                'Updated customization for user: ' . $user->full_name,
+                'Updated customization for user: '.$user->full_name,
                 [
-                    'user_id'          => $user->id,
+                    'user_id' => $user->id,
                     'customization_id' => $customization->id,
-                    'setting_id'       => $customization->setting_id,
-                    'setting_name'     => $setting->setting_value,
+                    'setting_id' => $customization->setting_id,
+                    'setting_name' => $setting->setting_value,
                     'old_custom_value' => $oldValue,
                     'new_custom_value' => $request->custom_value,
-                    'old_start_date'   => $oldStartDate,
-                    'new_start_date'   => $request->start_date,
-                    'old_end_date'     => $oldEndDate,
-                    'new_end_date'     => $request->end_date,
+                    'old_start_date' => $oldStartDate,
+                    'new_start_date' => $request->start_date,
+                    'old_end_date' => $oldEndDate,
+                    'new_end_date' => $request->end_date,
                 ]
             );
 
@@ -1163,7 +1164,7 @@ class IvaUserController extends Controller
             $updatedCustomization = $customization->fresh(['setting.settingType']);
 
             return response()->json([
-                'message'       => 'Customization updated successfully',
+                'message' => 'Customization updated successfully',
                 'customization' => $updatedCustomization,
             ]);
         } catch (\Exception $e) {
@@ -1171,10 +1172,11 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to update customization',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
+
     /**
      * Add a log entry for the user
      */
@@ -1183,9 +1185,9 @@ class IvaUserController extends Controller
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'log_type'   => 'required|string',
-            'title'      => 'nullable|string|max:255',
-            'content'    => 'required|string',
+            'log_type' => 'required|string',
+            'title' => 'nullable|string|max:255',
+            'content' => 'required|string',
             'is_private' => 'boolean',
         ]);
 
@@ -1206,22 +1208,22 @@ class IvaUserController extends Controller
         try {
             $log = IvaUserLog::create([
                 'iva_user_id' => $user->id,
-                'created_by'  => request()->user()->id,
-                'log_type'    => $request->log_type,
-                'title'       => $request->title,
-                'content'     => $request->content,
-                'is_private'  => $request->is_private ?? false,
+                'created_by' => request()->user()->id,
+                'log_type' => $request->log_type,
+                'title' => $request->title,
+                'content' => $request->content,
+                'is_private' => $request->is_private ?? false,
             ]);
 
             // Log the activity
             ActivityLogService::log(
                 'create_iva_user_log',
-                'Added log entry for user: ' . $user->full_name,
+                'Added log entry for user: '.$user->full_name,
                 [
-                    'user_id'    => $user->id,
-                    'log_id'     => $log->id,
-                    'log_type'   => $request->log_type,
-                    'title'      => $request->title,
+                    'user_id' => $user->id,
+                    'log_id' => $log->id,
+                    'log_type' => $request->log_type,
+                    'title' => $request->title,
                     'is_private' => $request->is_private ?? false,
                 ]
             );
@@ -1230,14 +1232,14 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Log entry added successfully',
-                'log'     => $log->load('creator'),
+                'log' => $log->load('creator'),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
                 'message' => 'Failed to add log entry',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -1248,12 +1250,12 @@ class IvaUserController extends Controller
     public function updateLog(Request $request, $id, $logId)
     {
         $user = IvaUser::findOrFail($id);
-        $log  = IvaUserLog::where('iva_user_id', $id)->findOrFail($logId);
+        $log = IvaUserLog::where('iva_user_id', $id)->findOrFail($logId);
 
         $validator = Validator::make($request->all(), [
-            'log_type'   => 'required|string',
-            'title'      => 'nullable|string|max:255',
-            'content'    => 'required|string',
+            'log_type' => 'required|string',
+            'title' => 'nullable|string|max:255',
+            'content' => 'required|string',
             'is_private' => 'boolean',
         ]);
 
@@ -1275,19 +1277,19 @@ class IvaUserController extends Controller
             $oldValues = $log->toArray();
 
             $log->update([
-                'log_type'   => $request->log_type,
-                'title'      => $request->title,
-                'content'    => $request->content,
+                'log_type' => $request->log_type,
+                'title' => $request->title,
+                'content' => $request->content,
                 'is_private' => $request->is_private ?? false,
             ]);
 
             // Log the activity
             ActivityLogService::log(
                 'update_iva_user_log',
-                'Updated log entry for user: ' . $user->full_name,
+                'Updated log entry for user: '.$user->full_name,
                 [
-                    'user_id'    => $user->id,
-                    'log_id'     => $log->id,
+                    'user_id' => $user->id,
+                    'log_id' => $log->id,
                     'old_values' => $oldValues,
                     'new_values' => $log->toArray(),
                 ]
@@ -1297,14 +1299,14 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Log entry updated successfully',
-                'log'     => $log->fresh(['creator']),
+                'log' => $log->fresh(['creator']),
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
                 'message' => 'Failed to update log entry',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -1315,7 +1317,7 @@ class IvaUserController extends Controller
     public function deleteLog($id, $logId)
     {
         $user = IvaUser::findOrFail($id);
-        $log  = IvaUserLog::where('iva_user_id', $id)->findOrFail($logId);
+        $log = IvaUserLog::where('iva_user_id', $id)->findOrFail($logId);
 
         DB::beginTransaction();
 
@@ -1323,13 +1325,13 @@ class IvaUserController extends Controller
             // Log the activity before deletion
             ActivityLogService::log(
                 'delete_iva_user_log',
-                'Deleted log entry for user: ' . $user->full_name,
+                'Deleted log entry for user: '.$user->full_name,
                 [
-                    'user_id'    => $user->id,
-                    'log_id'     => $log->id,
-                    'log_type'   => $log->log_type,
-                    'title'      => $log->title,
-                    'content'    => $log->content,
+                    'user_id' => $user->id,
+                    'log_id' => $log->id,
+                    'log_type' => $log->log_type,
+                    'title' => $log->title,
+                    'content' => $log->content,
                     'is_private' => $log->is_private,
                     'created_at' => $log->created_at,
                 ]
@@ -1347,7 +1349,7 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to delete log entry',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -1386,9 +1388,9 @@ class IvaUserController extends Controller
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'manager_id'      => 'required|exists:iva_user,id',
+            'manager_id' => 'required|exists:iva_user,id',
             'manager_type_id' => 'required|exists:configuration_settings,id',
-            'region_id'       => 'required|exists:regions,id',
+            'region_id' => 'required|exists:regions,id',
         ]);
 
         if ($validator->fails()) {
@@ -1399,7 +1401,7 @@ class IvaUserController extends Controller
         if ($user->id == $request->manager_id) {
             return response()->json([
                 'message' => 'A user cannot be their own manager',
-                'error'   => 'Invalid manager assignment',
+                'error' => 'Invalid manager assignment',
             ], 422);
         }
 
@@ -1407,7 +1409,7 @@ class IvaUserController extends Controller
         if ($user->region_id != $request->region_id) {
             return response()->json([
                 'message' => 'The user must belong to the same region as the manager assignment',
-                'error'   => 'Region mismatch',
+                'error' => 'Region mismatch',
             ], 422);
         }
 
@@ -1429,27 +1431,27 @@ class IvaUserController extends Controller
             } else {
                 // Create new assignment
                 IvaManager::create([
-                    'iva_id'          => $user->id,
-                    'iva_manager_id'  => $request->manager_id,
+                    'iva_id' => $user->id,
+                    'iva_manager_id' => $request->manager_id,
                     'manager_type_id' => $request->manager_type_id,
-                    'region_id'       => $request->region_id,
+                    'region_id' => $request->region_id,
                 ]);
                 $message = 'Manager assigned successfully';
             }
 
             // Log the activity
-            $manager     = IvaUser::find($request->manager_id);
+            $manager = IvaUser::find($request->manager_id);
             $managerType = ConfigurationSetting::find($request->manager_type_id);
-            $region      = Region::find($request->region_id);
+            $region = Region::find($request->region_id);
 
             ActivityLogService::log(
                 'assign_iva_manager',
-                'Assigned ' . $manager->full_name . ' as ' . $managerType->setting_value . ' manager to ' . $user->full_name . ' in region: ' . $region->name,
+                'Assigned '.$manager->full_name.' as '.$managerType->setting_value.' manager to '.$user->full_name.' in region: '.$region->name,
                 [
-                    'user_id'         => $user->id,
-                    'manager_id'      => $request->manager_id,
+                    'user_id' => $user->id,
+                    'manager_id' => $request->manager_id,
                     'manager_type_id' => $request->manager_type_id,
-                    'region_id'       => $request->region_id,
+                    'region_id' => $request->region_id,
                 ]
             );
 
@@ -1459,7 +1461,7 @@ class IvaUserController extends Controller
             $user = $user->fresh(['managers.manager', 'managers.managerType', 'managers.region']);
 
             return response()->json([
-                'message'  => $message,
+                'message' => $message,
                 'managers' => $user->managers,
             ]);
         } catch (\Exception $e) {
@@ -1467,7 +1469,7 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to assign manager',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -1477,7 +1479,7 @@ class IvaUserController extends Controller
      */
     public function removeManager($userId, $managerId)
     {
-        $user              = IvaUser::findOrFail($userId);
+        $user = IvaUser::findOrFail($userId);
         $managerAssignment = IvaManager::with(['manager', 'managerType', 'region'])
             ->where('iva_id', $userId)
             ->where('id', $managerId)
@@ -1487,24 +1489,24 @@ class IvaUserController extends Controller
 
         try {
             // Get manager details for logging before deletion
-            $manager     = $managerAssignment->manager;
+            $manager = $managerAssignment->manager;
             $managerType = $managerAssignment->managerType;
-            $region      = $managerAssignment->region;
+            $region = $managerAssignment->region;
 
             // Log the activity before deletion
             ActivityLogService::log(
                 'remove_iva_manager',
-                'Removed ' . $manager->full_name . ' as ' . $managerType->setting_value . ' manager from ' . $user->full_name . ' in region: ' . $region->name,
+                'Removed '.$manager->full_name.' as '.$managerType->setting_value.' manager from '.$user->full_name.' in region: '.$region->name,
                 [
-                    'user_id'               => $user->id,
+                    'user_id' => $user->id,
                     'manager_assignment_id' => $managerAssignment->id,
-                    'manager_id'            => $manager->id,
-                    'manager_name'          => $manager->full_name,
-                    'manager_email'         => $manager->email,
-                    'manager_type_id'       => $managerType->id,
-                    'manager_type'          => $managerType->setting_value,
-                    'region_id'             => $region->id,
-                    'region_name'           => $region->name,
+                    'manager_id' => $manager->id,
+                    'manager_name' => $manager->full_name,
+                    'manager_email' => $manager->email,
+                    'manager_type_id' => $managerType->id,
+                    'manager_type' => $managerType->setting_value,
+                    'region_id' => $region->id,
+                    'region_name' => $region->name,
                 ]
             );
 
@@ -1521,7 +1523,7 @@ class IvaUserController extends Controller
 
             return response()->json([
                 'message' => 'Failed to remove manager',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -1565,7 +1567,7 @@ class IvaUserController extends Controller
                     'id' => $existing->id,
                     'start_date' => $existingStart,
                     'end_date' => $existingEnd,
-                    'custom_value' => $existing->custom_value
+                    'custom_value' => $existing->custom_value,
                 ];
             }
         }
@@ -1585,17 +1587,17 @@ class IvaUserController extends Controller
         $end2 = $end2 ? Carbon::parse($end2) : null;
 
         // If either range is open-ended (no end date), treat as extending indefinitely
-        if (!$end1 && !$end2) {
+        if (! $end1 && ! $end2) {
             // Both ranges are open-ended, they overlap if start dates are different
             return true;
         }
 
-        if (!$end1) {
+        if (! $end1) {
             // First range is open-ended, overlaps if start1 <= end2
             return $start1->lte($end2);
         }
 
-        if (!$end2) {
+        if (! $end2) {
             // Second range is open-ended, overlaps if start2 <= end1
             return $start2->lte($end1);
         }

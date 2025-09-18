@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
@@ -14,7 +15,6 @@ class ConfigurationSettingsController extends Controller
     /**
      * Display a listing of the settings, optionally filtered by type.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
@@ -52,25 +52,24 @@ class ConfigurationSettingsController extends Controller
         $settingsByType = $settings->groupBy('setting_type_id');
 
         return response()->json([
-            'settings'       => $settings,
+            'settings' => $settings,
             'settingsByType' => $settingsByType,
-            'types'          => $types,
+            'types' => $types,
         ]);
     }
 
     /**
      * Store a newly created setting.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'setting_type_id' => 'required|exists:configuration_settings_type,id',
-            'setting_value'   => 'required|string|max:255',
-            'description'     => 'nullable|string',
-            'order'           => 'nullable|integer|min:0',
+            'setting_value' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -88,12 +87,12 @@ class ConfigurationSettingsController extends Controller
         // Create the setting
         $setting = ConfigurationSetting::create([
             'setting_type_id' => $request->setting_type_id,
-            'setting_value'   => $request->setting_value,
-            'description'     => $request->description,
-            'is_active'       => true,
-            'added_by'        => Auth::user() ? Auth::user()->email : 'System',
-            'order'           => $request->order ?? 0,
-            'is_system'       => false, // User-created settings can be deleted
+            'setting_value' => $request->setting_value,
+            'description' => $request->description,
+            'is_active' => true,
+            'added_by' => Auth::user() ? Auth::user()->email : 'System',
+            'order' => $request->order ?? 0,
+            'is_system' => false, // User-created settings can be deleted
         ]);
 
         // Load the relationship for logging
@@ -111,7 +110,7 @@ class ConfigurationSettingsController extends Controller
     /**
      * Display the specified setting.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function show($id)
@@ -126,8 +125,7 @@ class ConfigurationSettingsController extends Controller
     /**
      * Update the specified setting.
      *
-     * @param Request $request
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, $id)
@@ -143,8 +141,8 @@ class ConfigurationSettingsController extends Controller
 
         $validator = Validator::make($request->all(), [
             'setting_value' => 'required|string|max:255',
-            'description'   => 'nullable|string',
-            'order'         => 'nullable|integer|min:0',
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -157,8 +155,8 @@ class ConfigurationSettingsController extends Controller
         // Update the setting
         $setting->update([
             'setting_value' => $request->setting_value,
-            'description'   => $request->description,
-            'order'         => $request->order ?? $setting->order,
+            'description' => $request->description,
+            'order' => $request->order ?? $setting->order,
         ]);
 
         // Log the activity using ActivityLogService
@@ -173,7 +171,7 @@ class ConfigurationSettingsController extends Controller
     /**
      * Toggle the active status of the setting.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function toggleStatus($id)
@@ -199,7 +197,7 @@ class ConfigurationSettingsController extends Controller
     /**
      * Remove the specified setting.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy($id)
@@ -210,7 +208,7 @@ class ConfigurationSettingsController extends Controller
         if ($setting->is_system) {
             return response()->json([
                 'message' => 'System settings cannot be deleted',
-                'error'   => 'Forbidden action',
+                'error' => 'Forbidden action',
             ], 403);
         }
 
@@ -218,7 +216,7 @@ class ConfigurationSettingsController extends Controller
         if (! $setting->settingType->allow_delete) {
             return response()->json([
                 'message' => 'Deleting settings of this type is not allowed',
-                'error'   => 'Forbidden action',
+                'error' => 'Forbidden action',
             ], 403);
         }
 
@@ -250,7 +248,6 @@ class ConfigurationSettingsController extends Controller
     /**
      * Get activity logs related to settings
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function getActivityLogs(Request $request)
@@ -262,7 +259,7 @@ class ConfigurationSettingsController extends Controller
         $query->whereIn('action', $configActions);
 
         // Add pagination
-        $perPage      = $request->input('per_page', 10);
+        $perPage = $request->input('per_page', 10);
         $activityLogs = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         return response()->json([

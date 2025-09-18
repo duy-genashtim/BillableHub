@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\TimeDoctorToken;
@@ -10,13 +11,14 @@ use Illuminate\Support\Facades\Log;
 class TimeDoctorV2AuthController extends Controller
 {
     private const API_VERSION = '2';
-    private const LOGIN_URL   = 'https://api2.timedoctor.com/api/1.0/login';
+
+    private const LOGIN_URL = 'https://api2.timedoctor.com/api/1.0/login';
 
     public function authenticate()
     {
         try {
-            $username  = config('services.timedoctor_v2.username');
-            $password  = config('services.timedoctor_v2.password');
+            $username = config('services.timedoctor_v2.username');
+            $password = config('services.timedoctor_v2.password');
             $companyId = config('services.timedoctor_v2.company_id');
 
             if (! $username || ! $password || ! $companyId) {
@@ -29,14 +31,14 @@ class TimeDoctorV2AuthController extends Controller
             $response = Http::timeout(30)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post(self::LOGIN_URL, [
-                    'email'       => $username,
-                    'password'    => $password,
+                    'email' => $username,
+                    'password' => $password,
                     'permissions' => 'read',
                 ]);
 
             if (! $response->successful()) {
                 Log::error('Failed to authenticate with TimeDoctor V2', [
-                    'status'   => $response->status(),
+                    'status' => $response->status(),
                     'response' => $response->json(),
                 ]);
 
@@ -68,9 +70,9 @@ class TimeDoctorV2AuthController extends Controller
             TimeDoctorToken::updateOrCreate(
                 ['version' => self::API_VERSION],
                 [
-                    'access_token'  => $tokenData['token'],
+                    'access_token' => $tokenData['token'],
                     'refresh_token' => $tokenData['token'], // V2 uses same token
-                    'expires_at'    => $expiresAt,
+                    'expires_at' => $expiresAt,
                 ]
             );
 
@@ -78,16 +80,16 @@ class TimeDoctorV2AuthController extends Controller
             $companyResponse = $this->testTokenWithCompanyInfo($tokenData['token'], $companyId);
 
             ActivityLogService::log('timedoctor_v2_auth_success', 'Successfully connected to TimeDoctor V2', [
-                'module'     => 'timedoctor_v2_integration',
-                'version'    => self::API_VERSION,
+                'module' => 'timedoctor_v2_integration',
+                'version' => self::API_VERSION,
                 'expires_at' => $expiresAt->toISOString(),
                 'company_id' => $companyId,
             ]);
 
             return response()->json([
-                'success'      => true,
-                'message'      => 'Successfully connected to TimeDoctor V2',
-                'expires_at'   => $expiresAt->toISOString(),
+                'success' => true,
+                'message' => 'Successfully connected to TimeDoctor V2',
+                'expires_at' => $expiresAt->toISOString(),
                 'company_info' => $companyResponse,
             ]);
 
@@ -99,12 +101,12 @@ class TimeDoctorV2AuthController extends Controller
 
             ActivityLogService::log('timedoctor_v2_auth_callback_error', 'Failed to process TimeDoctor V2 authentication', [
                 'module' => 'timedoctor_v2_integration',
-                'error'  => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to process TimeDoctor V2 authentication: ' . $e->getMessage(),
+                'message' => 'Failed to process TimeDoctor V2 authentication: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -122,7 +124,7 @@ class TimeDoctorV2AuthController extends Controller
             }
 
             Log::warning('Token test failed but continuing', [
-                'status'   => $response->status(),
+                'status' => $response->status(),
                 'response' => $response->json(),
             ]);
 
@@ -131,6 +133,7 @@ class TimeDoctorV2AuthController extends Controller
             Log::warning('Exception during token test', [
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -142,14 +145,14 @@ class TimeDoctorV2AuthController extends Controller
         if (! $token) {
             return response()->json([
                 'connected' => false,
-                'message'   => 'No TimeDoctor V2 connection found',
+                'message' => 'No TimeDoctor V2 connection found',
             ]);
         }
 
         if (Carbon::parse($token->expires_at)->isPast()) {
             return response()->json([
-                'connected'  => false,
-                'message'    => 'TimeDoctor V2 token expired',
+                'connected' => false,
+                'message' => 'TimeDoctor V2 token expired',
                 'expired_at' => $token->expires_at,
             ]);
         }
@@ -157,7 +160,7 @@ class TimeDoctorV2AuthController extends Controller
         // Test token by calling company info
         try {
             $companyId = config('services.timedoctor_v2.company_id');
-            $response  = Http::timeout(10)
+            $response = Http::timeout(10)
                 ->get("https://api2.timedoctor.com/api/1.0/companies/{$companyId}", [
                     'token' => $token->access_token,
                 ]);
@@ -165,14 +168,14 @@ class TimeDoctorV2AuthController extends Controller
             if (! $response->successful()) {
                 return response()->json([
                     'connected' => false,
-                    'message'   => 'TimeDoctor V2 token is invalid',
+                    'message' => 'TimeDoctor V2 token is invalid',
                 ]);
             }
 
             return response()->json([
-                'connected'    => true,
-                'message'      => 'Connected to TimeDoctor V2',
-                'expires_at'   => $token->expires_at,
+                'connected' => true,
+                'message' => 'Connected to TimeDoctor V2',
+                'expires_at' => $token->expires_at,
                 'company_info' => $response->json(),
             ]);
 
@@ -183,7 +186,7 @@ class TimeDoctorV2AuthController extends Controller
 
             return response()->json([
                 'connected' => false,
-                'message'   => 'Failed to validate TimeDoctor V2 token',
+                'message' => 'Failed to validate TimeDoctor V2 token',
             ]);
         }
     }
@@ -201,21 +204,21 @@ class TimeDoctorV2AuthController extends Controller
 
         try {
             // For V2, we need to re-authenticate to get a new token
-            $username  = config('services.timedoctor_v2.username');
-            $password  = config('services.timedoctor_v2.password');
+            $username = config('services.timedoctor_v2.username');
+            $password = config('services.timedoctor_v2.password');
             $companyId = config('services.timedoctor_v2.company_id');
 
             $response = Http::timeout(30)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post(self::LOGIN_URL, [
-                    'email'       => $username,
-                    'password'    => $password,
+                    'email' => $username,
+                    'password' => $password,
                     'permissions' => 'read',
                 ]);
 
             if (! $response->successful()) {
                 Log::error('Failed to refresh TimeDoctor V2 token', [
-                    'status'   => $response->status(),
+                    'status' => $response->status(),
                     'response' => $response->json(),
                 ]);
 
@@ -240,20 +243,20 @@ class TimeDoctorV2AuthController extends Controller
             : Carbon::now()->addMonths(6);
 
             $token->update([
-                'access_token'  => $tokenData['token'],
+                'access_token' => $tokenData['token'],
                 'refresh_token' => $tokenData['token'],
-                'expires_at'    => $expiresAt,
+                'expires_at' => $expiresAt,
             ]);
 
             ActivityLogService::log('timedoctor_v2_token_refresh', 'TimeDoctor V2 token refreshed successfully', [
-                'module'     => 'timedoctor_v2_integration',
-                'version'    => self::API_VERSION,
+                'module' => 'timedoctor_v2_integration',
+                'version' => self::API_VERSION,
                 'expires_at' => $expiresAt->toISOString(),
             ]);
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'TimeDoctor V2 token refreshed successfully',
+                'success' => true,
+                'message' => 'TimeDoctor V2 token refreshed successfully',
                 'expires_at' => $expiresAt->toISOString(),
             ]);
 
@@ -265,7 +268,7 @@ class TimeDoctorV2AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Exception during token refresh: ' . $e->getMessage(),
+                'message' => 'Exception during token refresh: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -290,7 +293,7 @@ class TimeDoctorV2AuthController extends Controller
         TimeDoctorToken::where('version', self::API_VERSION)->delete();
 
         ActivityLogService::log('timedoctor_v2_disconnect', 'Disconnected from TimeDoctor V2', [
-            'module'  => 'timedoctor_v2_integration',
+            'module' => 'timedoctor_v2_integration',
             'version' => self::API_VERSION,
         ]);
 
@@ -313,7 +316,7 @@ class TimeDoctorV2AuthController extends Controller
 
         try {
             $companyId = config('services.timedoctor_v2.company_id');
-            $response  = Http::timeout(30)
+            $response = Http::timeout(30)
                 ->get("https://api2.timedoctor.com/api/1.0/companies/{$companyId}", [
                     'token' => $accessToken,
                 ]);
@@ -322,7 +325,7 @@ class TimeDoctorV2AuthController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to fetch company data',
-                    'data'    => $response->json(),
+                    'data' => $response->json(),
                 ], 500);
             }
 
@@ -331,9 +334,10 @@ class TimeDoctorV2AuthController extends Controller
             Log::error('Error fetching TimeDoctor V2 company info', [
                 'error' => $e->getMessage(),
             ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching company info: ' . $e->getMessage(),
+                'message' => 'Error fetching company info: '.$e->getMessage(),
             ], 500);
         }
     }

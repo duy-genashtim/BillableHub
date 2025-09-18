@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\ConfigurationSetting;
@@ -75,29 +76,29 @@ class IvaManagerController extends Controller
             ->groupBy('iva_manager_id', 'region_id', 'manager_type_id');
 
         $managers = $query->paginate($perPage);
-        $counts   = $countsQuery->get()->keyBy(function ($item) {
-            return $item->iva_manager_id . '-' . $item->region_id . '-' . $item->manager_type_id;
+        $counts = $countsQuery->get()->keyBy(function ($item) {
+            return $item->iva_manager_id.'-'.$item->region_id.'-'.$item->manager_type_id;
         });
 
         // Transform data to match expected structure
         $managers->getCollection()->transform(function ($item) use ($counts) {
-            $key   = $item->iva_manager_id . '-' . $item->region_id . '-' . $item->manager_type_id;
+            $key = $item->iva_manager_id.'-'.$item->region_id.'-'.$item->manager_type_id;
             $count = isset($counts[$key]) ? $counts[$key]->managed_users_count : 0;
 
             return [
-                'id'                  => $item->id,
-                'iva_manager_id'      => $item->iva_manager_id,
-                'region_id'           => $item->region_id,
-                'manager_type_id'     => $item->manager_type_id,
+                'id' => $item->id,
+                'iva_manager_id' => $item->iva_manager_id,
+                'region_id' => $item->region_id,
+                'manager_type_id' => $item->manager_type_id,
                 'managed_users_count' => $count,
-                'manager'             => [
+                'manager' => [
                     'full_name' => $item->manager_full_name,
-                    'email'     => $item->manager_email,
+                    'email' => $item->manager_email,
                 ],
-                'region'              => [
+                'region' => [
                     'name' => $item->region_name,
                 ],
-                'manager_type'        => [
+                'manager_type' => [
                     'setting_value' => $item->manager_type_value,
                 ],
             ];
@@ -122,8 +123,8 @@ class IvaManagerController extends Controller
         // );
 
         return response()->json([
-            'managers'     => $managers,
-            'regions'      => $regions,
+            'managers' => $managers,
+            'regions' => $regions,
             'managerTypes' => $managerTypes,
         ]);
     }
@@ -160,21 +161,21 @@ class IvaManagerController extends Controller
 
         // Structure the manager data as expected by the frontend
         $managerResponse = [
-            'id'              => $managerData->id,
-            'iva_manager_id'  => $managerData->iva_manager_id,
+            'id' => $managerData->id,
+            'iva_manager_id' => $managerData->iva_manager_id,
             'manager_type_id' => $managerData->manager_type_id,
-            'region_id'       => $managerData->region_id,
-            'manager'         => [
-                'id'        => $managerData->manager_id,
+            'region_id' => $managerData->region_id,
+            'manager' => [
+                'id' => $managerData->manager_id,
                 'full_name' => $managerData->manager_full_name,
-                'email'     => $managerData->manager_email,
+                'email' => $managerData->manager_email,
             ],
-            'managerType'     => [
-                'id'            => $managerData->manager_type_id,
+            'managerType' => [
+                'id' => $managerData->manager_type_id,
                 'setting_value' => $managerData->manager_type_value,
             ],
-            'region'          => [
-                'id'   => $managerData->region_id,
+            'region' => [
+                'id' => $managerData->region_id,
                 'name' => $managerData->region_name,
             ],
         ];
@@ -191,13 +192,13 @@ class IvaManagerController extends Controller
         // Log the activity
         ActivityLogService::log(
             'view_iva_manager',
-            'Viewed manager details: ' . $managerData->manager_full_name,
+            'Viewed manager details: '.$managerData->manager_full_name,
             ['manager_id' => $id, 'users_count' => $users->count()]
         );
 
         return response()->json([
             'manager' => $managerResponse,
-            'users'   => $users,
+            'users' => $users,
         ]);
     }
 
@@ -207,33 +208,33 @@ class IvaManagerController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'region_id'       => 'required|exists:regions,id',
-            'manager_id'      => 'required|exists:iva_user,id',
+            'region_id' => 'required|exists:regions,id',
+            'manager_id' => 'required|exists:iva_user,id',
             'manager_type_id' => 'required|exists:configuration_settings,id',
-            'user_ids'        => 'required|array',
-            'user_ids.*'      => 'exists:iva_user,id',
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:iva_user,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $regionId      = $request->region_id;
-        $managerId     = $request->manager_id;
+        $regionId = $request->region_id;
+        $managerId = $request->manager_id;
         $managerTypeId = $request->manager_type_id;
-        $userIds       = $request->user_ids;
+        $userIds = $request->user_ids;
 
         // Check that manager isn't self-managing
         if (in_array($managerId, $userIds)) {
             return response()->json([
                 'message' => 'A user cannot be their own manager',
-                'error'   => 'Invalid manager assignment',
+                'error' => 'Invalid manager assignment',
             ], 422);
         }
 
         // Get details for logging
-        $region      = Region::find($regionId);
-        $manager     = IvaUser::find($managerId);
+        $region = Region::find($regionId);
+        $manager = IvaUser::find($managerId);
         $managerType = ConfigurationSetting::find($managerTypeId);
 
         // Begin transaction
@@ -258,10 +259,10 @@ class IvaManagerController extends Controller
                 } else {
                     // Create new assignment
                     $newAssignment = IvaManager::create([
-                        'iva_id'          => $userId,
-                        'iva_manager_id'  => $managerId,
+                        'iva_id' => $userId,
+                        'iva_manager_id' => $managerId,
                         'manager_type_id' => $managerTypeId,
-                        'region_id'       => $regionId,
+                        'region_id' => $regionId,
                     ]);
                     $assignments[] = $newAssignment->id;
                 }
@@ -270,27 +271,28 @@ class IvaManagerController extends Controller
             // Log the activity
             ActivityLogService::log(
                 'create_iva_manager',
-                'Assigned ' . $manager->full_name . ' as ' . $managerType->setting_value . ' manager to ' . count($userIds) . ' users in region: ' . $region->name,
+                'Assigned '.$manager->full_name.' as '.$managerType->setting_value.' manager to '.count($userIds).' users in region: '.$region->name,
                 [
-                    'region_id'       => $regionId,
-                    'manager_id'      => $managerId,
+                    'region_id' => $regionId,
+                    'manager_id' => $managerId,
                     'manager_type_id' => $managerTypeId,
-                    'user_ids'        => $userIds,
-                    'assignments'     => $assignments,
+                    'user_ids' => $userIds,
+                    'assignments' => $assignments,
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'message'     => 'Manager assigned successfully',
+                'message' => 'Manager assigned successfully',
                 'assignments' => $assignments,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'message' => 'Failed to assign manager',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -335,13 +337,13 @@ class IvaManagerController extends Controller
             // Log the activity
             ActivityLogService::log(
                 'delete_iva_manager',
-                'Removed ' . $managerData->manager_name . ' as ' . $managerData->manager_type . ' manager from region: ' . $managerData->region_name,
+                'Removed '.$managerData->manager_name.' as '.$managerData->manager_type.' manager from region: '.$managerData->region_name,
                 [
-                    'assignment'   => $assignment,
+                    'assignment' => $assignment,
                     'manager_name' => $managerData->manager_name,
                     'manager_type' => $managerData->manager_type,
-                    'region_name'  => $managerData->region_name,
-                    'users'        => $users,
+                    'region_name' => $managerData->region_name,
+                    'users' => $users,
                 ]
             );
 
@@ -351,7 +353,7 @@ class IvaManagerController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to remove manager assignment',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -402,14 +404,14 @@ class IvaManagerController extends Controller
             // Log the activity
             ActivityLogService::log(
                 'remove_user_from_iva_manager',
-                'Removed user ' . $relationData->user_name . ' from ' . $relationData->manager_name . ' as ' . $relationData->manager_type . ' manager in region: ' . $relationData->region_name,
+                'Removed user '.$relationData->user_name.' from '.$relationData->manager_name.' as '.$relationData->manager_type.' manager in region: '.$relationData->region_name,
                 [
                     'assignment_id' => $id,
-                    'user_id'       => $request->user_id,
-                    'manager_name'  => $relationData->manager_name,
-                    'user_name'     => $relationData->user_name,
-                    'manager_type'  => $relationData->manager_type,
-                    'region_name'   => $relationData->region_name,
+                    'user_id' => $request->user_id,
+                    'manager_name' => $relationData->manager_name,
+                    'user_name' => $relationData->user_name,
+                    'manager_type' => $relationData->manager_type,
+                    'region_name' => $relationData->region_name,
                 ]
             );
 
@@ -419,7 +421,7 @@ class IvaManagerController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to remove user from manager',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -430,7 +432,7 @@ class IvaManagerController extends Controller
     public function addUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array',
+            'user_ids' => 'required|array',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -463,7 +465,7 @@ class IvaManagerController extends Controller
             if (in_array($assignment->iva_manager_id, $request->user_ids)) {
                 return response()->json([
                     'message' => 'A manager cannot manage themselves',
-                    'error'   => 'Invalid user assignment',
+                    'error' => 'Invalid user assignment',
                 ], 422);
             }
 
@@ -487,10 +489,10 @@ class IvaManagerController extends Controller
                     } else {
                         // Create new assignment
                         IvaManager::create([
-                            'iva_id'          => $userId,
-                            'iva_manager_id'  => $assignment->iva_manager_id,
+                            'iva_id' => $userId,
+                            'iva_manager_id' => $assignment->iva_manager_id,
                             'manager_type_id' => $assignment->manager_type_id,
-                            'region_id'       => $assignment->region_id,
+                            'region_id' => $assignment->region_id,
                         ]);
                     }
 
@@ -506,13 +508,13 @@ class IvaManagerController extends Controller
                 // Log the activity
                 ActivityLogService::log(
                     'add_users_to_iva_manager',
-                    'Added ' . count($newAssignments) . ' users to ' . $managerData->manager_name . ' as ' . $managerData->manager_type . ' manager in region: ' . $managerData->region_name,
+                    'Added '.count($newAssignments).' users to '.$managerData->manager_name.' as '.$managerData->manager_type.' manager in region: '.$managerData->region_name,
                     [
-                        'assignment_id'    => $id,
-                        'manager_name'     => $managerData->manager_name,
-                        'manager_type'     => $managerData->manager_type,
-                        'region_name'      => $managerData->region_name,
-                        'added_user_ids'   => $newAssignments,
+                        'assignment_id' => $id,
+                        'manager_name' => $managerData->manager_name,
+                        'manager_type' => $managerData->manager_type,
+                        'region_name' => $managerData->region_name,
+                        'added_user_ids' => $newAssignments,
                         'added_user_names' => $addedUserNames,
                     ]
                 );
@@ -520,7 +522,7 @@ class IvaManagerController extends Controller
                 DB::commit();
 
                 return response()->json([
-                    'message' => count($newAssignments) . ' users added to manager successfully',
+                    'message' => count($newAssignments).' users added to manager successfully',
                 ]);
             } catch (\Exception $e) {
                 DB::rollback();
@@ -529,7 +531,7 @@ class IvaManagerController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to add users to manager',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -566,7 +568,7 @@ class IvaManagerController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to get available users',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -592,8 +594,8 @@ class IvaManagerController extends Controller
             ->get();
 
         return response()->json([
-            'region'       => $region,
-            'users'        => $users,
+            'region' => $region,
+            'users' => $users,
             'managerTypes' => $managerTypes,
         ]);
     }

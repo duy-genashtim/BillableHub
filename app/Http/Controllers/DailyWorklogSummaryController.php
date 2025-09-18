@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -43,7 +44,7 @@ class DailyWorklogSummaryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load calculation options: ' . $e->getMessage(),
+                'message' => 'Failed to load calculation options: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -73,7 +74,7 @@ class DailyWorklogSummaryController extends Controller
         $params = $request->only(['start_date', 'end_date', 'calculate_all', 'iva_user_ids']);
         $errors = $this->summaryService->validateCalculationParams($params);
 
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
@@ -110,10 +111,10 @@ class DailyWorklogSummaryController extends Controller
 
         try {
             $params = $request->only(['start_date', 'end_date', 'calculate_all', 'iva_user_ids']);
-            
+
             // Additional validation
             $errors = $this->summaryService->validateCalculationParams($params);
-            if (!empty($errors)) {
+            if (! empty($errors)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
@@ -129,7 +130,7 @@ class DailyWorklogSummaryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Calculation failed: ' . $e->getMessage(),
+                'message' => 'Calculation failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -140,8 +141,8 @@ class DailyWorklogSummaryController extends Controller
     public function getCalculationProgress(Request $request)
     {
         $sessionId = $request->input('session_id');
-        
-        if (!$sessionId) {
+
+        if (! $sessionId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Session ID is required',
@@ -150,7 +151,7 @@ class DailyWorklogSummaryController extends Controller
 
         try {
             $progress = $this->summaryService->getCalculationProgress($sessionId);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $progress,
@@ -158,7 +159,7 @@ class DailyWorklogSummaryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get progress: ' . $e->getMessage(),
+                'message' => 'Failed to get progress: '.$e->getMessage(),
             ], 500);
         }
     }

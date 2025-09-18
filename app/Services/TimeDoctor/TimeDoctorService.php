@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services\TimeDoctor;
 
 use App\Http\Controllers\TimeDoctorAuthController;
@@ -9,20 +10,27 @@ use Illuminate\Support\Facades\Log;
 class TimeDoctorService
 {
     private $authController;
+
     private $accessToken;
+
     private $baseUrl;
+
     private $companyId = null;
 
-    private const API_VERSION      = 'v1.1';
-    private const MAX_RETRIES      = 3;
-    private const DEFAULT_TIMEOUT  = 30;
-    private const CONNECT_TIMEOUT  = 10;
+    private const API_VERSION = 'v1.1';
+
+    private const MAX_RETRIES = 3;
+
+    private const DEFAULT_TIMEOUT = 30;
+
+    private const CONNECT_TIMEOUT = 10;
+
     private const PAGINATION_LIMIT = 250;
 
     public function __construct(TimeDoctorAuthController $authController)
     {
         $this->authController = $authController;
-        $this->baseUrl        = 'https://webapi.timedoctor.com/' . self::API_VERSION;
+        $this->baseUrl = 'https://webapi.timedoctor.com/'.self::API_VERSION;
     }
 
     private function getAccessToken()
@@ -40,9 +48,10 @@ class TimeDoctorService
 
     private function get(string $endpoint, array $params = [], int $maxRetries = self::MAX_RETRIES)
     {
-        $token         = $this->getAccessToken();
-        $retries       = 0;
+        $token = $this->getAccessToken();
+        $retries = 0;
         $lastException = null;
+        $tokenRefreshed = false;
 
         while ($retries < $maxRetries) {
             try {
@@ -50,29 +59,76 @@ class TimeDoctorService
                     ->timeout(self::DEFAULT_TIMEOUT)
                     ->connectTimeout(self::CONNECT_TIMEOUT)
                     ->retry(3, 100)
-                    ->get($this->baseUrl . $endpoint, $params);
+                    ->get($this->baseUrl.$endpoint, $params);
 
                 if (! $response->successful()) {
                     if ($response->status() === 429) {
                         $retryAfter = $response->header('Retry-After', 5);
                         Log::warning('TimeDoctor API rate limit hit, waiting before retry', [
-                            'endpoint'    => $endpoint,
+                            'endpoint' => $endpoint,
                             'retry_after' => $retryAfter,
-                            'attempt'     => $retries + 1,
+                            'attempt' => $retries + 1,
                         ]);
                         sleep($retryAfter);
                         $retries++;
+
                         continue;
+                    }
+
+                    // Handle 401 authentication errors - attempt token refresh
+                    if ($response->status() === 401 && ! $tokenRefreshed) {
+                        $responseBody = $response->json();
+
+                        // Check if it's an expired token error
+                        if (isset($responseBody['error']) && $responseBody['error'] === 'invalid_grant') {
+                            Log::info('TimeDoctor access token expired, attempting refresh', [
+                                'endpoint' => $endpoint,
+                                'attempt' => $retries + 1,
+                            ]);
+
+                            try {
+                                // Attempt to refresh the token
+                                $refreshResult = $this->authController->refreshToken();
+
+                                if ($refreshResult && is_object($refreshResult) && method_exists($refreshResult, 'getData')) {
+                                    $refreshData = $refreshResult->getData(true);
+
+                                    if (isset($refreshData['success']) && $refreshData['success']) {
+                                        // Token refresh successful, get the new token and retry
+                                        $this->accessToken = null; // Clear cached token
+                                        $token = $this->getAccessToken();
+                                        $tokenRefreshed = true;
+
+                                        Log::info('TimeDoctor token refreshed successfully, retrying request', [
+                                            'endpoint' => $endpoint,
+                                        ]);
+
+                                        continue; // Retry with new token without incrementing retries
+                                    }
+                                }
+
+                                Log::error('TimeDoctor token refresh failed', [
+                                    'endpoint' => $endpoint,
+                                    'refresh_result' => $refreshResult,
+                                ]);
+
+                            } catch (\Exception $refreshException) {
+                                Log::error('Exception during TimeDoctor token refresh', [
+                                    'endpoint' => $endpoint,
+                                    'error' => $refreshException->getMessage(),
+                                ]);
+                            }
+                        }
                     }
 
                     Log::error('TimeDoctor API error', [
                         'endpoint' => $endpoint,
-                        'params'   => $params,
-                        'status'   => $response->status(),
+                        'params' => $params,
+                        'status' => $response->status(),
                         'response' => $response->json(),
                     ]);
 
-                    throw new \Exception('TimeDoctor API error: ' . $response->status() . ":\n" . $response->body());
+                    throw new \Exception('TimeDoctor API error: '.$response->status().":\n".$response->body());
                 }
 
                 return $response->json();
@@ -85,8 +141,8 @@ class TimeDoctorService
                     $backoff = pow(2, $retries);
                     Log::warning("TimeDoctor API request failed, retrying in {$backoff} seconds", [
                         'endpoint' => $endpoint,
-                        'attempt'  => $retries,
-                        'error'    => $e->getMessage(),
+                        'attempt' => $retries,
+                        'error' => $e->getMessage(),
                     ]);
                     sleep($backoff);
                 }
@@ -100,6 +156,7 @@ class TimeDoctorService
     {
         try {
             $response = $this->get('/companies');
+
             return $response;
         } catch (\Exception $e) {
             Log::error('TimeDoctor API error', [
@@ -124,6 +181,7 @@ class TimeDoctorService
             Log::error('Error getting company ID from TimeDoctor service', [
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
         // if ($this->companyId === null) {
@@ -159,7 +217,7 @@ class TimeDoctorService
 
     public function getProjects()
     {
-        return $this->get("/companies/projects", ['all' => 1]);
+        return $this->get('/companies/projects', ['all' => 1]);
     }
 
     public function getTasks($companyId, $userId)
@@ -170,7 +228,7 @@ class TimeDoctorService
     public function getUserWorklogs($companyId, $userId, Carbon $startDate, Carbon $endDate, $offset = 1, $limit = self::PAGINATION_LIMIT)
     {
         $formattedStartDate = $startDate->format('Y-m-d');
-        $formattedEndDate   = $endDate->format('Y-m-d');
+        $formattedEndDate = $endDate->format('Y-m-d');
 
         // Log::debug("getUserWorklogs request params", [
         //     'company_id' => $companyId,
@@ -182,52 +240,52 @@ class TimeDoctorService
         // ]);
 
         return $this->get("/companies/{$companyId}/worklogs", [
-            'start_date'   => $formattedStartDate,
-            'end_date'     => $formattedEndDate,
-            'offset'       => $offset,
-            'limit'        => $limit,
-            'user_ids'     => $userId,
+            'start_date' => $formattedStartDate,
+            'end_date' => $formattedEndDate,
+            'offset' => $offset,
+            'limit' => $limit,
+            'user_ids' => $userId,
             'consolidated' => 0,
-            'breaks_only'  => 0,
+            'breaks_only' => 0,
         ]);
     }
 
     public function getCompanyWorklogs($companyId, Carbon $startDate, Carbon $endDate, $offset = 1, $limit = self::PAGINATION_LIMIT)
     {
         $formattedStartDate = $startDate->format('Y-m-d');
-        $formattedEndDate   = $endDate->format('Y-m-d');
+        $formattedEndDate = $endDate->format('Y-m-d');
 
         return $this->get("/companies/{$companyId}/worklogs", [
-            'start_date'   => $formattedStartDate,
-            'end_date'     => $formattedEndDate,
-            'offset'       => $offset,
-            'limit'        => $limit,
+            'start_date' => $formattedStartDate,
+            'end_date' => $formattedEndDate,
+            'offset' => $offset,
+            'limit' => $limit,
             'consolidated' => 0,
-            'breaks_only'  => 0,
+            'breaks_only' => 0,
         ]);
     }
 
-    public function getAllWorklogsForDateRange($companyId, Carbon $startDate, Carbon $endDate, callable $batchProcessor = null)
+    public function getAllWorklogsForDateRange($companyId, Carbon $startDate, Carbon $endDate, ?callable $batchProcessor = null)
     {
-        $offset         = 1;
-        $limit          = self::PAGINATION_LIMIT;
-        $allItems       = [];
+        $offset = 1;
+        $limit = self::PAGINATION_LIMIT;
+        $allItems = [];
         $totalProcessed = 0;
         $totalAvailable = null;
 
         do {
-            Log::info("Fetching worklogs batch", [
+            Log::info('Fetching worklogs batch', [
                 'company_id' => $companyId,
-                'offset'     => $offset,
-                'limit'      => $limit,
-                'date_range' => $startDate->format('Y-m-d') . ' to ' . $endDate->format('Y-m-d'),
+                'offset' => $offset,
+                'limit' => $limit,
+                'date_range' => $startDate->format('Y-m-d').' to '.$endDate->format('Y-m-d'),
             ]);
 
             $response = $this->getCompanyWorklogs($companyId, $startDate, $endDate, $offset, $limit);
 
-            Log::debug("TimeDoctor worklogs API response", [
+            Log::debug('TimeDoctor worklogs API response', [
                 'response_keys' => is_array($response) ? array_keys($response) : 'Response is not an array',
-                'raw_response'  => $response,
+                'raw_response' => $response,
             ]);
 
             if (empty($response) || empty($response['worklogs']) || (is_array($response['worklogs']) && empty($response['worklogs']))) {
@@ -236,10 +294,10 @@ class TimeDoctorService
 
             if (isset($response['worklogs']['items'])) {
                 $items = $response['worklogs']['items'];
-            } else if (is_array($response['worklogs'])) {
+            } elseif (is_array($response['worklogs'])) {
                 $items = $response['worklogs'];
             } else {
-                Log::warning("Unexpected worklogs response format", ['response' => $response]);
+                Log::warning('Unexpected worklogs response format', ['response' => $response]);
                 break;
             }
 
@@ -257,9 +315,9 @@ class TimeDoctorService
                 $allItems = array_merge($allItems, $items);
             }
 
-            Log::info("Processed worklog batch", [
-                'offset'          => $offset,
-                'batch_size'      => $currentBatchCount,
+            Log::info('Processed worklog batch', [
+                'offset' => $offset,
+                'batch_size' => $currentBatchCount,
                 'total_processed' => $totalProcessed,
             ]);
 
@@ -273,17 +331,17 @@ class TimeDoctorService
         } while (true);
 
         return [
-            'total'     => $totalAvailable,
+            'total' => $totalAvailable,
             'processed' => $totalProcessed,
-            'items'     => $allItems,
+            'items' => $allItems,
         ];
     }
 
-    public function getAllWorklogsForDate(Carbon $date, callable $progressCallback = null)
+    public function getAllWorklogsForDate(Carbon $date, ?callable $progressCallback = null)
     {
         try {
             $companyId = $this->getCompanyId();
-            $results   = [];
+            $results = [];
 
             $usersData = $this->getUsers($companyId);
 
@@ -291,12 +349,12 @@ class TimeDoctorService
                 throw new \Exception('Invalid user data received from TimeDoctor');
             }
 
-            $users          = $usersData['users'];
-            $totalUsers     = count($users);
+            $users = $usersData['users'];
+            $totalUsers = count($users);
             $processedUsers = 0;
 
             foreach ($users as $user) {
-                $userId   = $user['user_id'];
+                $userId = $user['user_id'];
                 $userName = $user['full_name'];
 
                 if ($progressCallback) {
@@ -325,7 +383,7 @@ class TimeDoctorService
 
         } catch (\Exception $e) {
             Log::error('Error getting all worklogs for date', [
-                'date'  => $date->format('Y-m-d'),
+                'date' => $date->format('Y-m-d'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -336,19 +394,19 @@ class TimeDoctorService
 
     private function getAllWorklogsForUser($companyId, $userId, Carbon $startDate, Carbon $endDate)
     {
-        $offset         = 1;
-        $limit          = self::PAGINATION_LIMIT;
-        $allItems       = [];
+        $offset = 1;
+        $limit = self::PAGINATION_LIMIT;
+        $allItems = [];
         $totalProcessed = 0;
 
         do {
             $response = $this->getUserWorklogs($companyId, $userId, $startDate, $endDate, $offset, $limit);
 
-            Log::debug("TimeDoctor user worklogs API response", [
-                'user_id'         => $userId,
-                'response_keys'   => is_array($response) ? array_keys($response) : 'Response is not an array',
+            Log::debug('TimeDoctor user worklogs API response', [
+                'user_id' => $userId,
+                'response_keys' => is_array($response) ? array_keys($response) : 'Response is not an array',
                 'worklogs_exists' => isset($response['worklogs']),
-                'worklogs_type'   => isset($response['worklogs']) ? gettype($response['worklogs']) : 'not set',
+                'worklogs_type' => isset($response['worklogs']) ? gettype($response['worklogs']) : 'not set',
             ]);
 
             if (empty($response) || empty($response['worklogs'])) {
@@ -357,10 +415,10 @@ class TimeDoctorService
 
             if (isset($response['worklogs']['items'])) {
                 $items = $response['worklogs']['items'];
-            } else if (is_array($response['worklogs'])) {
+            } elseif (is_array($response['worklogs'])) {
                 $items = $response['worklogs'];
             } else {
-                Log::warning("Unexpected user worklogs response format", ['response' => $response]);
+                Log::warning('Unexpected user worklogs response format', ['response' => $response]);
                 break;
             }
 
@@ -383,7 +441,7 @@ class TimeDoctorService
 
         return [
             'processed' => $totalProcessed,
-            'items'     => $allItems,
+            'items' => $allItems,
         ];
     }
 }

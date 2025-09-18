@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Carbon\Carbon;
@@ -51,7 +52,7 @@ class ActivityLog extends Model
      */
     public function scopeByEmail($query, $email)
     {
-        return $query->where('email', 'like', '%' . $email . '%');
+        return $query->where('email', 'like', '%'.$email.'%');
     }
 
     /**

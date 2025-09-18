@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Test;
 
-use Illuminate\Http\Request;
-use Carbon\Carbon;
-use App\Models\IvaUser;
 use App\Http\Controllers\Controller;
+use App\Models\IvaUser;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class MainHelperTestController extends Controller
 {
@@ -27,11 +27,11 @@ class MainHelperTestController extends Controller
         $user = null;
         try {
             $user = IvaUser::find($userId) ?: IvaUser::first();
-            if (!$user) {
-                $errors[] = "No IvaUser found in database. Please create a test user first.";
+            if (! $user) {
+                $errors[] = 'No IvaUser found in database. Please create a test user first.';
             }
         } catch (\Exception $e) {
-            $errors[] = "Error fetching user: " . $e->getMessage();
+            $errors[] = 'Error fetching user: '.$e->getMessage();
         }
 
         if ($user) {
@@ -40,17 +40,17 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = calculateUserTargetHours($user, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['calculateUserTargetHours'] = [
                     'function' => 'calculateUserTargetHours',
                     'parameters' => [
                         'user_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['calculateUserTargetHours'] = [
@@ -58,10 +58,10 @@ class MainHelperTestController extends Controller
                     'parameters' => [
                         'user_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
 
@@ -70,17 +70,17 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = calculateBasicMetricsFromDailySummaries($user->id, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['calculateBasicMetricsFromDailySummaries'] = [
                     'function' => 'calculateBasicMetricsFromDailySummaries',
                     'parameters' => [
                         'iva_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['calculateBasicMetricsFromDailySummaries'] = [
@@ -88,10 +88,10 @@ class MainHelperTestController extends Controller
                     'parameters' => [
                         'iva_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
 
@@ -100,17 +100,17 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = calculateDailyBreakdownFromSummaries($user->id, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['calculateDailyBreakdownFromSummaries'] = [
                     'function' => 'calculateDailyBreakdownFromSummaries',
                     'parameters' => [
                         'iva_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['calculateDailyBreakdownFromSummaries'] = [
@@ -118,10 +118,10 @@ class MainHelperTestController extends Controller
                     'parameters' => [
                         'iva_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
 
@@ -130,17 +130,17 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = calculatePerformanceMetricsDailySummaries($user, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['calculatePerformanceMetricsDailySummaries'] = [
                     'function' => 'calculatePerformanceMetricsDailySummaries',
                     'parameters' => [
                         'user_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['calculatePerformanceMetricsDailySummaries'] = [
@@ -148,10 +148,10 @@ class MainHelperTestController extends Controller
                     'parameters' => [
                         'user_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
 
@@ -160,17 +160,17 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['calculateCategoryBreakdownFromSummaries'] = [
                     'function' => 'calculateCategoryBreakdownFromSummaries',
                     'parameters' => [
                         'iva_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['calculateCategoryBreakdownFromSummaries'] = [
@@ -178,10 +178,10 @@ class MainHelperTestController extends Controller
                     'parameters' => [
                         'iva_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
 
@@ -191,7 +191,7 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = getTasksByReportCategory($categoryId, $user->id, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['getTasksByReportCategory'] = [
                     'function' => 'getTasksByReportCategory',
                     'parameters' => [
@@ -199,10 +199,10 @@ class MainHelperTestController extends Controller
                         'iva_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['getTasksByReportCategory'] = [
@@ -211,10 +211,10 @@ class MainHelperTestController extends Controller
                         'report_category_id' => $request->get('category_id', 1),
                         'iva_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
 
@@ -223,17 +223,17 @@ class MainHelperTestController extends Controller
                 $startTime = microtime(true);
                 $result = calculateUserTargetHoursOptimized($user, $startDate, $endDate);
                 $executionTime = microtime(true) - $startTime;
-                
+
                 $testResults['calculateUserTargetHoursOptimized'] = [
                     'function' => 'calculateUserTargetHoursOptimized',
                     'parameters' => [
                         'user_id' => $user->id,
                         'user_name' => $user->full_name ?? $user->email,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => round($executionTime * 1000, 2),
-                    'result' => $result
+                    'result' => $result,
                 ];
             } catch (\Exception $e) {
                 $testResults['calculateUserTargetHoursOptimized'] = [
@@ -241,10 +241,10 @@ class MainHelperTestController extends Controller
                     'parameters' => [
                         'user_id' => $user->id,
                         'start_date' => $startDate,
-                        'end_date' => $endDate
+                        'end_date' => $endDate,
                     ],
                     'execution_time_ms' => 0,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
         }
@@ -254,15 +254,15 @@ class MainHelperTestController extends Controller
         try {
             $availableUsers = IvaUser::select('id', 'email', 'full_name')->take(10)->get();
         } catch (\Exception $e) {
-            $errors[] = "Error fetching available users: " . $e->getMessage();
+            $errors[] = 'Error fetching available users: '.$e->getMessage();
         }
 
         return view('main-helper-test', compact(
-            'testResults', 
-            'errors', 
-            'userId', 
-            'startDate', 
-            'endDate', 
+            'testResults',
+            'errors',
+            'userId',
+            'startDate',
+            'endDate',
             'categoryId',
             'availableUsers',
             'user'

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Cohort;
@@ -36,7 +37,7 @@ class CohortController extends Controller
             }
 
             // Sort
-            $sortBy    = $request->get('sort_by', 'cohort_order');
+            $sortBy = $request->get('sort_by', 'cohort_order');
             $sortOrder = $request->get('sort_order', 'asc');
 
             if (in_array($sortBy, ['id', 'name', 'cohort_order', 'is_active', 'start_date', 'created_at'])) {
@@ -46,22 +47,22 @@ class CohortController extends Controller
             $cohorts = $query->paginate($perPage);
 
             return response()->json([
-                'success'    => true,
-                'cohorts'    => $cohorts->items(),
+                'success' => true,
+                'cohorts' => $cohorts->items(),
                 'pagination' => [
                     'current_page' => $cohorts->currentPage(),
-                    'last_page'    => $cohorts->lastPage(),
-                    'per_page'     => $cohorts->perPage(),
-                    'total'        => $cohorts->total(),
-                    'from'         => $cohorts->firstItem(),
-                    'to'           => $cohorts->lastItem(),
+                    'last_page' => $cohorts->lastPage(),
+                    'per_page' => $cohorts->perPage(),
+                    'total' => $cohorts->total(),
+                    'from' => $cohorts->firstItem(),
+                    'to' => $cohorts->lastItem(),
                 ],
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch cohorts',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -72,24 +73,24 @@ class CohortController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255|unique:cohorts,name',
-            'description'  => 'nullable|string|max:1000',
+            'name' => 'required|string|max:255|unique:cohorts,name',
+            'description' => 'nullable|string|max:1000',
             'cohort_order' => 'nullable|integer|min:1',
-            'start_date'   => 'nullable|date',
-            'is_active'    => 'boolean',
+            'start_date' => 'nullable|date',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $cohortData                 = $request->only(['name', 'description', 'start_date', 'is_active']);
+            $cohortData = $request->only(['name', 'description', 'start_date', 'is_active']);
             $cohortData['cohort_order'] = $request->cohort_order ?? Cohort::getNextOrder();
 
             $cohort = Cohort::create($cohortData);
@@ -99,10 +100,10 @@ class CohortController extends Controller
                 'cohort_create',
                 "Created cohort: {$cohort->name}",
                 [
-                    'cohort_id'   => $cohort->id,
+                    'cohort_id' => $cohort->id,
                     'cohort_name' => $cohort->name,
                     'cohort_data' => $cohortData,
-                    'module'      => 'cohorts',
+                    'module' => 'cohorts',
                 ]
             );
 
@@ -111,14 +112,15 @@ class CohortController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Cohort created successfully',
-                'cohort'  => $cohort,
+                'cohort' => $cohort,
             ], 201);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create cohort',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -135,13 +137,13 @@ class CohortController extends Controller
 
             return response()->json([
                 'success' => true,
-                'cohort'  => $cohort,
+                'cohort' => $cohort,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cohort not found',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 404);
         }
     }
@@ -152,24 +154,24 @@ class CohortController extends Controller
     public function update(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255|unique:cohorts,name,' . $id,
-            'description'  => 'nullable|string|max:1000',
+            'name' => 'required|string|max:255|unique:cohorts,name,'.$id,
+            'description' => 'nullable|string|max:1000',
             'cohort_order' => 'nullable|integer|min:1',
-            'start_date'   => 'nullable|date',
-            'is_active'    => 'boolean',
+            'start_date' => 'nullable|date',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $cohort  = Cohort::findOrFail($id);
+            $cohort = Cohort::findOrFail($id);
             $oldData = $cohort->toArray();
 
             $cohortData = $request->only(['name', 'description', 'cohort_order', 'start_date', 'is_active']);
@@ -180,11 +182,11 @@ class CohortController extends Controller
                 'cohort_update',
                 "Updated cohort: {$cohort->name}",
                 [
-                    'cohort_id'   => $cohort->id,
+                    'cohort_id' => $cohort->id,
                     'cohort_name' => $cohort->name,
-                    'old_data'    => $oldData,
-                    'new_data'    => $cohort->fresh()->toArray(),
-                    'module'      => 'cohorts',
+                    'old_data' => $oldData,
+                    'new_data' => $cohort->fresh()->toArray(),
+                    'module' => 'cohorts',
                 ]
             );
 
@@ -193,14 +195,15 @@ class CohortController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Cohort updated successfully',
-                'cohort'  => $cohort,
+                'cohort' => $cohort,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update cohort',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -212,7 +215,7 @@ class CohortController extends Controller
     {
         DB::beginTransaction();
         try {
-            $cohort     = Cohort::findOrFail($id);
+            $cohort = Cohort::findOrFail($id);
             $cohortName = $cohort->name;
             $usersCount = $cohort->ivaUsers()->count();
 
@@ -231,9 +234,9 @@ class CohortController extends Controller
                 'cohort_deactivate',
                 "Deactivated cohort: {$cohortName}",
                 [
-                    'cohort_id'   => $cohort->id,
+                    'cohort_id' => $cohort->id,
                     'cohort_name' => $cohortName,
-                    'module'      => 'cohorts',
+                    'module' => 'cohorts',
                 ]
             );
 
@@ -245,10 +248,11 @@ class CohortController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to deactivate cohort',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -267,13 +271,13 @@ class CohortController extends Controller
 
             return response()->json([
                 'success' => true,
-                'users'   => $users,
+                'users' => $users,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch available users',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -284,7 +288,7 @@ class CohortController extends Controller
     public function assignUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -292,13 +296,13 @@ class CohortController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $cohort  = Cohort::findOrFail($id);
+            $cohort = Cohort::findOrFail($id);
             $userIds = $request->user_ids;
 
             // Update IVA users' cohort
@@ -311,27 +315,28 @@ class CohortController extends Controller
                 'cohort_assign_users',
                 "Assigned {$assignedUsers->count()} IVA user(s) to cohort: {$cohort->name}",
                 [
-                    'cohort_id'      => $cohort->id,
-                    'cohort_name'    => $cohort->name,
-                    'user_ids'       => $userIds,
+                    'cohort_id' => $cohort->id,
+                    'cohort_name' => $cohort->name,
+                    'user_ids' => $userIds,
                     'assigned_users' => $assignedUsers->toArray(),
-                    'module'         => 'cohorts',
+                    'module' => 'cohorts',
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'success'        => true,
-                'message'        => 'IVA users assigned to cohort successfully',
+                'success' => true,
+                'message' => 'IVA users assigned to cohort successfully',
                 'assigned_users' => $assignedUsers,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to assign IVA users to cohort',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -342,7 +347,7 @@ class CohortController extends Controller
     public function removeUsers(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
         ]);
 
@@ -350,13 +355,13 @@ class CohortController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $cohort  = Cohort::findOrFail($id);
+            $cohort = Cohort::findOrFail($id);
             $userIds = $request->user_ids;
 
             $removedUsers = IvaUser::whereIn('id', $userIds)
@@ -371,27 +376,28 @@ class CohortController extends Controller
                 'cohort_remove_users',
                 "Removed {$removedUsers->count()} IVA user(s) from cohort: {$cohort->name}",
                 [
-                    'cohort_id'     => $cohort->id,
-                    'cohort_name'   => $cohort->name,
-                    'user_ids'      => $userIds,
+                    'cohort_id' => $cohort->id,
+                    'cohort_name' => $cohort->name,
+                    'user_ids' => $userIds,
                     'removed_users' => $removedUsers->toArray(),
-                    'module'        => 'cohorts',
+                    'module' => 'cohorts',
                 ]
             );
 
             DB::commit();
 
             return response()->json([
-                'success'       => true,
-                'message'       => 'IVA users removed from cohort successfully',
+                'success' => true,
+                'message' => 'IVA users removed from cohort successfully',
                 'removed_users' => $removedUsers,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to remove IVA users from cohort',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Console\Commands;
 
 use App\Models\User;
@@ -6,7 +7,8 @@ use Illuminate\Console\Command;
 
 class RefreshAvatarsCommand extends Command
 {
-    protected $signature   = 'avatars:refresh';
+    protected $signature = 'avatars:refresh';
+
     protected $description = 'Clear existing avatars to force refresh on next login';
 
     public function handle()

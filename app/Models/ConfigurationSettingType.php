@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -38,9 +39,9 @@ class ConfigurationSettingType extends Model
      */
     protected $casts = [
         'for_user_customize' => 'boolean',
-        'allow_edit'         => 'boolean',
-        'allow_delete'       => 'boolean',
-        'allow_create'       => 'boolean',
+        'allow_edit' => 'boolean',
+        'allow_delete' => 'boolean',
+        'allow_create' => 'boolean',
     ];
 
     /**

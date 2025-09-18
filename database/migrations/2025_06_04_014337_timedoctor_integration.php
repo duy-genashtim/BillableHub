@@ -111,7 +111,7 @@ return new class extends Migration
             $table->json('tag_ids')->nullable();
             $table->json('silent_info')->nullable();
 
-                                                         // Sync and status tracking
+            // Sync and status tracking
             $table->boolean('is_active')->default(true); // Keep for backwards compatibility
             $table->timestamp('last_synced_at')->nullable();
             $table->timestamp('last_login')->nullable();
@@ -149,7 +149,7 @@ return new class extends Migration
         // 5. tasks table - UPDATED
         Schema::create('tasks', function (Blueprint $table) {
             $table->id();
-                                                         // $table->smallInteger('timedoctor_version');
+            // $table->smallInteger('timedoctor_version');
             $table->string('task_name');                 // Made unique
             $table->string('slug');                      // Added slug field
             $table->mediumText('user_list')->nullable(); // Changed from timedoctor_id to user_list as JSON

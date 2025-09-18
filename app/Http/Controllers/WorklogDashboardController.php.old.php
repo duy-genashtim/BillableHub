@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -17,21 +18,21 @@ class WorklogDashboardController extends Controller
     public function getDashboardData(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'year'           => 'nullable|integer|min:2024',
-            'week_number'    => 'nullable|integer|min:1|max:52',
-            'week_count'     => 'nullable|integer|min:1|max:12',
-            'month'          => 'nullable|integer|min:1|max:12',
-            'month_count'    => 'nullable|integer|min:1|max:12',
+            'year' => 'nullable|integer|min:2024',
+            'week_number' => 'nullable|integer|min:1|max:52',
+            'week_count' => 'nullable|integer|min:1|max:12',
+            'month' => 'nullable|integer|min:1|max:12',
+            'month_count' => 'nullable|integer|min:1|max:12',
             'bimonthly_date' => 'nullable|integer|min:1|max:28',
-            'start_date'     => 'required|date',
-            'end_date'       => 'required|date|after_or_equal:start_date',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -39,12 +40,12 @@ class WorklogDashboardController extends Controller
 
         // Get date range from request
         $originalStartDate = $request->input('start_date');
-        $endDate           = $request->input('end_date');
+        $endDate = $request->input('end_date');
 
         // Apply start date adjustment logic
-        $isSetMonday    = in_array($this->getDateMode($request), ['weeks', 'weekly_summary', 'month_summary']);
+        $isSetMonday = in_array($this->getDateMode($request), ['weeks', 'weekly_summary', 'month_summary']);
         $dateAdjustment = ivaAdjustStartDate($user, $originalStartDate, $endDate, $isSetMonday);
-        $startDate      = $dateAdjustment['adjusted_start_date'];
+        $startDate = $dateAdjustment['adjusted_start_date'];
 
         // Validate date range (max 13 months)
         $daysDiff = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate));
@@ -67,20 +68,20 @@ class WorklogDashboardController extends Controller
         // Calculate dashboard metrics
         $dashboardData = [
             'user' => [
-                'id'                 => $user->id,
-                'name'               => $user->full_name,
-                'work_status'        => $user->work_status,
-                'region'             => $user->region ? $user->region->name : null,
+                'id' => $user->id,
+                'name' => $user->full_name,
+                'work_status' => $user->work_status,
+                'region' => $user->region ? $user->region->name : null,
                 'timedoctor_version' => $user->timedoctor_version,
             ],
         ];
 
         if ($isSetMonday && $dateAdjustment['changed_start_date']) {
             $dashboardData['adjusted_start_date'] = [
-                'is_adjusted'   => true,
+                'is_adjusted' => true,
                 'original_date' => $dateAdjustment['original_start_date'],
                 'adjusted_date' => $dateAdjustment['adjusted_start_date'],
-                'message'       => $dateAdjustment['adjustment_message'],
+                'message' => $dateAdjustment['adjustment_message'],
             ];
         }
 
@@ -101,10 +102,10 @@ class WorklogDashboardController extends Controller
             // Handle weekly summary mode
             if (! $dateAdjustment['is_valid_week_range']) {
                 return response()->json([
-                    'success'             => false,
-                    'message'             => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
-                    'details'             => [
-                        'days_available'   => $dateAdjustment['days_difference'],
+                    'success' => false,
+                    'message' => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
+                    'details' => [
+                        'days_available' => $dateAdjustment['days_difference'],
                         'minimum_required' => 7,
                     ],
                     'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
@@ -133,10 +134,10 @@ class WorklogDashboardController extends Controller
             // Handle monthly summary mode
             if (! $dateAdjustment['is_valid_week_range']) {
                 return response()->json([
-                    'success'             => false,
-                    'message'             => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
-                    'details'             => [
-                        'days_available'   => $dateAdjustment['days_difference'],
+                    'success' => false,
+                    'message' => 'Insufficient date range for weekly summary calculation. At least 1 week is required.',
+                    'details' => [
+                        'days_available' => $dateAdjustment['days_difference'],
                         'minimum_required' => 7,
                     ],
                     'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
@@ -167,26 +168,26 @@ class WorklogDashboardController extends Controller
             $nadDataResult = fetchNADDataForPeriod($user, $startDate, $endDate);
 
             $dashboardData['basic_metrics'] = $this->calculateOptimizedBasicMetrics($worklogData);
-            $dashboardData['nad_data']      = $nadDataResult['nad_data'];
-            $dashboardData['date_range']    = [
-                'start'               => $startDate,
-                'end'                 => $endDate,
-                'original_start'      => $originalStartDate,
+            $dashboardData['nad_data'] = $nadDataResult['nad_data'];
+            $dashboardData['date_range'] = [
+                'start' => $startDate,
+                'end' => $endDate,
+                'original_start' => $originalStartDate,
                 'start_date_adjusted' => $dateAdjustment['changed_start_date'],
-                'days_count'          => $daysDiff + 1,
-                'mode'                => $dateMode,
+                'days_count' => $daysDiff + 1,
+                'mode' => $dateMode,
             ];
-            $dashboardData['daily_breakdown']    = $this->calculateOptimizedDailyBreakdown($worklogData, $startDate, $endDate);
+            $dashboardData['daily_breakdown'] = $this->calculateOptimizedDailyBreakdown($worklogData, $startDate, $endDate);
             $dashboardData['category_breakdown'] = $this->calculateOptimizedCategoryBreakdown($worklogData, $taskCategories);
 
             // Add performance data for weeks mode
             if ($dateMode === 'weeks') {
                 if (! $dateAdjustment['is_valid_week_range']) {
                     return response()->json([
-                        'success'             => false,
-                        'message'             => 'Insufficient date range for weekly performance calculation. At least 1 week is required.',
-                        'details'             => [
-                            'days_available'   => $dateAdjustment['days_difference'],
+                        'success' => false,
+                        'message' => 'Insufficient date range for weekly performance calculation. At least 1 week is required.',
+                        'details' => [
+                            'days_available' => $dateAdjustment['days_difference'],
                             'minimum_required' => 7,
                         ],
                         'adjusted_start_date' => $dashboardData['adjusted_start_date'] ?? null,
@@ -206,25 +207,26 @@ class WorklogDashboardController extends Controller
         // Log the activity
         ActivityLogService::log(
             'view_worklog_dashboard',
-            'Viewed worklog dashboard for user: ' . $user->full_name,
+            'Viewed worklog dashboard for user: '.$user->full_name,
             [
-                'user_id'             => $id,
-                'start_date'          => $startDate,
+                'user_id' => $id,
+                'start_date' => $startDate,
                 'original_start_date' => $originalStartDate,
-                'end_date'            => $endDate,
+                'end_date' => $endDate,
                 'start_date_adjusted' => $dateAdjustment['changed_start_date'],
-                'total_hours'         => $this->getTotalHoursForLogging($dashboardData, $dateMode),
-                'date_mode'           => $dateMode,
-                'days_span'           => $daysDiff + 1,
+                'total_hours' => $this->getTotalHoursForLogging($dashboardData, $dateMode),
+                'date_mode' => $dateMode,
+                'days_span' => $daysDiff + 1,
             ]
         );
         $dashboardData['worklogs'] = $worklogData;
 
         return response()->json([
-            'success'   => true,
+            'success' => true,
             'dashboard' => $dashboardData,
         ]);
     }
+
     /**
      * Pre-process task categories for performance optimization
      */
@@ -283,9 +285,9 @@ class WorklogDashboardController extends Controller
             ->get();
 
         // Process in PHP instead of multiple DB queries
-        $billableTaskIds    = [];
+        $billableTaskIds = [];
         $nonBillableTaskIds = [];
-        $fullMapping        = [];
+        $fullMapping = [];
 
         foreach ($categoryMapping as $mapping) {
             $taskId = $mapping->task_id;
@@ -305,9 +307,9 @@ class WorklogDashboardController extends Controller
         }
 
         return [
-            'billable_task_ids'     => array_unique($billableTaskIds),
+            'billable_task_ids' => array_unique($billableTaskIds),
             'non_billable_task_ids' => array_unique($nonBillableTaskIds),
-            'full_mapping'          => collect($fullMapping),
+            'full_mapping' => collect($fullMapping),
         ];
     }
 
@@ -368,15 +370,15 @@ class WorklogDashboardController extends Controller
             'duration',
             'comment',
             // Add case statement to categorize in SQL
-            DB::raw("CASE
-            WHEN task_id IN (" . implode(',', array_merge([0], $taskCategories['billable_task_ids'])) . ") THEN 'billable'
-            WHEN task_id IN (" . implode(',', array_merge([0], $taskCategories['non_billable_task_ids'])) . ") THEN 'non_billable'
+            DB::raw('CASE
+            WHEN task_id IN ('.implode(',', array_merge([0], $taskCategories['billable_task_ids'])).") THEN 'billable'
+            WHEN task_id IN (".implode(',', array_merge([0], $taskCategories['non_billable_task_ids'])).") THEN 'non_billable'
             ELSE 'uncategorized'
         END as worklog_category"),
         ])
             ->where('iva_id', $userId)
             ->where('is_active', true)
-            ->whereBetween('start_time', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
             ->orderBy('start_time')
             ->get();
 
@@ -384,10 +386,10 @@ class WorklogDashboardController extends Controller
         $categorized = $allWorklogs->groupBy('worklog_category');
 
         return [
-            'billable_worklogs'      => $categorized->get('billable', collect()),
-            'non_billable_worklogs'  => $categorized->get('non_billable', collect()),
+            'billable_worklogs' => $categorized->get('billable', collect()),
+            'non_billable_worklogs' => $categorized->get('non_billable', collect()),
             'uncategorized_worklogs' => $categorized->get('uncategorized', collect()),
-            'all_worklogs'           => $allWorklogs,
+            'all_worklogs' => $allWorklogs,
         ];
     }
 
@@ -396,20 +398,20 @@ class WorklogDashboardController extends Controller
      */
     private function calculateOptimizedBasicMetrics($worklogData)
     {
-        $billableSeconds    = $worklogData['billable_worklogs']->sum('duration');
+        $billableSeconds = $worklogData['billable_worklogs']->sum('duration');
         $nonBillableSeconds = $worklogData['non_billable_worklogs']->sum('duration');
-        $totalSeconds       = $billableSeconds + $nonBillableSeconds + $worklogData['uncategorized_worklogs']->sum('duration');
+        $totalSeconds = $billableSeconds + $nonBillableSeconds + $worklogData['uncategorized_worklogs']->sum('duration');
 
-        $billableHours    = round($billableSeconds / 3600, 2);
+        $billableHours = round($billableSeconds / 3600, 2);
         $nonBillableHours = round($nonBillableSeconds / 3600, 2);
-        $totalHours       = round($totalSeconds / 3600, 2);
+        $totalHours = round($totalSeconds / 3600, 2);
 
         return [
-            'billable_hours'       => $billableHours,
-            'non_billable_hours'   => $nonBillableHours,
-            'total_hours'          => $totalHours,
-            'total_entries'        => $worklogData['all_worklogs']->count(),
-            'billable_entries'     => $worklogData['billable_worklogs']->count(),
+            'billable_hours' => $billableHours,
+            'non_billable_hours' => $nonBillableHours,
+            'total_hours' => $totalHours,
+            'total_entries' => $worklogData['all_worklogs']->count(),
+            'billable_entries' => $worklogData['billable_worklogs']->count(),
             'non_billable_entries' => $worklogData['non_billable_worklogs']->count(),
         ];
     }
@@ -470,16 +472,16 @@ class WorklogDashboardController extends Controller
 
         // return $dailyData;
 
-        $dateRange   = [];
+        $dateRange = [];
         $currentDate = Carbon::parse($startDate);
-        $endDate     = Carbon::parse($endDate);
+        $endDate = Carbon::parse($endDate);
 
         while ($currentDate <= $endDate) {
-            $dateString             = $currentDate->toDateString();
+            $dateString = $currentDate->toDateString();
             $dateRange[$dateString] = [
-                'date'       => $dateString,
-                'day_name'   => $currentDate->format('l'),
-                'day_short'  => $currentDate->format('D'),
+                'date' => $dateString,
+                'day_name' => $currentDate->format('l'),
+                'day_short' => $currentDate->format('D'),
                 'is_weekend' => $currentDate->isWeekend(),
             ];
             $currentDate->addDay();
@@ -487,8 +489,8 @@ class WorklogDashboardController extends Controller
 
         // Group all worklogs by date in one pass
         $worklogsByDate = [
-            'billable'      => [],
-            'non_billable'  => [],
+            'billable' => [],
+            'non_billable' => [],
             'uncategorized' => [],
         ];
 
@@ -506,18 +508,18 @@ class WorklogDashboardController extends Controller
         // Build final array
         $dailyData = [];
         foreach ($dateRange as $dateString => $dateInfo) {
-            $billable      = $worklogsByDate['billable'][$dateString] ?? ['duration' => 0, 'count' => 0];
-            $nonBillable   = $worklogsByDate['non_billable'][$dateString] ?? ['duration' => 0, 'count' => 0];
+            $billable = $worklogsByDate['billable'][$dateString] ?? ['duration' => 0, 'count' => 0];
+            $nonBillable = $worklogsByDate['non_billable'][$dateString] ?? ['duration' => 0, 'count' => 0];
             $uncategorized = $worklogsByDate['uncategorized'][$dateString] ?? ['duration' => 0, 'count' => 0];
 
             $totalSeconds = $billable['duration'] + $nonBillable['duration'] + $uncategorized['duration'];
 
             $dailyData[] = array_merge($dateInfo, [
-                'billable_hours'       => round($billable['duration'] / 3600, 2),
-                'non_billable_hours'   => round($nonBillable['duration'] / 3600, 2),
-                'total_hours'          => round($totalSeconds / 3600, 2),
-                'entries_count'        => $billable['count'] + $nonBillable['count'] + $uncategorized['count'],
-                'billable_entries'     => $billable['count'],
+                'billable_hours' => round($billable['duration'] / 3600, 2),
+                'non_billable_hours' => round($nonBillable['duration'] / 3600, 2),
+                'total_hours' => round($totalSeconds / 3600, 2),
+                'entries_count' => $billable['count'] + $nonBillable['count'] + $uncategorized['count'],
+                'billable_entries' => $billable['count'],
                 'non_billable_entries' => $nonBillable['count'],
             ]);
         }
@@ -568,10 +570,10 @@ class WorklogDashboardController extends Controller
 
         foreach ($worklogs as $worklog) {
             $categoryName = 'Uncategorized';
-            $taskName     = 'Uncategorized Task';
+            $taskName = 'Uncategorized Task';
 
             if (isset($fullMapping[$worklog->task_id]) && $fullMapping[$worklog->task_id]->isNotEmpty()) {
-                $mapping      = $fullMapping[$worklog->task_id]->first();
+                $mapping = $fullMapping[$worklog->task_id]->first();
                 $categoryName = $mapping->cat_name;
 
                 // change query on getOptimizedWorklogData to get task name.
@@ -582,7 +584,7 @@ class WorklogDashboardController extends Controller
                 $worklogsByCategory[$categoryName] = [];
             }
 
-            $worklog->task_name                  = $taskName; // Add task name for display
+            $worklog->task_name = $taskName; // Add task name for display
             $worklogsByCategory[$categoryName][] = $worklog;
         }
 
@@ -597,45 +599,46 @@ class WorklogDashboardController extends Controller
 
             // Group by tasks within category
             $taskGroups = collect($categoryWorklogs)->groupBy('task_id');
-            $tasks      = [];
+            $tasks = [];
 
             foreach ($taskGroups as $taskId => $taskWorklogs) {
-                $taskHours    = collect($taskWorklogs)->sum('duration') / 3600;
+                $taskHours = collect($taskWorklogs)->sum('duration') / 3600;
                 $firstWorklog = collect($taskWorklogs)->first();
 
                 $entries = collect($taskWorklogs)->map(function ($worklog) {
                     return [
-                        'id'             => $worklog->id,
-                        'start_time'     => $worklog->start_time,
-                        'end_time'       => $worklog->end_time,
+                        'id' => $worklog->id,
+                        'start_time' => $worklog->start_time,
+                        'end_time' => $worklog->end_time,
                         'duration_hours' => round($worklog->duration / 3600, 2),
-                        'comment'        => $worklog->comment,
-                        'project_name'   => 'No Project', // Optimized: Not fetching project data
+                        'comment' => $worklog->comment,
+                        'project_name' => 'No Project', // Optimized: Not fetching project data
                     ];
                 })->toArray();
 
                 $tasks[] = [
-                    'task_id'     => $taskId,
-                    'task_name'   => $firstWorklog->task_name,
+                    'task_id' => $taskId,
+                    'task_name' => $firstWorklog->task_name,
                     'total_hours' => round($taskHours, 2),
-                    'entries'     => $entries,
+                    'entries' => $entries,
                 ];
             }
 
             $categories[] = [
                 'category_name' => $categoryName,
-                'total_hours'   => round($categoryHours, 2),
+                'total_hours' => round($categoryHours, 2),
                 'entries_count' => count($categoryWorklogs),
-                'tasks'         => $tasks,
+                'tasks' => $tasks,
             ];
         }
 
         return [
-            'type'        => $type,
+            'type' => $type,
             'total_hours' => round($totalHours, 2),
-            'categories'  => $categories,
+            'categories' => $categories,
         ];
     }
+
     /**
      * Calculate optimized bimonthly data
      */
@@ -652,7 +655,7 @@ class WorklogDashboardController extends Controller
 
         // First half: from start date to splitDate
         $firstHalfStart = $startOfMonth;
-        $firstHalfEnd   = Carbon::create($year, $month, $splitDate)->endOfDay();
+        $firstHalfEnd = Carbon::create($year, $month, $splitDate)->endOfDay();
 
         // Second half: (splitDate + 1) to end date or end of month
         $secondHalfStart = Carbon::create($year, $month, $splitDate + 1)->startOfDay();
@@ -663,7 +666,7 @@ class WorklogDashboardController extends Controller
         }
 
         // Get NAD data for both halves
-        $firstHalfNAD  = fetchNADDataForPeriod($user, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d'));
+        $firstHalfNAD = fetchNADDataForPeriod($user, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d'));
         $secondHalfNAD = fetchNADDataForPeriod($user, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d'));
 
         // Get optimized worklog data for each half
@@ -682,24 +685,24 @@ class WorklogDashboardController extends Controller
         );
 
         return [
-            'first_half'  => [
-                'date_range'         => [
+            'first_half' => [
+                'date_range' => [
                     'start' => $firstHalfStart->format('Y-m-d'),
-                    'end'   => $firstHalfEnd->format('Y-m-d'),
+                    'end' => $firstHalfEnd->format('Y-m-d'),
                 ],
-                'nad_data'           => $firstHalfNAD['nad_data'],
-                'basic_metrics'      => $this->calculateOptimizedBasicMetrics($firstHalfWorklogData),
-                'daily_breakdown'    => $this->calculateOptimizedDailyBreakdown($firstHalfWorklogData, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d')),
+                'nad_data' => $firstHalfNAD['nad_data'],
+                'basic_metrics' => $this->calculateOptimizedBasicMetrics($firstHalfWorklogData),
+                'daily_breakdown' => $this->calculateOptimizedDailyBreakdown($firstHalfWorklogData, $firstHalfStart->format('Y-m-d'), $firstHalfEnd->format('Y-m-d')),
                 'category_breakdown' => $this->calculateOptimizedCategoryBreakdown($firstHalfWorklogData, $taskCategories),
             ],
             'second_half' => [
-                'date_range'         => [
+                'date_range' => [
                     'start' => $secondHalfStart->format('Y-m-d'),
-                    'end'   => $secondHalfEnd->format('Y-m-d'),
+                    'end' => $secondHalfEnd->format('Y-m-d'),
                 ],
-                'nad_data'           => $secondHalfNAD['nad_data'],
-                'basic_metrics'      => $this->calculateOptimizedBasicMetrics($secondHalfWorklogData),
-                'daily_breakdown'    => $this->calculateOptimizedDailyBreakdown($secondHalfWorklogData, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d')),
+                'nad_data' => $secondHalfNAD['nad_data'],
+                'basic_metrics' => $this->calculateOptimizedBasicMetrics($secondHalfWorklogData),
+                'daily_breakdown' => $this->calculateOptimizedDailyBreakdown($secondHalfWorklogData, $secondHalfStart->format('Y-m-d'), $secondHalfEnd->format('Y-m-d')),
                 'category_breakdown' => $this->calculateOptimizedCategoryBreakdown($secondHalfWorklogData, $taskCategories),
             ],
         ];
@@ -715,11 +718,11 @@ class WorklogDashboardController extends Controller
         // Generate week ranges for the requested period
         $selectedWeeks = getWeekRangeForDates($startDate, $endDate, $startWeekNumber);
 
-        $weeklyBreakdown       = [];
-        $totalBillableHours    = 0;
+        $weeklyBreakdown = [];
+        $totalBillableHours = 0;
         $totalNonBillableHours = 0;
-        $totalNadHours         = 0;
-        $totalNadCount         = 0;
+        $totalNadHours = 0;
+        $totalNadCount = 0;
 
         foreach ($selectedWeeks as $weekData) {
             // Get optimized worklog data for this week
@@ -737,18 +740,18 @@ class WorklogDashboardController extends Controller
             $weekPerformance = calculatePerformanceMetrics($user, $weekWorklogData['all_worklogs'], $weekData['start_date'], $weekData['end_date'], $workStatusChanges);
 
             $weeklyBreakdown[] = [
-                'week_number'        => $weekData['week_number'],
-                'start_date'         => $weekData['start_date'],
-                'end_date'           => $weekData['end_date'],
-                'label'              => $weekData['label'],
-                'billable_hours'     => $weekMetrics['basic_metrics']['billable_hours'],
+                'week_number' => $weekData['week_number'],
+                'start_date' => $weekData['start_date'],
+                'end_date' => $weekData['end_date'],
+                'label' => $weekData['label'],
+                'billable_hours' => $weekMetrics['basic_metrics']['billable_hours'],
                 'non_billable_hours' => $weekMetrics['basic_metrics']['non_billable_hours'],
-                'total_hours'        => $weekMetrics['basic_metrics']['total_hours'],
-                'nad_count'          => $weekMetrics['nad_count'],
-                'nad_hours'          => $weekMetrics['nad_hours'],
-                'nad_data'           => $weekMetrics['nad_data'],
-                'performance'        => $weekPerformance,
-                'entries_count'      => $weekMetrics['entries_count'],
+                'total_hours' => $weekMetrics['basic_metrics']['total_hours'],
+                'nad_count' => $weekMetrics['nad_count'],
+                'nad_hours' => $weekMetrics['nad_hours'],
+                'nad_data' => $weekMetrics['nad_data'],
+                'performance' => $weekPerformance,
+                'entries_count' => $weekMetrics['entries_count'],
             ];
 
             // Add to totals
@@ -762,21 +765,21 @@ class WorklogDashboardController extends Controller
         $categoryBreakdown = $this->calculateOptimizedCategoryBreakdownSummary($worklogData, $taskCategories);
 
         return [
-            'summary'            => [
-                'total_weeks'              => count($selectedWeeks),
-                'total_billable_hours'     => round($totalBillableHours, 2),
+            'summary' => [
+                'total_weeks' => count($selectedWeeks),
+                'total_billable_hours' => round($totalBillableHours, 2),
                 'total_non_billable_hours' => round($totalNonBillableHours, 2),
-                'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
-                'total_nad_count'          => $totalNadCount,
-                'total_nad_hours'          => round($totalNadHours, 2),
-                'nad_hour_rate'            => $weekMetrics['nad_hour_rate'] ?? 8,
+                'total_hours' => round($totalBillableHours + $totalNonBillableHours, 2),
+                'total_nad_count' => $totalNadCount,
+                'total_nad_hours' => round($totalNadHours, 2),
+                'nad_hour_rate' => $weekMetrics['nad_hour_rate'] ?? 8,
             ],
-            'weekly_breakdown'   => $weeklyBreakdown,
+            'weekly_breakdown' => $weeklyBreakdown,
             'category_breakdown' => $categoryBreakdown,
-            'date_range'         => [
+            'date_range' => [
                 'start' => $selectedWeeks[0]['start_date'] ?? $startDate,
-                'end'   => end($selectedWeeks)['end_date'] ?? $endDate,
-                'mode'  => 'weekly_summary',
+                'end' => end($selectedWeeks)['end_date'] ?? $endDate,
+                'mode' => 'weekly_summary',
             ],
         ];
     }
@@ -789,12 +792,12 @@ class WorklogDashboardController extends Controller
         $timezone = config('app.timezone', 'Asia/Singapore');
 
         // Generate month ranges for the requested period
-        $selectedMonths        = getMonthRangeForDates($startDate, $endDate, $monthCount, $adjustedStartDate);
-        $monthlyBreakdown      = [];
-        $totalBillableHours    = 0;
+        $selectedMonths = getMonthRangeForDates($startDate, $endDate, $monthCount, $adjustedStartDate);
+        $monthlyBreakdown = [];
+        $totalBillableHours = 0;
         $totalNonBillableHours = 0;
-        $totalNadHours         = 0;
-        $totalNadCount         = 0;
+        $totalNadHours = 0;
+        $totalNadCount = 0;
         // dd($selectedMonths, $startDate, $endDate, $year, $startMonth, $monthCount);
         foreach ($selectedMonths as $monthData) {
             // Get optimized worklog data for this month
@@ -815,19 +818,19 @@ class WorklogDashboardController extends Controller
             $monthPerformance = calculatePerformanceMetrics($user, $monthWorklogData['all_worklogs'], $monthData['start_date'], $monthData['end_date'], $workStatusChanges);
 
             $monthlyBreakdown[] = [
-                'month_number'       => $monthData['month_number'],
-                'start_date'         => $monthData['start_date'],
-                'end_date'           => $monthData['end_date'],
-                'label'              => $monthData['label'],
-                'billable_hours'     => $monthMetrics['basic_metrics']['billable_hours'],
+                'month_number' => $monthData['month_number'],
+                'start_date' => $monthData['start_date'],
+                'end_date' => $monthData['end_date'],
+                'label' => $monthData['label'],
+                'billable_hours' => $monthMetrics['basic_metrics']['billable_hours'],
                 'non_billable_hours' => $monthMetrics['basic_metrics']['non_billable_hours'],
-                'total_hours'        => $monthMetrics['basic_metrics']['total_hours'],
-                'nad_count'          => $monthMetrics['nad_count'],
-                'nad_hours'          => $monthMetrics['nad_hours'],
-                'nad_data'           => $monthMetrics['nad_data'],
-                'performance'        => $monthPerformance,
-                'entries_count'      => $monthMetrics['entries_count'],
-                'weekly_breakdown'   => $weeklyBreakdown,
+                'total_hours' => $monthMetrics['basic_metrics']['total_hours'],
+                'nad_count' => $monthMetrics['nad_count'],
+                'nad_hours' => $monthMetrics['nad_hours'],
+                'nad_data' => $monthMetrics['nad_data'],
+                'performance' => $monthPerformance,
+                'entries_count' => $monthMetrics['entries_count'],
+                'weekly_breakdown' => $weeklyBreakdown,
             ];
 
             // Add to totals
@@ -841,21 +844,21 @@ class WorklogDashboardController extends Controller
         $categoryBreakdown = $this->calculateOptimizedCategoryBreakdownSummary($worklogData, $taskCategories);
 
         return [
-            'summary'            => [
-                'total_months'             => count($selectedMonths),
-                'total_billable_hours'     => round($totalBillableHours, 2),
+            'summary' => [
+                'total_months' => count($selectedMonths),
+                'total_billable_hours' => round($totalBillableHours, 2),
                 'total_non_billable_hours' => round($totalNonBillableHours, 2),
-                'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
-                'total_nad_count'          => $totalNadCount,
-                'total_nad_hours'          => round($totalNadHours, 2),
-                'nad_hour_rate'            => $monthMetrics['nad_hour_rate'] ?? 8,
+                'total_hours' => round($totalBillableHours + $totalNonBillableHours, 2),
+                'total_nad_count' => $totalNadCount,
+                'total_nad_hours' => round($totalNadHours, 2),
+                'nad_hour_rate' => $monthMetrics['nad_hour_rate'] ?? 8,
             ],
-            'monthly_breakdown'  => $monthlyBreakdown,
+            'monthly_breakdown' => $monthlyBreakdown,
             'category_breakdown' => $categoryBreakdown,
-            'date_range'         => [
+            'date_range' => [
                 'start' => $selectedMonths[0]['start_date'] ?? $startDate,
-                'end'   => end($selectedMonths)['end_date'] ?? $endDate,
-                'mode'  => 'month_summary',
+                'end' => end($selectedMonths)['end_date'] ?? $endDate,
+                'mode' => 'month_summary',
             ],
         ];
     }
@@ -875,7 +878,7 @@ class WorklogDashboardController extends Controller
         // Add NAD data if requested
         if ($includeNAD) {
             $nadData = fetchNADDataForPeriod($user, $startDate, $endDate);
-            $result  = array_merge($result, $nadData);
+            $result = array_merge($result, $nadData);
         }
 
         return $result;
@@ -890,25 +893,25 @@ class WorklogDashboardController extends Controller
 
         // Get all weeks that fall within this month
         $monthStart = Carbon::parse($startDate, $timezone);
-        $monthEnd   = Carbon::parse($endDate, $timezone);
+        $monthEnd = Carbon::parse($endDate, $timezone);
 
         // Find the Monday of the first week and Sunday of the last week
         $firstMonday = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
-        $lastSunday  = $monthEnd->copy()->endOfWeek(Carbon::SUNDAY);
+        $lastSunday = $monthEnd->copy()->endOfWeek(Carbon::SUNDAY);
 
-        $weeks       = [];
+        $weeks = [];
         $currentWeek = $firstMonday->copy();
-        $weekNumber  = 1;
+        $weekNumber = 1;
 
         while ($currentWeek->lte($lastSunday)) {
             $weekStart = $currentWeek->copy();
-            $weekEnd   = $currentWeek->copy()->endOfWeek(Carbon::SUNDAY);
+            $weekEnd = $currentWeek->copy()->endOfWeek(Carbon::SUNDAY);
 
             // Only include weeks that overlap with the month
             if ($weekEnd->gte($monthStart) && $weekStart->lte($monthEnd)) {
                 // Adjust week boundaries to month boundaries if needed
                 $adjustedStart = $weekStart->lt($monthStart) ? $monthStart : $weekStart;
-                $adjustedEnd   = $weekEnd->gt($monthEnd) ? $monthEnd : $weekEnd;
+                $adjustedEnd = $weekEnd->gt($monthEnd) ? $monthEnd : $weekEnd;
 
                 // Get optimized worklog data for this week
                 $weekWorklogData = $this->getOptimizedWorklogData(
@@ -928,22 +931,22 @@ class WorklogDashboardController extends Controller
                     $timezone
                 );
                 $weeks[] = [
-                    'week_number'        => $weekNumber,
-                    'start_date'         => $adjustedStart->format('Y-m-d'),
-                    'end_date'           => $adjustedEnd->format('Y-m-d'),
-                    'label'              => sprintf(
+                    'week_number' => $weekNumber,
+                    'start_date' => $adjustedStart->format('Y-m-d'),
+                    'end_date' => $adjustedEnd->format('Y-m-d'),
+                    'label' => sprintf(
                         'Week %d (%s - %s)',
                         $weekNumber,
                         $adjustedStart->format('M d'),
                         $adjustedEnd->format('M d')
                     ),
-                    'billable_hours'     => $weekMetrics['basic_metrics']['billable_hours'],
+                    'billable_hours' => $weekMetrics['basic_metrics']['billable_hours'],
                     'non_billable_hours' => $weekMetrics['basic_metrics']['non_billable_hours'],
-                    'total_hours'        => $weekMetrics['basic_metrics']['total_hours'],
-                    'nad_count'          => $weekMetrics['nad_count'],
-                    'nad_hours'          => $weekMetrics['nad_hours'],
-                    'nad_data'           => $weekMetrics['nad_data'],
-                    'entries_count'      => $weekMetrics['entries_count'],
+                    'total_hours' => $weekMetrics['basic_metrics']['total_hours'],
+                    'nad_count' => $weekMetrics['nad_count'],
+                    'nad_hours' => $weekMetrics['nad_hours'],
+                    'nad_data' => $weekMetrics['nad_data'],
+                    'entries_count' => $weekMetrics['entries_count'],
                 ];
 
                 $weekNumber++;
@@ -1000,7 +1003,7 @@ class WorklogDashboardController extends Controller
             $categoryName = 'Uncategorized';
 
             if (isset($fullMapping[$worklog->task_id]) && $fullMapping[$worklog->task_id]->isNotEmpty()) {
-                $mapping      = $fullMapping[$worklog->task_id]->first();
+                $mapping = $fullMapping[$worklog->task_id]->first();
                 $categoryName = $mapping->cat_name;
             }
 
@@ -1021,7 +1024,7 @@ class WorklogDashboardController extends Controller
 
             $categories[] = [
                 'category_name' => $categoryName,
-                'total_hours'   => round($categoryHours, 2),
+                'total_hours' => round($categoryHours, 2),
                 'entries_count' => count($categoryWorklogs),
             ];
         }
@@ -1032,11 +1035,12 @@ class WorklogDashboardController extends Controller
         });
 
         return [
-            'type'        => $type,
+            'type' => $type,
             'total_hours' => round($totalHours, 2),
-            'categories'  => $categories,
+            'categories' => $categories,
         ];
     }
+
     /**
      * Get total hours for logging based on mode.
      */
@@ -1064,6 +1068,7 @@ class WorklogDashboardController extends Controller
             if ($request->input('mode') === 'weekly_summary') {
                 return 'weekly_summary';
             }
+
             return 'weeks';
         } elseif ($request->has('year') && $request->has('month')) {
             // Check if it's month_summary based on a parameter
@@ -1072,6 +1077,7 @@ class WorklogDashboardController extends Controller
             } elseif ($request->has('bimonthly_date')) {
                 return 'bimonthly';
             }
+
             return 'monthly';
         } else {
             return 'custom';
@@ -1083,26 +1089,26 @@ class WorklogDashboardController extends Controller
      */
     private function getWeeklyDateRange(Request $request)
     {
-        $year       = $request->input('year');
+        $year = $request->input('year');
         $weekNumber = $request->input('week_number');
-        $weekCount  = $request->input('week_count', 1);
+        $weekCount = $request->input('week_count', 1);
 
         // Use start_date and end_date from request if available
         if ($request->has('start_date') && $request->has('end_date')) {
             return [
                 'start' => $request->input('start_date'),
-                'end'   => $request->input('end_date'),
+                'end' => $request->input('end_date'),
             ];
         }
 
         // Fallback to current week if invalid
-        $today       = Carbon::now();
+        $today = Carbon::now();
         $startOfWeek = $today->copy()->startOfWeek(Carbon::MONDAY);
-        $endOfWeek   = $today->copy()->endOfWeek(Carbon::SUNDAY);
+        $endOfWeek = $today->copy()->endOfWeek(Carbon::SUNDAY);
 
         return [
             'start' => $startOfWeek->toDateString(),
-            'end'   => $endOfWeek->toDateString(),
+            'end' => $endOfWeek->toDateString(),
         ];
     }
 
@@ -1115,19 +1121,19 @@ class WorklogDashboardController extends Controller
         if ($request->has('start_date') && $request->has('end_date')) {
             return [
                 'start' => $request->input('start_date'),
-                'end'   => $request->input('end_date'),
+                'end' => $request->input('end_date'),
             ];
         }
 
-        $year  = $request->input('year');
+        $year = $request->input('year');
         $month = $request->input('month');
 
         $startOfMonth = Carbon::create($year, $month, 1)->startOfDay();
-        $endOfMonth   = Carbon::create($year, $month)->endOfMonth();
+        $endOfMonth = Carbon::create($year, $month)->endOfMonth();
 
         return [
             'start' => $startOfMonth->toDateString(),
-            'end'   => $endOfMonth->toDateString(),
+            'end' => $endOfMonth->toDateString(),
         ];
     }
 
@@ -1137,7 +1143,7 @@ class WorklogDashboardController extends Controller
     private function getCustomDateRange(Request $request)
     {
         $startDate = $request->input('start_date', Carbon::now()->startOfWeek()->toDateString());
-        $endDate   = $request->input('end_date', Carbon::now()->endOfWeek()->toDateString());
+        $endDate = $request->input('end_date', Carbon::now()->endOfWeek()->toDateString());
 
         // Validate dates
         try {
@@ -1145,12 +1151,12 @@ class WorklogDashboardController extends Controller
             Carbon::parse($endDate);
         } catch (\Exception $e) {
             $startDate = Carbon::now()->startOfWeek()->toDateString();
-            $endDate   = Carbon::now()->endOfWeek()->toDateString();
+            $endDate = Carbon::now()->endOfWeek()->toDateString();
         }
 
         return [
             'start' => $startDate,
-            'end'   => $endDate,
+            'end' => $endDate,
         ];
     }
 }

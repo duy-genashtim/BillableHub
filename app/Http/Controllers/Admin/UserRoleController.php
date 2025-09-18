@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -45,7 +46,7 @@ class UserRoleController extends Controller
             }
 
             // Sorting
-            $sortBy        = $request->get('sort_by', 'name');
+            $sortBy = $request->get('sort_by', 'name');
             $sortDirection = $request->get('sort_direction', 'asc');
             $query->orderBy($sortBy, $sortDirection);
 
@@ -53,40 +54,41 @@ class UserRoleController extends Controller
 
             $usersData = $users->getCollection()->map(function ($user) {
                 return [
-                    'id'             => $user->id,
-                    'name'           => $user->name,
-                    'email'          => $user->email,
-                    'avatar'         => $user->avatar ? asset('storage/' . $user->avatar) : null,
-                    'roles'          => $user->roles->map(function ($role) {
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'avatar' => $user->avatar ? asset('storage/'.$user->avatar) : null,
+                    'roles' => $user->roles->map(function ($role) {
                         return [
-                            'name'         => $role->name,
+                            'name' => $role->name,
                             'display_name' => strtoupper($role->display_name ?? $role->name),
                         ];
                     }),
-                    'permissions'    => $user->getAllPermissions()->map(function ($permission) {
+                    'permissions' => $user->getAllPermissions()->map(function ($permission) {
                         $displayName = config("constants.permissions.{$permission->name}", $permission->name);
+
                         return [
-                            'name'         => $permission->name,
-                            'display_name' => $displayName, //$permission->display_name ?? $permission->name,
+                            'name' => $permission->name,
+                            'display_name' => $displayName, // $permission->display_name ?? $permission->name,
                         ];
                     }),
                     'is_super_admin' => $user->isSuperAdmin(),
-                    'created_at'     => $user->created_at,
+                    'created_at' => $user->created_at,
                 ];
             });
 
             return response()->json([
-                'users'      => $usersData,
+                'users' => $usersData,
                 'pagination' => [
                     'current_page' => $users->currentPage(),
-                    'per_page'     => $users->perPage(),
-                    'total'        => $users->total(),
-                    'last_page'    => $users->lastPage(),
+                    'per_page' => $users->perPage(),
+                    'total' => $users->total(),
+                    'last_page' => $users->lastPage(),
                 ],
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch users: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch users: '.$e->getMessage()], 500);
         }
     }
 
@@ -119,13 +121,13 @@ class UserRoleController extends Controller
 
             return response()->json([
                 'message' => 'Role assigned successfully',
-                'user'    => [
-                    'id'    => $targetUser->id,
-                    'name'  => $targetUser->name,
+                'user' => [
+                    'id' => $targetUser->id,
+                    'name' => $targetUser->name,
                     'email' => $targetUser->email,
                     'roles' => $targetUser->fresh()->roles->map(function ($role) {
                         return [
-                            'name'         => $role->name,
+                            'name' => $role->name,
                             'display_name' => strtoupper($role->display_name ?? $role->name),
                         ];
                     }),
@@ -133,7 +135,7 @@ class UserRoleController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to assign role: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to assign role: '.$e->getMessage()], 500);
         }
     }
 
@@ -166,13 +168,13 @@ class UserRoleController extends Controller
 
             return response()->json([
                 'message' => 'Role removed successfully',
-                'user'    => [
-                    'id'    => $targetUser->id,
-                    'name'  => $targetUser->name,
+                'user' => [
+                    'id' => $targetUser->id,
+                    'name' => $targetUser->name,
                     'email' => $targetUser->email,
                     'roles' => $targetUser->fresh()->roles->map(function ($role) {
                         return [
-                            'name'         => $role->name,
+                            'name' => $role->name,
                             'display_name' => strtoupper($role->display_name ?? $role->name),
                         ];
                     }),
@@ -180,7 +182,7 @@ class UserRoleController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to remove role: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to remove role: '.$e->getMessage()], 500);
         }
     }
 
@@ -202,7 +204,7 @@ class UserRoleController extends Controller
             }
 
             $request->validate([
-                'roles'   => 'required|array',
+                'roles' => 'required|array',
                 'roles.*' => 'exists:roles,name',
             ]);
 
@@ -224,28 +226,29 @@ class UserRoleController extends Controller
 
             return response()->json([
                 'message' => 'User roles updated successfully',
-                'user'    => [
-                    'id'          => $targetUser->id,
-                    'name'        => $targetUser->name,
-                    'email'       => $targetUser->email,
-                    'roles'       => $targetUser->fresh()->roles->map(function ($role) {
+                'user' => [
+                    'id' => $targetUser->id,
+                    'name' => $targetUser->name,
+                    'email' => $targetUser->email,
+                    'roles' => $targetUser->fresh()->roles->map(function ($role) {
                         return [
-                            'name'         => $role->name,
+                            'name' => $role->name,
                             'display_name' => strtoupper($role->display_name ?? $role->name),
                         ];
                     }),
                     'permissions' => $targetUser->fresh()->getAllPermissions()->map(function ($permission) {
                         $displayName = config("constants.permissions.{$permission->name}", $permission->name);
+
                         return [
-                            'name'         => $permission->name,
-                            'display_name' => $displayName, //$permission->display_name ?? $permission->name,
+                            'name' => $permission->name,
+                            'display_name' => $displayName, // $permission->display_name ?? $permission->name,
                         ];
                     }),
                 ],
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to sync roles: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to sync roles: '.$e->getMessage()], 500);
         }
     }
 
@@ -263,7 +266,7 @@ class UserRoleController extends Controller
 
             $roles = Role::all()->map(function ($role) {
                 return [
-                    'name'         => $role->name,
+                    'name' => $role->name,
                     'display_name' => strtoupper($role->display_name ?? $role->name),
                 ];
             });
@@ -273,7 +276,7 @@ class UserRoleController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch roles: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch roles: '.$e->getMessage()], 500);
         }
     }
 
@@ -291,30 +294,31 @@ class UserRoleController extends Controller
 
             return response()->json([
                 'user' => [
-                    'id'             => $targetUser->id,
-                    'name'           => $targetUser->name,
-                    'email'          => $targetUser->email,
-                    'avatar'         => $targetUser->avatar ? asset('storage/' . $targetUser->avatar) : null,
-                    'roles'          => $targetUser->roles->map(function ($role) {
+                    'id' => $targetUser->id,
+                    'name' => $targetUser->name,
+                    'email' => $targetUser->email,
+                    'avatar' => $targetUser->avatar ? asset('storage/'.$targetUser->avatar) : null,
+                    'roles' => $targetUser->roles->map(function ($role) {
                         return [
-                            'name'         => $role->name,
+                            'name' => $role->name,
                             'display_name' => strtoupper($role->display_name ?? $role->name),
                         ];
                     }),
-                    'permissions'    => $targetUser->getAllPermissions()->map(function ($permission) {
+                    'permissions' => $targetUser->getAllPermissions()->map(function ($permission) {
                         $displayName = config("constants.permissions.{$permission->name}", $permission->name);
+
                         return [
-                            'name'         => $permission->name,
-                            'display_name' => $displayName, //$permission->display_name ?? $permission->name,
+                            'name' => $permission->name,
+                            'display_name' => $displayName, // $permission->display_name ?? $permission->name,
                         ];
                     }),
                     'is_super_admin' => $targetUser->isSuperAdmin(),
-                    'created_at'     => $targetUser->created_at,
+                    'created_at' => $targetUser->created_at,
                 ],
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch user: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch user: '.$e->getMessage()], 500);
         }
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -21,15 +22,15 @@ class IvaWeeklyReportController extends Controller
             'force_reload' => filter_var($request->query('force_reload'), FILTER_VALIDATE_BOOLEAN),
         ]);
         $validator = Validator::make($request->all(), [
-            'year'         => 'required|integer|min:2024',
-            'week_number'  => 'required|integer|min:1|max:52',
-            'start_date'   => 'required|date',
-            'end_date'     => 'required|date|after_or_equal:start_date',
-            'work_status'  => 'nullable|string',
-            'region'       => 'nullable|string',
-            'search'       => 'nullable|string',
-            'sort_by'      => 'nullable|string|in:name,billable,non_billable,uncategorized,total,performance',
-            'sort_order'   => 'nullable|string|in:asc,desc',
+            'year' => 'required|integer|min:2024',
+            'week_number' => 'required|integer|min:1|max:52',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'work_status' => 'nullable|string',
+            'region' => 'nullable|string',
+            'search' => 'nullable|string',
+            'sort_by' => 'nullable|string|in:name,billable,non_billable,uncategorized,total,performance',
+            'sort_order' => 'nullable|string|in:asc,desc',
             'force_reload' => 'nullable|boolean',
         ]);
 
@@ -37,13 +38,13 @@ class IvaWeeklyReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // Validate week dates (must be Monday to Sunday, exactly 7 days)
         $startDate = Carbon::parse($request->input('start_date'));
-        $endDate   = Carbon::parse($request->input('end_date'));
+        $endDate = Carbon::parse($request->input('end_date'));
 
         if (! $startDate->isMonday()) {
             return response()->json([
@@ -66,26 +67,26 @@ class IvaWeeklyReportController extends Controller
                 'message' => 'Week must be exactly 7 days (Monday to Sunday)',
                 'details' => [
                     'start_date' => $startDate->format('Y-m-d'),
-                    'end_date'   => $endDate->format('Y-m-d'),
-                    'days_diff'  => $daysDiff,
+                    'end_date' => $endDate->format('Y-m-d'),
+                    'days_diff' => $daysDiff,
                 ],
             ], 422);
         }
 
         // Prepare cache parameters
         $cacheParams = [
-            'year'        => $request->input('year'),
+            'year' => $request->input('year'),
             'week_number' => $request->input('week_number'),
-            'start_date'  => $startDate->format('Y-m-d'),
-            'end_date'    => $endDate->format('Y-m-d'),
+            'start_date' => $startDate->format('Y-m-d'),
+            'end_date' => $endDate->format('Y-m-d'),
         ];
 
         $cacheFilters = [
             'work_status' => $request->input('work_status', ''),
-            'region'      => $request->input('region', ''),
-            'search'      => $request->input('search', ''),
-            'sort_by'     => $request->input('sort_by', 'performance'),
-            'sort_order'  => $request->input('sort_order', 'desc'),
+            'region' => $request->input('region', ''),
+            'search' => $request->input('search', ''),
+            'sort_by' => $request->input('sort_by', 'performance'),
+            'sort_order' => $request->input('sort_order', 'desc'),
         ];
 
         // Check if force reload is requested
@@ -102,8 +103,8 @@ class IvaWeeklyReportController extends Controller
                 ]);
 
                 return response()->json([
-                    'success'   => true,
-                    'cached'    => true,
+                    'success' => true,
+                    'cached' => true,
                     'cached_at' => $cachedData['cached_at'] ?? null,
                     ...$cachedData['data'],
                 ]);
@@ -118,13 +119,13 @@ class IvaWeeklyReportController extends Controller
         setCachedReportData('weekly', $cacheParams, $cacheFilters, $wrappedData, 30);
 
         Log::info('Weekly report generated fresh', [
-            'cache_key'   => generateReportCacheKey('weekly', $cacheParams, $cacheFilters),
-            'users_count' => count($reportData['performance_data'] ?? [])
+            'cache_key' => generateReportCacheKey('weekly', $cacheParams, $cacheFilters),
+            'users_count' => count($reportData['performance_data'] ?? []),
         ]);
 
         return response()->json([
-            'success'      => true,
-            'cached'       => false,
+            'success' => true,
+            'cached' => false,
             'generated_at' => now()->toISOString(),
             ...$reportData,
         ]);
@@ -136,8 +137,8 @@ class IvaWeeklyReportController extends Controller
     public function clearWeeklyReportCache(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'cache_type'  => 'nullable|string|in:all,weekly,daily,monthly',
-            'year'        => 'nullable|integer',
+            'cache_type' => 'nullable|string|in:all,weekly,daily,monthly',
+            'year' => 'nullable|integer',
             'week_number' => 'nullable|integer',
         ]);
 
@@ -145,12 +146,12 @@ class IvaWeeklyReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $cacheType = $request->input('cache_type', 'weekly');
-        $params    = [];
+        $params = [];
 
         if ($request->filled('year')) {
             $params['year'] = $request->input('year');
@@ -162,8 +163,8 @@ class IvaWeeklyReportController extends Controller
         $cleared = clearReportCache($cacheType, $params);
 
         return response()->json([
-            'success'    => $cleared,
-            'message'    => $cleared ? 'Cache cleared successfully' : 'Failed to clear cache',
+            'success' => $cleared,
+            'message' => $cleared ? 'Cache cleared successfully' : 'Failed to clear cache',
             'cache_type' => $cacheType,
             'cleared_at' => now()->toISOString(),
         ]);
@@ -175,38 +176,38 @@ class IvaWeeklyReportController extends Controller
     public function getCacheInfo(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'year'        => 'required|integer',
+            'year' => 'required|integer',
             'week_number' => 'required|integer',
-            'start_date'  => 'required|date',
-            'end_date'    => 'required|date',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $cacheParams = [
-            'year'        => $request->input('year'),
+            'year' => $request->input('year'),
             'week_number' => $request->input('week_number'),
-            'start_date'  => $request->input('start_date'),
-            'end_date'    => $request->input('end_date'),
+            'start_date' => $request->input('start_date'),
+            'end_date' => $request->input('end_date'),
         ];
 
         $cacheFilters = [
             'work_status' => $request->input('work_status', ''),
-            'region'      => $request->input('region', ''),
-            'search'      => $request->input('search', ''),
-            'sort_by'     => $request->input('sort_by', 'performance'),
-            'sort_order'  => $request->input('sort_order', 'desc'),
+            'region' => $request->input('region', ''),
+            'search' => $request->input('search', ''),
+            'sort_by' => $request->input('sort_by', 'performance'),
+            'sort_order' => $request->input('sort_order', 'desc'),
         ];
 
         $cacheInfo = getReportCacheInfo('weekly', $cacheParams, $cacheFilters);
 
         return response()->json([
-            'success'    => true,
+            'success' => true,
             'cache_info' => $cacheInfo,
         ]);
     }
@@ -270,19 +271,19 @@ class IvaWeeklyReportController extends Controller
         );
 
         // Process user performance data
-        $performanceData         = [];
-        $totalBillableHours      = 0;
-        $totalNonBillableHours   = 0;
+        $performanceData = [];
+        $totalBillableHours = 0;
+        $totalNonBillableHours = 0;
         $totalUncategorizedHours = 0;
-        $totalTargetHours        = 0;
+        $totalTargetHours = 0;
 
         foreach ($users as $user) {
-            $userId       = $user->id;
+            $userId = $user->id;
             $userWorklogs = $worklogsData->get($userId, collect());
 
             // Calculate hours by category
-            $billableHours      = 0;
-            $nonBillableHours   = 0;
+            $billableHours = 0;
+            $nonBillableHours = 0;
             $uncategorizedHours = 0;
 
             foreach ($userWorklogs as $worklog) {
@@ -305,7 +306,7 @@ class IvaWeeklyReportController extends Controller
 
             // Calculate performance using existing helper functions
             $workStatusChanges = getWorkStatusChanges($user, $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
-            $performances      = calculatePerformanceMetrics(
+            $performances = calculatePerformanceMetrics(
                 $user,
                 $userWorklogs,
                 $startDate->format('Y-m-d'),
@@ -314,13 +315,13 @@ class IvaWeeklyReportController extends Controller
             );
 
             // Get the primary performance (first one or default)
-            $primaryPerformance    = ! empty($performances) ? $performances[0] : null;
-            $targetHours           = $primaryPerformance ? $primaryPerformance['target_total_hours'] : 0;
+            $primaryPerformance = ! empty($performances) ? $performances[0] : null;
+            $targetHours = $primaryPerformance ? $primaryPerformance['target_total_hours'] : 0;
             $performancePercentage = $primaryPerformance ? $primaryPerformance['percentage'] : 0;
 
             // Check if user has adjusted start date
             $adjustedDateInfo = ivaAdjustStartDate($user, $startDate->format('Y-m-d'), $endDate->format('Y-m-d'), true);
-            $hasAdjustedDate  = $adjustedDateInfo['changed_start_date'];
+            $hasAdjustedDate = $adjustedDateInfo['changed_start_date'];
 
             // Format performance display (e.g., "5%(0h 50m / 35h)")
             $actualHoursDisplay = $this->formatHoursDisplay($billableHours);
@@ -328,29 +329,29 @@ class IvaWeeklyReportController extends Controller
             $performanceDisplay = "{$performancePercentage}% ({$actualHoursDisplay} / {$targetHoursDisplay})";
 
             $userData = [
-                'id'                     => $user->id,
-                'full_name'              => $user->full_name,
-                'email'                  => $user->email,
-                'job_title'              => $user->job_title,
-                'work_status'            => $user->work_status,
-                'region'                 => $user->region ? $user->region->name : null,
-                'cohort'                 => $user->cohort ? $user->cohort->name : null,
-                'timedoctor_version'     => $user->timedoctor_version,
-                'billable_hours'         => round($billableHours, 2),
-                'non_billable_hours'     => round($nonBillableHours, 2),
-                'uncategorized_hours'    => round($uncategorizedHours, 2),
-                'total_hours'            => round($totalHours, 2),
-                'target_hours'           => round($targetHours, 2),
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'job_title' => $user->job_title,
+                'work_status' => $user->work_status,
+                'region' => $user->region ? $user->region->name : null,
+                'cohort' => $user->cohort ? $user->cohort->name : null,
+                'timedoctor_version' => $user->timedoctor_version,
+                'billable_hours' => round($billableHours, 2),
+                'non_billable_hours' => round($nonBillableHours, 2),
+                'uncategorized_hours' => round($uncategorizedHours, 2),
+                'total_hours' => round($totalHours, 2),
+                'target_hours' => round($targetHours, 2),
                 'performance_percentage' => round($performancePercentage, 1),
-                'performance_display'    => $performanceDisplay,
-                'performance_status'     => $primaryPerformance ? $primaryPerformance['status'] : 'POOR',
-                'entries_count'          => $userWorklogs->count(),
-                'has_data'               => $totalHours > 0,
-                'has_adjusted_date'      => $hasAdjustedDate,
-                'adjusted_start_date'    => $hasAdjustedDate ? $adjustedDateInfo['adjusted_start_date'] : null,
-                'adjustment_message'     => $hasAdjustedDate ? $adjustedDateInfo['adjustment_message'] : null,
-                'hire_date'              => $user->hire_date ? $user->hire_date->format('Y-m-d') : null,
-                'end_date'               => $user->end_date ? $user->end_date->format('Y-m-d') : null,
+                'performance_display' => $performanceDisplay,
+                'performance_status' => $primaryPerformance ? $primaryPerformance['status'] : 'POOR',
+                'entries_count' => $userWorklogs->count(),
+                'has_data' => $totalHours > 0,
+                'has_adjusted_date' => $hasAdjustedDate,
+                'adjusted_start_date' => $hasAdjustedDate ? $adjustedDateInfo['adjusted_start_date'] : null,
+                'adjustment_message' => $hasAdjustedDate ? $adjustedDateInfo['adjustment_message'] : null,
+                'hire_date' => $user->hire_date ? $user->hire_date->format('Y-m-d') : null,
+                'end_date' => $user->end_date ? $user->end_date->format('Y-m-d') : null,
             ];
 
             $performanceData[] = $userData;
@@ -363,7 +364,7 @@ class IvaWeeklyReportController extends Controller
         }
 
         // Apply sorting
-        $sortBy    = $request->input('sort_by', 'performance');
+        $sortBy = $request->input('sort_by', 'performance');
         $sortOrder = $request->input('sort_order', 'desc');
 
         $performanceData = $this->sortWeeklyPerformanceData($performanceData, $sortBy, $sortOrder);
@@ -378,7 +379,7 @@ class IvaWeeklyReportController extends Controller
             ->get()
             ->map(function ($item) {
                 return [
-                    'value'       => $item->setting_value,
+                    'value' => $item->setting_value,
                     'description' => $item->description,
                 ];
             })
@@ -392,33 +393,33 @@ class IvaWeeklyReportController extends Controller
 
         // Calculate summary statistics
         $overallPerformancePercentage = $totalTargetHours > 0 ? round(($totalBillableHours / $totalTargetHours) * 100, 1) : 0;
-        $overallPerformanceDisplay    = "{$overallPerformancePercentage}% ({$this->formatHoursDisplay($totalBillableHours)} / {$this->formatHoursDisplay($totalTargetHours)})";
+        $overallPerformanceDisplay = "{$overallPerformancePercentage}% ({$this->formatHoursDisplay($totalBillableHours)} / {$this->formatHoursDisplay($totalTargetHours)})";
 
         $summary = [
-            'total_users'                    => count($performanceData),
-            'total_billable_hours'           => round($totalBillableHours, 2),
-            'total_non_billable_hours'       => round($totalNonBillableHours, 2),
-            'total_uncategorized_hours'      => round($totalUncategorizedHours, 2),
-            'total_hours'                    => round($totalBillableHours + $totalNonBillableHours + $totalUncategorizedHours, 2),
-            'total_target_hours'             => round($totalTargetHours, 2),
+            'total_users' => count($performanceData),
+            'total_billable_hours' => round($totalBillableHours, 2),
+            'total_non_billable_hours' => round($totalNonBillableHours, 2),
+            'total_uncategorized_hours' => round($totalUncategorizedHours, 2),
+            'total_hours' => round($totalBillableHours + $totalNonBillableHours + $totalUncategorizedHours, 2),
+            'total_target_hours' => round($totalTargetHours, 2),
             'overall_performance_percentage' => $overallPerformancePercentage,
-            'overall_performance_display'    => $overallPerformanceDisplay,
-            'users_with_data'                => collect($performanceData)->where('total_hours', '>', 0)->count(),
-            'users_without_data'             => collect($performanceData)->where('total_hours', '=', 0)->count(),
-            'users_excellent_performance'    => collect($performanceData)->where('performance_status', 'EXCEEDED')->count(),
-            'users_warning_performance'      => collect($performanceData)->where('performance_status', 'MEET')->count(),
-            'users_poor_performance'         => collect($performanceData)->where('performance_status', 'BELOW')->count(),
+            'overall_performance_display' => $overallPerformanceDisplay,
+            'users_with_data' => collect($performanceData)->where('total_hours', '>', 0)->count(),
+            'users_without_data' => collect($performanceData)->where('total_hours', '=', 0)->count(),
+            'users_excellent_performance' => collect($performanceData)->where('performance_status', 'EXCEEDED')->count(),
+            'users_warning_performance' => collect($performanceData)->where('performance_status', 'MEET')->count(),
+            'users_poor_performance' => collect($performanceData)->where('performance_status', 'BELOW')->count(),
         ];
 
         return [
-            'year'                => $request->input('year'),
-            'week_number'         => $request->input('week_number'),
-            'start_date'          => $startDate->format('Y-m-d'),
-            'end_date'            => $endDate->format('Y-m-d'),
-            'performance_data'    => $performanceData,
-            'summary'             => $summary,
+            'year' => $request->input('year'),
+            'week_number' => $request->input('week_number'),
+            'start_date' => $startDate->format('Y-m-d'),
+            'end_date' => $endDate->format('Y-m-d'),
+            'performance_data' => $performanceData,
+            'summary' => $summary,
             'work_status_options' => $workStatusOptions,
-            'region_options'      => $regionOptions,
+            'region_options' => $regionOptions,
         ];
     }
 
@@ -438,9 +439,9 @@ class IvaWeeklyReportController extends Controller
             ])
             ->get();
 
-        $billableTaskIds    = [];
+        $billableTaskIds = [];
         $nonBillableTaskIds = [];
-        $fullMapping        = [];
+        $fullMapping = [];
 
         foreach ($categoryMapping as $mapping) {
             $taskId = $mapping->task_id;
@@ -458,9 +459,9 @@ class IvaWeeklyReportController extends Controller
         }
 
         return [
-            'billable_task_ids'     => array_unique($billableTaskIds),
+            'billable_task_ids' => array_unique($billableTaskIds),
             'non_billable_task_ids' => array_unique($nonBillableTaskIds),
-            'full_mapping'          => collect($fullMapping),
+            'full_mapping' => collect($fullMapping),
         ];
     }
 
@@ -474,7 +475,7 @@ class IvaWeeklyReportController extends Controller
         }
 
         // Create case statement for categorization
-        $billableIds    = implode(',', array_merge([0], $taskCategories['billable_task_ids']));
+        $billableIds = implode(',', array_merge([0], $taskCategories['billable_task_ids']));
         $nonBillableIds = implode(',', array_merge([0], $taskCategories['non_billable_task_ids']));
 
         $worklogs = WorklogsData::select([
@@ -542,7 +543,7 @@ class IvaWeeklyReportController extends Controller
         }
 
         $wholeHours = floor($hours);
-        $minutes    = round(($hours - $wholeHours) * 60);
+        $minutes = round(($hours - $wholeHours) * 60);
 
         if ($minutes == 0) {
             return "{$wholeHours}h";

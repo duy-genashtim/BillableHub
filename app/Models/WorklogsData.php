@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Carbon\Carbon;
@@ -33,10 +34,10 @@ class WorklogsData extends Model
     ];
 
     protected $casts = [
-        'start_time'         => 'datetime:Y-m-d\TH:i:s',
-        'end_time'           => 'datetime:Y-m-d\TH:i:s',
-        'duration'           => 'integer',
-        'is_active'          => 'boolean',
+        'start_time' => 'datetime:Y-m-d\TH:i:s',
+        'end_time' => 'datetime:Y-m-d\TH:i:s',
+        'duration' => 'integer',
+        'is_active' => 'boolean',
         'timedoctor_version' => 'integer',
     ];
 
@@ -131,7 +132,7 @@ class WorklogsData extends Model
 
     public function getFormattedDurationAttribute()
     {
-        $hours   = floor($this->duration / 3600);
+        $hours = floor($this->duration / 3600);
         $minutes = floor(($this->duration % 3600) / 60);
 
         return sprintf('%dh %dm', $hours, $minutes);
@@ -168,8 +169,10 @@ class WorklogsData extends Model
     {
         if ($this->start_time && $this->end_time) {
             $this->duration = $this->end_time->diffInSeconds($this->start_time);
+
             return $this->duration;
         }
+
         return 0;
     }
 
@@ -200,10 +203,11 @@ class WorklogsData extends Model
         }
 
         $category = $this->task->reportCategories()->first();
+
         return $category ? [
-            'id'          => $category->id,
-            'name'        => $category->cat_name,
-            'type'        => $category->categoryType?->setting_value,
+            'id' => $category->id,
+            'name' => $category->cat_name,
+            'type' => $category->categoryType?->setting_value,
             'is_billable' => $this->is_billable,
         ] : null;
     }
@@ -228,7 +232,7 @@ class WorklogsData extends Model
     public static function getHourlyBreakdown($userId, $date)
     {
         $startOfDay = Carbon::parse($date)->startOfDay();
-        $endOfDay   = Carbon::parse($date)->endOfDay();
+        $endOfDay = Carbon::parse($date)->endOfDay();
 
         return static::byUser($userId)
             ->active()
@@ -249,18 +253,18 @@ class WorklogsData extends Model
             ->byDateRange($startDate, $endDate)
             ->get();
 
-        $totalHours    = $worklogs->sum('duration') / 3600;
+        $totalHours = $worklogs->sum('duration') / 3600;
         $billableHours = $worklogs->where('api_type', 'timedoctor')->sum('duration') / 3600;
-        $workingDays   = $worklogs->groupBy('date')->count();
+        $workingDays = $worklogs->groupBy('date')->count();
 
         return [
-            'total_hours'         => round($totalHours, 2),
-            'billable_hours'      => round($billableHours, 2),
-            'non_billable_hours'  => round($totalHours - $billableHours, 2),
-            'working_days'        => $workingDays,
+            'total_hours' => round($totalHours, 2),
+            'billable_hours' => round($billableHours, 2),
+            'non_billable_hours' => round($totalHours - $billableHours, 2),
+            'working_days' => $workingDays,
             'average_daily_hours' => $workingDays > 0 ? round($totalHours / $workingDays, 2) : 0,
             // 'efficiency_percentage' => $totalHours > 0 ? round(($billableHours / $totalHours) * 100, 1) : 0,
-            'entries_count'       => $worklogs->count(),
+            'entries_count' => $worklogs->count(),
         ];
     }
 
@@ -277,12 +281,12 @@ class WorklogsData extends Model
             ->groupBy('project_id')
             ->map(function ($projectWorklogs) {
                 $totalHours = $projectWorklogs->sum('duration') / 3600;
-                $project    = $projectWorklogs->first()->project;
+                $project = $projectWorklogs->first()->project;
 
                 return [
-                    'project_id'    => $project?->id,
-                    'project_name'  => $project?->project_name ?? 'No Project',
-                    'total_hours'   => round($totalHours, 2),
+                    'project_id' => $project?->id,
+                    'project_name' => $project?->project_name ?? 'No Project',
+                    'total_hours' => round($totalHours, 2),
                     'entries_count' => $projectWorklogs->count(),
                 ];
             })
@@ -304,14 +308,14 @@ class WorklogsData extends Model
             ->groupBy('task_id')
             ->map(function ($taskWorklogs) {
                 $totalHours = $taskWorklogs->sum('duration') / 3600;
-                $task       = $taskWorklogs->first()->task;
+                $task = $taskWorklogs->first()->task;
 
                 return [
-                    'task_id'       => $task?->id,
-                    'task_name'     => $task?->task_name ?? 'No Task',
-                    'total_hours'   => round($totalHours, 2),
+                    'task_id' => $task?->id,
+                    'task_name' => $task?->task_name ?? 'No Task',
+                    'total_hours' => round($totalHours, 2),
                     'entries_count' => $taskWorklogs->count(),
-                    'is_billable'   => $taskWorklogs->first()->is_billable,
+                    'is_billable' => $taskWorklogs->first()->is_billable,
                 ];
             })
             ->sortByDesc('total_hours')
