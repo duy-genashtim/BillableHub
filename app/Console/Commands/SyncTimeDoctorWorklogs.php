@@ -239,12 +239,11 @@ class SyncTimeDoctorWorklogs extends Command
             $endDate = $targetDate->copy();
             $this->info("Using --days-ago={$daysAgo}: syncing data for {$targetDate->format('Y-m-d')}");
         }
-        // Priority 4: Default to 2 days ago if no parameters provided
+        // Priority 4: Default to last 2 days if no parameters provided
         else {
-            $targetDate = Carbon::now()->subDays(2);
-            $startDate = $targetDate->copy();
-            $endDate = $targetDate->copy();
-            $this->info("No parameters specified, defaulting to 2 days ago: {$targetDate->format('Y-m-d')}");
+            $endDate = Carbon::now()->subDays(1);      // Yesterday
+            $startDate = $endDate->copy()->subDays(1); // Day before yesterday (2 days ago)
+            $this->info("No parameters specified, defaulting to last 2 days: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
         }
 
         return [
