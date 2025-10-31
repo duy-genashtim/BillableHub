@@ -13,14 +13,9 @@ const hasPermission = (permission) => {
 
 // Helper function to check if user has any admin permissions
 const hasAnyAdminPermission = () => {
-  const adminPermissions = ['manage_roles', 'manage_users', 'view_activity_logs', 'manage_configuration']
+  const adminPermissions = ['manage_roles', 'manage_users', 'view_activity_logs', 'manage_configuration', 'manage_ivas', 'view_team_data']
   return adminPermissions.some(permission => hasPermission(permission))
 }
-console.log('hasAnyAdminPermission:', hasAnyAdminPermission.value);
-console.log('User Permissions:', authStore.user?.permissions || []);
-console.log('User:', authStore.user);
-console.log('Auth Store:', authStore);
-console.log(authStore.user);
 
 </script>
 
@@ -43,7 +38,7 @@ console.log(authStore.user);
     icon: 'ri-bar-chart-grouped-line',
     to: '/admin/reports/weekly-performance',
   }" /> -->
-  <VerticalNavGroup v-if="hasPermission('view_reports')" :item="{
+  <VerticalNavGroup v-if="hasPermission('view_reports') || hasPermission('view_team_data')" :item="{
     title: 'Performance',
     icon: 'ri-speed-line',
   }">
@@ -65,11 +60,11 @@ console.log(authStore.user);
       to: '/admin/reports/weekly-performance',
     }" />
   </VerticalNavGroup>
-  <VerticalNavGroup v-if="hasPermission('view_reports')" :item="{
+  <VerticalNavGroup v-if="hasPermission('view_reports') || hasPermission('view_team_data')" :item="{
     title: 'Reports',
     icon: 'ri-bar-chart-line',
   }">
-    <VerticalNavLink v-if="hasPermission('view_reports')" :item="{
+    <VerticalNavLink v-if="hasPermission('view_reports') || hasPermission('view_team_data')" :item="{
       title: 'Region',
       icon: 'ri-map-pin-line',
       to: '/admin/reports/region-performance',
@@ -81,7 +76,7 @@ console.log(authStore.user);
       to: '/admin/reports/overall-performance',
     }" />
 
-    <VerticalNavLink v-if="hasPermission('export_reports')" :item="{
+    <VerticalNavLink v-if="hasPermission('export_reports') || hasPermission('view_team_data')" :item="{
       title: 'Export',
       icon: 'ri-download-line',
       to: '/admin/reports/export',
@@ -124,12 +119,12 @@ console.log(authStore.user);
       icon: 'ri-price-tag-3-line',
       to: '/admin/categories',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas') || hasPermission('view_team_data')" :item="{
       title: 'IVA Users',
       icon: 'ri-user-line',
       to: '/admin/iva-users',
     }" />
-    <VerticalNavLink v-if="hasPermission('manage_ivas')" :item="{
+    <VerticalNavLink v-if="hasPermission('manage_ivas') || hasPermission('view_team_data')" :item="{
       title: 'IVA Managers',
       icon: 'ri-user-settings-line',
       to: '/admin/iva-managers',
@@ -147,10 +142,16 @@ console.log(authStore.user);
     icon: 'ri-time-line',
   }">
     <VerticalNavLink v-if="hasPermission('sync_timedoctor_data')" :item="{
+      title: 'Sync by Week',
+      icon: 'ri-calendar-check-line',
+      to: '/admin/timedoctor/sync-by-week',
+    }" />
+    <VerticalNavLink v-if="hasPermission('sync_timedoctor_data')" :item="{
       title: 'TimeDoctor V1',
       icon: 'ri-progress-1-line',
       to: '/admin/timedoctor',
     }" />
+
     <VerticalNavLink v-if="hasPermission('sync_timedoctor_data')" :item="{
       title: 'TimeDoctor V2',
       icon: 'ri-progress-2-line',

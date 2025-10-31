@@ -1,6 +1,9 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { ref } from 'vue';
+
+const authStore = useAuthStore();
 
 const props = defineProps({
   user: {
@@ -78,7 +81,7 @@ function getFilteredAvailableManagers() {
       <div class="d-flex align-center mb-4">
         <h2 class="text-h6 font-weight-medium">Assigned Managers</h2>
         <VSpacer />
-        <VBtn color="primary" prepend-icon="ri-add-line" @click="openManagerDialog" aria-label="Add manager">
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-add-line" @click="openManagerDialog" aria-label="Add manager">
           Add Manager
         </VBtn>
       </div>
@@ -100,7 +103,7 @@ function getFilteredAvailableManagers() {
                       {{ manager.manager_type?.setting_value }}
                     </p>
                   </div>
-                  <VBtn icon size="small" color="error" variant="text" @click="openDeleteManagerDialog(manager)"
+                  <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" color="error" variant="text" @click="openDeleteManagerDialog(manager)"
                     aria-label="Remove manager">
                     <VIcon size="20">ri-delete-bin-line</VIcon>
                   </VBtn>
@@ -125,7 +128,7 @@ function getFilteredAvailableManagers() {
         <p class="text-secondary mb-4">
           This user doesn't have any managers assigned yet.
         </p>
-        <VBtn color="primary" @click="openManagerDialog" aria-label="Add first manager">
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="openManagerDialog" aria-label="Add first manager">
           Add First Manager
         </VBtn>
       </div>

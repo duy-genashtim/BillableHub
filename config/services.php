@@ -48,7 +48,7 @@ return [
     ],
     'nad' => [
         'url' => env('NAD_API_URL'),
-        'secret_key' => env('API_NAD_SECRET_KEY'),
+        'secret_key' => env('API_NAD_SECRET_KEY', 'HRMS_SECRET_DATA_KEY'),
         'nad_hour_rate' => [
             'rate' => env('NAD_HOUR_RATE', 8)],
     ],

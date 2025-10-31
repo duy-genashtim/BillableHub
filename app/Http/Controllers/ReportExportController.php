@@ -20,6 +20,17 @@ class ReportExportController extends Controller
      */
     public function exportReport(Request $request)
     {
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        // If manager has view_team_data only, override report_type and region_id
+        if ($managerRegionFilter) {
+            $request->merge([
+                'report_type' => 'region',
+                'region_id' => $managerRegionFilter,
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'report_type' => 'required|in:region,overall',
             'report_period' => 'required|in:weekly_summary,monthly_summary,yearly_summary,calendar_month,bimonthly,custom',
@@ -115,6 +126,9 @@ class ReportExportController extends Controller
      */
     private function generateRegionReportData(Request $request, array $reportData, string $startDate, string $endDate, string $mode)
     {
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
         $regionId = $request->input('region_id');
 
         // Get region info
@@ -128,8 +142,8 @@ class ReportExportController extends Controller
             'name' => $region->name,
         ];
 
-        // Get all active users in the region during the period
-        $users = $this->getActiveUsersInRegion($regionId, $startDate, $endDate);
+        // Get all active users in the region during the period (with manager filter if applicable)
+        $users = $this->getActiveUsersInRegion($regionId, $startDate, $endDate, $managerRegionFilter);
 
         // Process performance data based on mode
         switch ($mode) {
@@ -157,14 +171,22 @@ class ReportExportController extends Controller
      */
     private function generateOverallReportData(Request $request, array $reportData, string $startDate, string $endDate, string $mode)
     {
-        // Get all active regions
-        $regions = DB::table('regions')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
 
-        // Get all active users during the period
-        $allUsers = $this->getAllActiveUsers($startDate, $endDate);
+        // Get all active regions (filtered if manager has view_team_data only)
+        $regionsQuery = DB::table('regions')
+            ->where('is_active', true)
+            ->orderBy('name');
+
+        if ($managerRegionFilter) {
+            $regionsQuery->where('id', $managerRegionFilter);
+        }
+
+        $regions = $regionsQuery->get();
+
+        // Get all active users during the period (filtered if manager has view_team_data only)
+        $allUsers = $this->getAllActiveUsers($startDate, $endDate, $managerRegionFilter);
 
         // Process performance data based on mode using optimized functions
         $reportData['regions_data'] = [];
@@ -175,7 +197,12 @@ class ReportExportController extends Controller
         $allUsersData = [];
 
         foreach ($regions as $region) {
-            $regionUsers = $allUsers->where('region_id', $region->id);
+            // Filter users who were predominantly in this region during the reporting period
+            // This mirrors the work status filtering logic exactly
+            $regionUsers = $allUsers->filter(function ($user) use ($region, $startDate, $endDate) {
+                $predominantRegion = getPredominantRegionForPeriod($user, $startDate, $endDate);
+                return $predominantRegion == $region->id;
+            });
 
             if ($regionUsers->isEmpty()) {
                 continue;
@@ -287,47 +314,30 @@ class ReportExportController extends Controller
 
     /**
      * Get active users in region during the specified period
-     * (same logic as IvaRegionReportController)
+     * Now uses historical region assignment during the reporting period
      */
-    private function getActiveUsersInRegion($regionId, $startDate, $endDate)
+    private function getActiveUsersInRegion($regionId, $startDate, $endDate, $managerRegionFilter = null)
     {
-        return IvaUser::select([
-            'id',
-            'full_name',
-            'email',
-            'job_title',
-            'work_status',
-            'region_id',
-            'hire_date',
-            'end_date',
-            'timedoctor_version',
-        ])
-            ->with(['customizations.setting.settingType'])
-            ->where('region_id', $regionId)
-            ->where('is_active', true)
-            ->where(function ($query) use ($startDate, $endDate) {
-                // User was active during the period
-                $query->where(function ($q) use ($startDate) {
-                    $q->whereNull('hire_date')
-                        ->orWhere('hire_date', '<=', $startDate);
-                })
-                    ->where(function ($q) use ($endDate) {
-                        $q->whereNull('end_date')
-                            ->orWhere('end_date', '>=', $endDate);
-                    });
-            })
-            ->orderBy('work_status')
-            ->orderBy('full_name')
-            ->get();
+        // Get all active users during the period (with manager region filter if applicable)
+        $allUsers = $this->getAllActiveUsers($startDate, $endDate, $managerRegionFilter);
+
+        // Filter users who were predominantly in this region during the reporting period
+        // This mirrors the work status filtering logic exactly
+        $usersInRegion = $allUsers->filter(function ($user) use ($regionId, $startDate, $endDate) {
+            $predominantRegion = getPredominantRegionForPeriod($user, $startDate, $endDate);
+            return $predominantRegion == $regionId;
+        });
+
+        return $usersInRegion;
     }
 
     /**
      * Get all active users during the specified period
      * (same logic as IvaOverallReportController)
      */
-    private function getAllActiveUsers($startDate, $endDate)
+    private function getAllActiveUsers($startDate, $endDate, $managerRegionFilter = null)
     {
-        return IvaUser::select([
+        $query = IvaUser::select([
             'id',
             'full_name',
             'email',
@@ -350,8 +360,14 @@ class ReportExportController extends Controller
                         $q->whereNull('end_date')
                             ->orWhere('end_date', '>=', $endDate);
                     });
-            })
-            ->orderBy('region_id')
+            });
+
+        // Apply region filter if manager has view_team_data only
+        if ($managerRegionFilter) {
+            $query->where('region_id', $managerRegionFilter);
+        }
+
+        return $query->orderBy('region_id')
             ->orderBy('work_status')
             ->orderBy('full_name')
             ->get();
@@ -420,14 +436,23 @@ class ReportExportController extends Controller
                 }
             }
 
+            // Get historical work status and region for this period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            $predominantRegionId = getPredominantRegionForPeriod($user, $startDate, $endDate);
+            $predominantRegionName = 'Unknown';
+            if ($predominantRegionId) {
+                $regionInfo = \DB::table('regions')->find($predominantRegionId);
+                $predominantRegionName = $regionInfo->name ?? 'Unknown';
+            }
+
             $userData = [
                 'id' => $user->id,
                 'full_name' => $user->full_name,
                 'email' => $user->email,
                 'job_title' => $user->job_title,
-                'work_status' => $user->work_status,
-                'region_id' => $user->region_id,
-                'region_name' => $user->region->name ?? 'Unknown',
+                'work_status' => $predominantWorkStatus,
+                'region_id' => $predominantRegionId,
+                'region_name' => $predominantRegionName,
                 'billable_hours' => round($weekMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($weekMetrics['non_billable_hours'], 2),
                 'total_hours' => round($weekMetrics['total_hours'], 2),
@@ -440,8 +465,8 @@ class ReportExportController extends Controller
 
             $allUsersData[] = $userData;
 
-            // Separate by work status
-            if ($user->work_status === 'full-time') {
+            // Separate by work status - use already calculated historical work status
+            if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
                 $partTimeUsers[] = $userData;
@@ -528,14 +553,23 @@ class ReportExportController extends Controller
             // FOR MONTHLY_SUMMARY: Calculate weekly breakdown within this month
             $weeklyBreakdown = $this->calculateWeeklyBreakdownForMonthOptimized($user, $startDate, $endDate, $nadDataByEmail);
 
+            // Get historical work status and region for this period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            $predominantRegionId = getPredominantRegionForPeriod($user, $startDate, $endDate);
+            $predominantRegionName = 'Unknown';
+            if ($predominantRegionId) {
+                $regionInfo = \DB::table('regions')->find($predominantRegionId);
+                $predominantRegionName = $regionInfo->name ?? 'Unknown';
+            }
+
             $userData = [
                 'id' => $user->id,
                 'full_name' => $user->full_name,
                 'email' => $user->email,
                 'job_title' => $user->job_title,
-                'work_status' => $user->work_status,
-                'region_id' => $user->region_id,
-                'region_name' => $user->region->name ?? 'Unknown',
+                'work_status' => $predominantWorkStatus,
+                'region_id' => $predominantRegionId,
+                'region_name' => $predominantRegionName,
                 'billable_hours' => round($monthMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($monthMetrics['non_billable_hours'], 2),
                 'total_hours' => round($monthMetrics['total_hours'], 2),
@@ -549,8 +583,8 @@ class ReportExportController extends Controller
 
             $allUsersData[] = $userData;
 
-            // Separate by work status
-            if ($user->work_status === 'full-time') {
+            // Separate by work status - use already calculated historical work status
+            if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
                 $partTimeUsers[] = $userData;
@@ -634,14 +668,23 @@ class ReportExportController extends Controller
                 }
             }
 
+            // Get historical work status and region for this period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            $predominantRegionId = getPredominantRegionForPeriod($user, $startDate, $endDate);
+            $predominantRegionName = 'Unknown';
+            if ($predominantRegionId) {
+                $regionInfo = \DB::table('regions')->find($predominantRegionId);
+                $predominantRegionName = $regionInfo->name ?? 'Unknown';
+            }
+
             $userData = [
                 'id' => $user->id,
                 'full_name' => $user->full_name,
                 'email' => $user->email,
                 'job_title' => $user->job_title,
-                'work_status' => $user->work_status,
-                'region_id' => $user->region_id,
-                'region_name' => $user->region->name ?? 'Unknown',
+                'work_status' => $predominantWorkStatus,
+                'region_id' => $predominantRegionId,
+                'region_name' => $predominantRegionName,
                 'billable_hours' => round($yearMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($yearMetrics['non_billable_hours'], 2),
                 'total_hours' => round($yearMetrics['total_hours'], 2),
@@ -654,8 +697,8 @@ class ReportExportController extends Controller
 
             $allUsersData[] = $userData;
 
-            // Separate by work status
-            if ($user->work_status === 'full-time') {
+            // Separate by work status - use already calculated historical work status
+            if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
                 $partTimeUsers[] = $userData;
@@ -924,12 +967,21 @@ class ReportExportController extends Controller
      * Get available regions for the frontend dropdown
      * (copied from IvaRegionReportController for API compatibility)
      */
-    public function getAvailableRegions()
+    public function getAvailableRegions(Request $request)
     {
-        $regions = DB::table('regions')
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        $query = DB::table('regions')
             ->where('is_active', true)
-            ->orderBy('name')
-            ->get()
+            ->orderBy('name');
+
+        // Filter regions if manager has view_team_data only
+        if ($managerRegionFilter) {
+            $query->where('id', $managerRegionFilter);
+        }
+
+        $regions = $query->get()
             ->map(function ($region) {
                 // Get user count for each region
                 $userCount = IvaUser::where('region_id', $region->id)
@@ -965,6 +1017,13 @@ class ReportExportController extends Controller
         return response()->json([
             'success' => true,
             'regions' => $regions,
+            'region_filter' => $managerRegionFilter ? [
+                'applied' => true,
+                'region_id' => $managerRegionFilter,
+                'locked' => true,
+                'report_type_locked' => true,
+                'reason' => 'view_team_data_permission'
+            ] : ['applied' => false, 'locked' => false, 'report_type_locked' => false],
         ]);
     }
 
@@ -1022,4 +1081,5 @@ class ReportExportController extends Controller
                 return 'Custom_Range';
         }
     }
+
 }

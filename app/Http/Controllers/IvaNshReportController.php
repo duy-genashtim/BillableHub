@@ -33,6 +33,9 @@ class IvaNshReportController extends Controller
             ], 422);
         }
 
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
         // Get date (default to yesterday)
         $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::yesterday();
         $startOfDay = $date->copy()->startOfDay();
@@ -53,6 +56,11 @@ class IvaNshReportController extends Controller
         ])
             ->with(['region:id,name', 'cohort:id,name'])
             ->where('is_active', true);
+
+        // Apply region filter for managers with view_team_data only
+        if ($managerRegionFilter) {
+            $usersQuery->where('region_id', $managerRegionFilter);
+        }
 
         // Apply search filter
         if ($request->filled('search')) {
@@ -112,6 +120,11 @@ class IvaNshReportController extends Controller
                 'from' => $offset + 1,
                 'to' => min($offset + $perPage, $total),
             ],
+            'region_filter' => $managerRegionFilter ? [
+                'applied' => true,
+                'region_id' => $managerRegionFilter,
+                'reason' => 'view_team_data_permission'
+            ] : ['applied' => false],
         ]);
     }
 

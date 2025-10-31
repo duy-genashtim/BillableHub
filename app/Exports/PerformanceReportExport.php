@@ -119,6 +119,7 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
             foreach ($this->reportData['regions_data'] as $region) {
                 if (isset($region['users_data']) && ! empty($region['users_data'])) {
                     $regionName = $region['region']['name'];
+                    // Note: work_status now contains the historical work status for the period (fixed in controllers)
                     $ftUsers = array_values(array_filter($region['users_data'], fn ($u) => $u['work_status'] === 'full-time'));
                     $ptUsers = array_values(array_filter($region['users_data'], fn ($u) => $u['work_status'] === 'part-time'));
 

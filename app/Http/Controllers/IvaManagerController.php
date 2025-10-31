@@ -21,6 +21,9 @@ class IvaManagerController extends Controller
         $perPage = $request->input('per_page', config('constants.pagination.iva_managers_per_page'));
         $perPage = min($perPage, config('constants.pagination.max_per_page'));
 
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
         // First, get representative IDs for each unique manager/region/type combination
         $subquery = DB::table('iva_manager')
             ->select(
@@ -31,8 +34,13 @@ class IvaManagerController extends Controller
             )
             ->groupBy('iva_manager_id', 'region_id', 'manager_type_id');
 
-        // Apply filters if provided
-        if ($request->has('region_id') && $request->region_id) {
+        // Apply region filter for managers with view_team_data only
+        if ($managerRegionFilter) {
+            $subquery->where('region_id', $managerRegionFilter);
+        }
+
+        // Apply filters if provided (only if not already filtered by manager region)
+        if (!$managerRegionFilter && $request->has('region_id') && $request->region_id) {
             $subquery->where('region_id', $request->region_id);
         }
 
@@ -126,6 +134,11 @@ class IvaManagerController extends Controller
             'managers' => $managers,
             'regions' => $regions,
             'managerTypes' => $managerTypes,
+            'region_filter' => $managerRegionFilter ? [
+                'applied' => true,
+                'region_id' => $managerRegionFilter,
+                'reason' => 'view_team_data_permission'
+            ] : ['applied' => false],
         ]);
     }
 
@@ -207,6 +220,11 @@ class IvaManagerController extends Controller
      */
     public function store(Request $request)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'region_id' => 'required|exists:regions,id',
             'manager_id' => 'required|exists:iva_user,id',
@@ -300,8 +318,13 @@ class IvaManagerController extends Controller
     /**
      * Remove a manager assignment.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         try {
             // Get details for logging before deletion
             $assignment = IvaManager::findOrFail($id);
@@ -363,6 +386,11 @@ class IvaManagerController extends Controller
      */
     public function removeUser(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:iva_user,id',
         ]);
@@ -431,6 +459,11 @@ class IvaManagerController extends Controller
      */
     public function addUsers(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'user_ids' => 'required|array',
             'user_ids.*' => 'exists:iva_user,id',

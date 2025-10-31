@@ -1,8 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 const categoryId = route.params.id;
@@ -249,7 +251,7 @@ function onBeforeUnmount() {
                 :icon="isMobile ? 'ri-arrow-left-line' : false" @click="goBack" aria-label="Go back to categories list">
                 <span v-if="!isMobile">Back</span>
               </VBtn>
-              <VBtn color="primary" variant="outlined" :prepend-icon="isMobile ? undefined : 'ri-pencil-line'"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" variant="outlined" :prepend-icon="isMobile ? undefined : 'ri-pencil-line'"
                 :icon="isMobile ? 'ri-pencil-line' : false" @click="editCategory" aria-label="Edit category">
                 <span v-if="!isMobile">Edit</span>
               </VBtn>
@@ -280,7 +282,7 @@ function onBeforeUnmount() {
             <h2 class="text-h6 text-md-h5 flex-grow-1" tabindex="0" aria-level="2">
               Tasks in this Category ({{ tasks.length }})
             </h2>
-            <VBtn color="primary" :prepend-icon="isMobile ? undefined : 'ri-add-line'"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" :prepend-icon="isMobile ? undefined : 'ri-add-line'"
               :icon="isMobile ? 'ri-add-line' : false" @click="openAddTaskDialog" aria-label="Add tasks to category">
               <span v-if="!isMobile">Add Tasks</span>
             </VBtn>
@@ -324,7 +326,7 @@ function onBeforeUnmount() {
 
             <!-- Actions Column -->
             <template #[`item.actions`]="{ item }">
-              <VBtn icon size="small" variant="text" color="error" @click="confirmRemoveTasks(item.id)"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="error" @click="confirmRemoveTasks(item.id)"
                 :aria-label="`Remove ${item.task_name} from category`">
                 <VIcon size="20">ri-link-unlink</VIcon>
                 <VTooltip activator="parent" location="top">Remove from Category</VTooltip>

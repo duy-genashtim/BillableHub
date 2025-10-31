@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\IvaUser;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -17,8 +16,15 @@ class IvaRegionReportController extends Controller
      */
     public function getRegionPerformanceReport(Request $request)
     {
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        // If manager has view_team_data only, override region_id with their assigned region
+        if ($managerRegionFilter) {
+            $request->merge(['region_id' => $managerRegionFilter]);
+        }
+
         $request->merge([
-            'force_reload' => filter_var($request->query('force_reload'), FILTER_VALIDATE_BOOLEAN),
             'show_details' => filter_var($request->query('show_details'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
@@ -29,7 +35,6 @@ class IvaRegionReportController extends Controller
             'end_date' => 'required|date|date_format:Y-m-d|after_or_equal:start_date',
             'mode' => 'required|in:weekly,monthly,yearly',
             'show_details' => 'nullable|boolean',
-            'force_reload' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -88,45 +93,16 @@ class IvaRegionReportController extends Controller
                 break;
         }
 
-        // Cache key
-        $cacheKey = $this->generateCacheKey($request->all());
-        $forceReload = $request->boolean('force_reload');
-
-        // Try to get cached data
-        if (! $forceReload) {
-            $cachedData = Cache::get($cacheKey);
-            if ($cachedData !== null) {
-                Log::info('Region report served from cache', ['cache_key' => $cacheKey]);
-
-                return response()->json([
-                    'success' => true,
-                    'cached' => true,
-                    'cached_at' => $cachedData['cached_at'] ?? null,
-                    ...$cachedData['data'],
-                ]);
-            }
-        }
-
         // Generate fresh data
         $reportData = $this->generateRegionReportData($request);
 
-        // Cache the data (60 minutes TTL)
-        $wrappedData = [
-            'data' => $reportData,
-            'cached_at' => now()->toISOString(),
-        ];
-        Cache::put($cacheKey, $wrappedData, 60);
-
-        Log::info('Region report generated fresh', [
-            'cache_key' => $cacheKey,
+        Log::info('Region report generated', [
             'region_id' => $request->input('region_id'),
             'users_count' => count($reportData['users_data'] ?? []),
         ]);
 
         return response()->json([
             'success' => true,
-            'cached' => false,
-            'generated_at' => now()->toISOString(),
             ...$reportData,
         ]);
     }
@@ -205,10 +181,12 @@ class IvaRegionReportController extends Controller
 
     /**
      * Get active users in region during the specified period
+     * Now uses historical region assignment during the reporting period
      */
     private function getActiveUsersInRegion($regionId, $startDate, $endDate)
     {
-        return IvaUser::select([
+        // Get all active users during the period (regardless of current region)
+        $allUsers = IvaUser::select([
             'id',
             'full_name',
             'email',
@@ -220,7 +198,6 @@ class IvaRegionReportController extends Controller
             'timedoctor_version',
         ])
             ->with(['customizations.setting.settingType'])
-            ->where('region_id', $regionId)
             ->where('is_active', true)
             ->where(function ($query) use ($startDate, $endDate) {
                 // User was active during the period
@@ -236,6 +213,15 @@ class IvaRegionReportController extends Controller
             ->orderBy('work_status')
             ->orderBy('full_name')
             ->get();
+
+        // Filter users who were predominantly in this region during the reporting period
+        // This mirrors the work status filtering logic exactly
+        $usersInRegion = $allUsers->filter(function ($user) use ($regionId, $startDate, $endDate) {
+            $predominantRegion = getPredominantRegionForPeriod($user, $startDate, $endDate);
+            return $predominantRegion == $regionId;
+        });
+
+        return $usersInRegion;
     }
 
     /**
@@ -331,8 +317,9 @@ class IvaRegionReportController extends Controller
 
             $allUsersData[] = $userData;
 
-            // Separate by work status
-            if ($user->work_status === 'full-time') {
+            // Separate by work status - use historical work status for the period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
                 $partTimeUsers[] = $userData;
@@ -447,8 +434,9 @@ class IvaRegionReportController extends Controller
 
             $allUsersData[] = $userData;
 
-            // Separate by work status
-            if ($user->work_status === 'full-time') {
+            // Separate by work status - use historical work status for the period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
                 $partTimeUsers[] = $userData;
@@ -548,8 +536,9 @@ class IvaRegionReportController extends Controller
 
             $allUsersData[] = $userData;
 
-            // Separate by work status
-            if ($user->work_status === 'full-time') {
+            // Separate by work status - use historical work status for the period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
                 $partTimeUsers[] = $userData;
@@ -702,79 +691,26 @@ class IvaRegionReportController extends Controller
         return Carbon::parse($date)->weekOfYear;
     }
 
-    /**
-     * Clear region report cache
-     */
-    public function clearRegionReportCache(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'region_id' => 'nullable|exists:regions,id',
-            'year' => 'nullable|integer',
-            'mode' => 'nullable|in:weekly,monthly,yearly',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            $pattern = 'region_performance_report:';
-
-            if ($request->filled('region_id')) {
-                $pattern .= 'region_'.$request->input('region_id').':';
-            } else {
-                $pattern .= '*';
-            }
-
-            if ($request->filled('year')) {
-                $pattern .= 'year_'.$request->input('year').':';
-            }
-
-            if ($request->filled('mode')) {
-                $pattern .= 'mode_'.$request->input('mode').':';
-            }
-
-            $pattern .= '*';
-
-            // Clear matching cache keys
-            $keys = Cache::getRedis()->keys($pattern);
-            foreach ($keys as $key) {
-                $cleanKey = str_replace(config('database.redis.options.prefix'), '', $key);
-                Cache::forget($cleanKey);
-            }
-
-            Log::info('Region report cache cleared', ['pattern' => $pattern, 'keys_cleared' => count($keys)]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Cache cleared successfully',
-                'cleared_at' => now()->toISOString(),
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to clear region report cache', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to clear cache',
-            ], 500);
-        }
-    }
 
     /**
      * Get available regions for report
      */
-    public function getAvailableRegions()
+    public function getAvailableRegions(Request $request)
     {
-        $regions = DB::table('regions')
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        $query = DB::table('regions')
             ->where('is_active', true)
             ->orderBy('name')
-            ->select('id', 'name', 'description')
-            ->get()
+            ->select('id', 'name', 'description');
+
+        // Filter regions if manager has view_team_data only
+        if ($managerRegionFilter) {
+            $query->where('id', $managerRegionFilter);
+        }
+
+        $regions = $query->get()
             ->map(function ($region) {
                 // Get user count for each region
                 $userCount = IvaUser::where('region_id', $region->id)
@@ -810,6 +746,12 @@ class IvaRegionReportController extends Controller
         return response()->json([
             'success' => true,
             'regions' => $regions,
+            'region_filter' => $managerRegionFilter ? [
+                'applied' => true,
+                'region_id' => $managerRegionFilter,
+                'locked' => true,
+                'reason' => 'view_team_data_permission'
+            ] : ['applied' => false, 'locked' => false],
         ]);
     }
 }

@@ -524,4 +524,217 @@ class TimeDoctorLongOperationController extends Controller
             return ['inserted' => 0, 'updated' => 0, 'errors' => 1];
         }
     }
+
+    /**
+     * Stream worklog sync for specific users by week
+     */
+    public function streamWorklogSyncByUsers(Request $request): StreamedResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date' => 'required|date_format:Y-m-d|after_or_equal:start_date',
+            'user_ids' => 'required|string', // Comma-separated user IDs
+        ]);
+
+        if ($validator->fails()) {
+            return new StreamedResponse(function () use ($validator) {
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'Validation error: '.implode(', ', $validator->errors()->all()),
+                    'progress' => 0,
+                ])."\n\n";
+                flush();
+            });
+        }
+
+        $startDate = Carbon::parse($request->input('start_date'));
+        $endDate = Carbon::parse($request->input('end_date'));
+        $userIds = array_filter(explode(',', $request->input('user_ids')));
+
+        // Validate user IDs
+        if (empty($userIds)) {
+            return new StreamedResponse(function () {
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'No user IDs provided',
+                    'progress' => 0,
+                ])."\n\n";
+                flush();
+            });
+        }
+
+        // Validate max 31 days
+        if ($startDate->diffInDays($endDate) > 30) {
+            return new StreamedResponse(function () {
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'Date range cannot exceed 31 days',
+                    'progress' => 0,
+                ])."\n\n";
+                flush();
+            });
+        }
+
+        $response = new StreamedResponse(function () use ($startDate, $endDate, $userIds) {
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+
+            try {
+                $companyInfo = $this->timeDoctorService->getCompanyInfo();
+
+                if (! isset($companyInfo['accounts'][0]['company_id'])) {
+                    echo 'data: '.json_encode([
+                        'type' => 'error',
+                        'message' => 'Could not retrieve company ID from TimeDoctor',
+                        'progress' => 0,
+                    ])."\n\n";
+                    flush();
+
+                    return;
+                }
+
+                $companyId = $companyInfo['accounts'][0]['company_id'];
+
+                // Get only selected users
+                $users = IvaUser::with('timedoctorUser')
+                    ->whereIn('id', $userIds)
+                    ->where('is_active', true)
+                    ->whereHas('timedoctorUser', function ($query) {
+                        $query->where('is_active', true);
+                    })
+                    ->get();
+
+                if ($users->isEmpty()) {
+                    echo 'data: '.json_encode([
+                        'type' => 'error',
+                        'message' => 'No active TimeDoctor users found for selected IVAs',
+                        'progress' => 0,
+                    ])."\n\n";
+                    flush();
+
+                    return;
+                }
+
+                $totalDays = $startDate->diffInDays($endDate) + 1;
+                $processedDays = 0;
+
+                echo 'data: '.json_encode([
+                    'type' => 'info',
+                    'message' => 'Starting worklog sync for '.$users->count().' user(s) from '.$startDate->format('Y-m-d').' to '.$endDate->format('Y-m-d'),
+                    'progress' => 0,
+                ])."\n\n";
+                flush();
+
+                $currentDate = clone $startDate;
+                $totalSynced = 0;
+
+                while ($currentDate->lte($endDate)) {
+                    $dayStr = $currentDate->format('Y-m-d');
+                    $dayProgress = round(($processedDays / $totalDays) * 100);
+
+                    echo 'data: '.json_encode([
+                        'type' => 'progress',
+                        'message' => "Processing worklog data for: {$dayStr} (Day ".($processedDays + 1)." of {$totalDays})",
+                        'progress' => $dayProgress,
+                        'current_date' => $dayStr,
+                    ])."\n\n";
+                    flush();
+
+                    $dayResult = $this->processUsersWorklogsForDay($companyId, $users, $currentDate, function ($message, $type = 'info') use ($processedDays, $totalDays) {
+                        $overallProgress = round(($processedDays / $totalDays) * 100);
+
+                        echo 'data: '.json_encode([
+                            'type' => $type,
+                            'message' => $message,
+                            'progress' => $overallProgress,
+                        ])."\n\n";
+                        flush();
+                    });
+
+                    $totalSynced += $dayResult['inserted'] + $dayResult['updated'];
+                    $processedDays++;
+                    $currentDate->addDay();
+
+                    $overallProgress = round(($processedDays / $totalDays) * 100);
+                    echo 'data: '.json_encode([
+                        'type' => 'progress',
+                        'message' => "Completed day {$dayStr}: {$overallProgress}% overall progress",
+                        'progress' => $overallProgress,
+                    ])."\n\n";
+                    flush();
+                }
+
+                ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync by users completed', [
+                    'module' => 'timedoctor_sync_by_week',
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
+                    'user_ids' => $userIds,
+                    'user_count' => $users->count(),
+                    'total_synced' => $totalSynced,
+                    'total_days' => $totalDays,
+                ]);
+
+                // Auto-calculate daily worklog summaries for selected users
+                echo 'data: '.json_encode([
+                    'type' => 'progress',
+                    'message' => 'Calculating daily worklog summaries...',
+                    'progress' => 95,
+                ])."\n\n";
+                flush();
+
+                try {
+                    $params = [
+                        'start_date' => $startDate->format('Y-m-d'),
+                        'end_date' => $endDate->format('Y-m-d'),
+                        'iva_ids' => $userIds,
+                    ];
+
+                    $this->dailyWorklogSummaryService->calculateDailyWorklogSummary(new Request($params));
+
+                    echo 'data: '.json_encode([
+                        'type' => 'progress',
+                        'message' => 'Daily worklog summaries calculated successfully',
+                        'progress' => 98,
+                    ])."\n\n";
+                    flush();
+                } catch (\Exception $e) {
+                    echo 'data: '.json_encode([
+                        'type' => 'error',
+                        'message' => 'Error calculating daily summaries: '.$e->getMessage(),
+                        'progress' => 98,
+                    ])."\n\n";
+                    flush();
+                }
+
+                echo 'data: '.json_encode([
+                    'type' => 'complete',
+                    'message' => "Sync complete! Synced {$totalSynced} worklog entries for {$users->count()} user(s) over {$totalDays} day(s)",
+                    'progress' => 100,
+                    'total_synced' => $totalSynced,
+                    'user_count' => $users->count(),
+                    'total_days' => $totalDays,
+                ])."\n\n";
+                flush();
+            } catch (\Exception $e) {
+                Log::error('Error in streamWorklogSyncByUsers', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+
+                echo 'data: '.json_encode([
+                    'type' => 'error',
+                    'message' => 'Sync failed: '.$e->getMessage(),
+                    'progress' => 0,
+                ])."\n\n";
+                flush();
+            }
+        });
+
+        $response->headers->set('Content-Type', 'text/event-stream');
+        $response->headers->set('Cache-Control', 'no-cache');
+        $response->headers->set('X-Accel-Buffering', 'no');
+
+        return $response;
+    }
 }

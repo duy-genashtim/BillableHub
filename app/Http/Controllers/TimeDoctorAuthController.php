@@ -228,6 +228,71 @@ class TimeDoctorAuthController extends Controller
         }
     }
 
+    public function getValidAccessToken()
+    {
+        $token = TimeDoctorToken::where('version', self::API_VERSION)->first();
+
+        if (!$token) {
+            Log::warning('No TimeDoctor V1 token found');
+            return null;
+        }
+
+        // Proactive refresh: refresh 3 DAYS (72 hours) before expiry for 6-day tokens
+        $expiryBufferSeconds = 3 * 24 * 60 * 60; // 3 days = 259,200 seconds
+        $expiryTime = Carbon::parse($token->expires_at);
+        $currentTime = Carbon::now();
+
+        if ($expiryTime->subSeconds($expiryBufferSeconds)->isPast()) {
+            $hoursUntilExpiry = $expiryTime->diffInHours($currentTime);
+
+            Log::info('TimeDoctor token will expire within 3 days, refreshing proactively', [
+                'current_expiry' => $token->expires_at,
+                'hours_until_expiry' => $hoursUntilExpiry,
+                'buffer_hours' => 72,
+                'version' => self::API_VERSION,
+            ]);
+
+            $refreshResult = $this->refreshToken();
+
+            if (!$refreshResult || !$this->isRefreshSuccessful($refreshResult)) {
+                Log::error('Proactive token refresh failed - token will expire soon', [
+                    'expires_at' => $token->expires_at,
+                    'hours_until_expiry' => $hoursUntilExpiry,
+                    'version' => self::API_VERSION,
+                ]);
+
+                // Still return the current token as it's not expired yet
+                // This gives time for manual intervention
+                if ($hoursUntilExpiry > 0) {
+                    Log::warning('Using existing token despite refresh failure', [
+                        'hours_remaining' => $hoursUntilExpiry,
+                    ]);
+                    return $token->access_token;
+                }
+
+                return null;
+            }
+
+            $token = $token->fresh();
+            $newHoursUntilExpiry = Carbon::parse($token->expires_at)->diffInHours($currentTime);
+
+            Log::info('TimeDoctor token refreshed successfully', [
+                'new_expiry' => $token->expires_at,
+                'new_hours_until_expiry' => $newHoursUntilExpiry,
+                'version' => self::API_VERSION,
+            ]);
+        } else {
+            $hoursUntilExpiry = $expiryTime->diffInHours($currentTime);
+            Log::debug('TimeDoctor token is still valid', [
+                'expires_at' => $token->expires_at,
+                'hours_until_expiry' => $hoursUntilExpiry,
+                'version' => self::API_VERSION,
+            ]);
+        }
+
+        return $token->access_token;
+    }
+
     public function getAccessToken()
     {
         $token = TimeDoctorToken::where('version', self::API_VERSION)->first();
@@ -298,5 +363,19 @@ class TimeDoctorAuthController extends Controller
                 'message' => 'Error fetching company info: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    private function isRefreshSuccessful($refreshResult)
+    {
+        if (!$refreshResult || !is_object($refreshResult)) {
+            return false;
+        }
+
+        if (method_exists($refreshResult, 'getData')) {
+            $data = $refreshResult->getData(true);
+            return isset($data['success']) && $data['success'] === true;
+        }
+
+        return false;
     }
 }

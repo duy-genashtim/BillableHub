@@ -1,5 +1,16 @@
 <template>
   <div>
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6">
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-information-line" class="me-2" />
+        Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You can only calculate summaries for IVA users from your assigned region, based on your permissions.
+      </p>
+    </VAlert>
+
     <VCard>
       <!-- Header -->
       <VCardTitle class="pb-4">
@@ -56,16 +67,17 @@
                         @change="onCalculateAllUsersChange" />
                     </VCol>
                     <VCol cols="12" md="8">
+                      <!-- VAutocomplete with return-object to fix duplicate ID warnings -->
+                      <!-- Alternative fix: add 'no-virtual-scroll' prop if return-object doesn't work -->
                       <VAutocomplete v-model="selectedUserIds" :disabled="calculateAllUsers" :items="ivaUsers"
                         item-title="full_name" item-value="id" label="Select IVA Users" multiple chips closable-chips
-                        :rules="userSelectionRules" clearable>
+                        :rules="userSelectionRules" clearable return-object>
                         <template #chip="{ props, item }">
                           <VChip v-bind="props" :text="item.raw.full_name" size="small" />
                         </template>
                         <template #item="{ props, item }">
-                          <VListItem v-bind="props">
-                            <VListItemSubtitle>{{ item.raw.region_name }} • {{ item.raw.email }}</VListItemSubtitle>
-                          </VListItem>
+                          <VListItem v-bind="props" :title="item.raw.full_name"
+                            :subtitle="`${item.raw.region_name} • ${item.raw.email}`" :value="item.raw.id" />
                         </template>
                       </VAutocomplete>
                     </VCol>
@@ -255,6 +267,7 @@ const selectedUserIds = ref([])
 // Data
 const ivaUsers = ref([])
 const loading = ref(true)
+const regionFilter = ref({ applied: false, region_id: null, reason: null })
 
 // Calculation state
 const calculating = ref(false)
@@ -325,6 +338,11 @@ const loadCalculationOptions = async () => {
 
     if (response.data.success) {
       ivaUsers.value = response.data.data.iva_users
+
+      // Handle region filter from backend
+      if (response.data.region_filter) {
+        regionFilter.value = response.data.region_filter
+      }
     } else {
       showSnackbar('Failed to load calculation options', 'error')
     }
@@ -385,12 +403,24 @@ const startCalculation = async () => {
     }
   } catch (error) {
     console.error('Calculation error:', error)
-    showSnackbar('Calculation failed: ' + (error.response?.data?.message || error.message), 'error')
+
+    // Extract detailed error information
+    const errorMessage = error.response?.data?.message || error.message
+    const debugInfo = error.response?.data?.debug_info
+
+    let displayMessage = `Calculation failed: ${errorMessage}`
+    if (debugInfo) {
+      displayMessage += `\n\nDebug Info: ${debugInfo.file}:${debugInfo.line}`
+    }
+
+    showSnackbar(displayMessage, 'error')
+
     calculationResult.value = {
       success: false,
-      message: error.response?.data?.message || 'Calculation failed',
+      message: errorMessage,
       summary: { total_ivas: 0, total_dates: 0, total_processed: 0, total_errors: 0 },
-      details: []
+      details: [],
+      debug_info: debugInfo
     }
     showResults.value = true
   } finally {
@@ -399,12 +429,26 @@ const startCalculation = async () => {
 }
 
 const getCalculationParams = () => {
-  return {
+  // Extract IDs from selected user objects (due to return-object prop)
+  const userIds = calculateAllUsers.value ? [] : selectedUserIds.value.map(user => user.id || user)
+
+  const params = {
     start_date: calculateAll.value ? null : startDate.value,
     end_date: calculateAll.value ? null : endDate.value,
     calculate_all: calculateAll.value,
-    iva_user_ids: calculateAllUsers.value ? [] : selectedUserIds.value
+    iva_user_ids: userIds
   }
+
+  // Log parameters for debugging
+  console.log('Calculation parameters:', {
+    calculateAll: calculateAll.value,
+    calculateAllUsers: calculateAllUsers.value,
+    selectedUserIds: selectedUserIds.value,
+    extractedUserIds: userIds,
+    finalParams: params
+  })
+
+  return params
 }
 
 const resetForm = () => {

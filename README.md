@@ -73,3 +73,19 @@ icon:
 https://remixicon.com/
 -
 delete iva_user_customize_iva_user_id_setting_id_unique
+--------
+user not exited:
+Vanessa Del Carmen Velazco Contreras        
+-----
+fix 
+error when starting dev server:
+Error: listen EACCES: permission denied ::1:5173
+    at Server.setupListenHandle [as _listen2] (node:net:1800:21)
+    at listenInCluster (node:net:1865:12)
+    at GetAddrInfoReqWrap.doListen [as callback] (node:net:2014:7)
+    at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:8)
+->
+check port: netsh interface ipv4 show excludedportrange protocol=tcp
+
+> net stop winnat
+> net start winnat

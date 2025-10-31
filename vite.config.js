@@ -65,6 +65,10 @@ export default defineConfig({
       '@configured-variables': fileURLToPath(new URL('./resources/styles/variables/_template.scss', import.meta.url)),
     },
   },
+  server: {
+    host: '127.0.0.1', // Force IPv4 to avoid ::1 binding issue
+    port: 5175, // Change if you prefer a different port
+  },
   build: {
     chunkSizeWarningLimit: 5000,
   },

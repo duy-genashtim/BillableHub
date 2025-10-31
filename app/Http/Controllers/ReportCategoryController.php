@@ -46,6 +46,11 @@ class ReportCategoryController extends Controller
      */
     public function store(Request $request)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'cat_name' => 'required|string|max:255|unique:report_categories',
             'cat_description' => 'nullable|string',
@@ -115,6 +120,11 @@ class ReportCategoryController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $category = ReportCategory::findOrFail($id);
         $oldValues = $category->toArray();
 
@@ -161,8 +171,13 @@ class ReportCategoryController extends Controller
     /**
      * Remove the specified category from storage.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $category = ReportCategory::findOrFail($id);
 
         // Check if category can be deleted (no tasks assigned)
@@ -196,8 +211,13 @@ class ReportCategoryController extends Controller
     /**
      * Toggle category status (activate/deactivate).
      */
-    public function toggleStatus($id)
+    public function toggleStatus(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $category = ReportCategory::findOrFail($id);
         $oldStatus = $category->is_active;
 
@@ -246,6 +266,11 @@ class ReportCategoryController extends Controller
      */
     public function assignTasks(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'task_ids' => 'required|array',
             'task_ids.*' => 'exists:tasks,id',
@@ -308,6 +333,11 @@ class ReportCategoryController extends Controller
      */
     public function removeTasks(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'task_ids' => 'required|array',
             'task_ids.*' => 'exists:tasks,id',

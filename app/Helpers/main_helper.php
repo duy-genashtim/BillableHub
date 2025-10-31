@@ -26,20 +26,20 @@ if (! function_exists('calculateUserTargetHours')) {
             $allTargetCalculations = [];
 
             foreach ($settingCombinations as $combination) {
-                $targetTotalHours = 0;
-                $totalPeriodWeeks = 0;
-                $totalPeriodDays = 0;
+                $targetTotalHours  = 0;
+                $totalPeriodWeeks  = 0;
+                $totalPeriodDays   = 0;
                 $workStatusDisplay = [];
-                $periodBreakdown = [];
+                $periodBreakdown   = [];
 
                 // Sum target hours across all periods for this setting combination
                 // (Same logic as calculatePerformanceMetrics lines 861-881)
                 foreach ($workStatusPeriods as $periodIndex => $period) {
-                    $workStatus = $period['work_status'] ?: 'full-time';
-                    $periodDays = $period['days'];
+                    $workStatus  = $period['work_status'] ?: 'full-time';
+                    $periodDays  = $period['days'];
                     $periodWeeks = $periodDays / 7;
                     $periodStart = $period['start_date'];
-                    $periodEnd = $period['end_date'];
+                    $periodEnd   = $period['end_date'];
 
                     // Get setting for this period based on the combination
                     // This handles custom user settings automatically
@@ -61,54 +61,54 @@ if (! function_exists('calculateUserTargetHours')) {
 
                     // Add to breakdown
                     $periodBreakdown[] = [
-                        'period_start' => $periodStart,
-                        'period_end' => $periodEnd,
-                        'work_status' => $workStatus,
+                        'period_start'        => $periodStart,
+                        'period_end'          => $periodEnd,
+                        'work_status'         => $workStatus,
                         'work_status_display' => $statusDisplay,
-                        'days' => $periodDays,
-                        'weeks' => round($periodWeeks, 2),
-                        'hours_per_week' => $settingForPeriod['hours'],
-                        'target_hours' => round($targetHoursForPeriod, 2),
-                        'setting_used' => $settingForPeriod,
-                        'week_start' => $period['week_start'],
-                        'week_end' => $period['week_end'],
+                        'days'                => $periodDays,
+                        'weeks'               => round($periodWeeks, 2),
+                        'hours_per_week'      => $settingForPeriod['hours'],
+                        'target_hours'        => round($targetHoursForPeriod, 2),
+                        'setting_used'        => $settingForPeriod,
+                        'week_start'          => $period['week_start'],
+                        'week_end'            => $period['week_end'],
                     ];
                 }
 
                 // Calculate simple average of period-specific hours per week
                 $averageHoursPerWeek = ! empty($periodHoursForAverage)
-                ? round(array_sum($periodHoursForAverage) / count($periodHoursForAverage), 1)
-                : $combination['display_hours'];
+                    ? round(array_sum($periodHoursForAverage) / count($periodHoursForAverage), 1)
+                    : $combination['display_hours'];
 
                 $allTargetCalculations[] = [
-                    'target_id' => $combination['id'],
-                    'work_status' => implode(' + ', $workStatusDisplay),
+                    'target_id'             => $combination['id'],
+                    'work_status'           => implode(' + ', $workStatusDisplay),
                     'target_hours_per_week' => $averageHoursPerWeek,
-                    'target_total_hours' => round($targetTotalHours, 2),
-                    'period_weeks' => round($totalPeriodWeeks, 1),
-                    'period_days' => $totalPeriodDays,
-                    'combination_details' => $combination['details'],
-                    'period_breakdown' => $periodBreakdown,
+                    'target_total_hours'    => round($targetTotalHours, 2),
+                    'period_weeks'          => round($totalPeriodWeeks, 1),
+                    'period_days'           => $totalPeriodDays,
+                    'combination_details'   => $combination['details'],
+                    'period_breakdown'      => $periodBreakdown,
                 ];
             }
 
             return [
-                'success' => true,
-                'user_id' => $user->id,
-                'date_range' => [
+                'success'                   => true,
+                'user_id'                   => $user->id,
+                'date_range'                => [
                     'start_date' => $startDate,
-                    'end_date' => $endDate,
+                    'end_date'   => $endDate,
                 ],
-                'has_work_status_changes' => $workStatusChanges->isNotEmpty(),
+                'has_work_status_changes'   => $workStatusChanges->isNotEmpty(),
                 'work_status_periods_count' => count($workStatusPeriods),
-                'target_calculations' => $allTargetCalculations,
-                'calculation_date' => Carbon::now()->toDateTimeString(),
+                'target_calculations'       => $allTargetCalculations,
+                'calculation_date'          => Carbon::now()->toDateTimeString(),
             ];
         } catch (\Exception $e) {
             return [
-                'success' => false,
-                'error' => $e->getMessage(),
-                'user_id' => $user->id ?? null,
+                'success'             => false,
+                'error'               => $e->getMessage(),
+                'user_id'             => $user->id ?? null,
                 'target_calculations' => [],
             ];
         }
@@ -183,46 +183,46 @@ if (! function_exists('calculateBasicMetricsFromDailySummaries')) {
             // Handle case when no data found
             if (! $metrics || $metrics->summary_records_found == 0) {
                 return [
-                    'billable_hours' => 0,
-                    'non_billable_hours' => 0,
-                    'uncategorized_hours' => 0,
-                    'total_hours' => 0,
-                    'billable_entries' => 0,
-                    'non_billable_entries' => 0,
+                    'billable_hours'        => 0,
+                    'non_billable_hours'    => 0,
+                    'uncategorized_hours'   => 0,
+                    'total_hours'           => 0,
+                    'billable_entries'      => 0,
+                    'non_billable_entries'  => 0,
                     'uncategorized_entries' => 0,
-                    'total_entries' => 0,
+                    'total_entries'         => 0,
                 ];
             }
 
             return [
-                'billable_hours' => (float) $metrics->billable_hours,
-                'non_billable_hours' => (float) $metrics->non_billable_hours,
-                'uncategorized_hours' => (float) $metrics->uncategorized_hours,
-                'total_hours' => (float) $metrics->total_hours,
-                'billable_entries' => (int) $metrics->billable_entries,
-                'non_billable_entries' => (int) $metrics->non_billable_entries,
+                'billable_hours'        => (float) $metrics->billable_hours,
+                'non_billable_hours'    => (float) $metrics->non_billable_hours,
+                'uncategorized_hours'   => (float) $metrics->uncategorized_hours,
+                'total_hours'           => (float) $metrics->total_hours,
+                'billable_entries'      => (int) $metrics->billable_entries,
+                'non_billable_entries'  => (int) $metrics->non_billable_entries,
                 'uncategorized_entries' => (int) $metrics->uncategorized_entries,
-                'total_entries' => (int) $metrics->total_entries,
+                'total_entries'         => (int) $metrics->total_entries,
             ];
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to calculate basic metrics from daily summaries: '.$e->getMessage(), [
-                'iva_id' => $ivaId,
+            \Illuminate\Support\Facades\Log::error('Failed to calculate basic metrics from daily summaries: ' . $e->getMessage(), [
+                'iva_id'     => $ivaId,
                 'start_date' => $startDate,
-                'end_date' => $endDate,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
 
             return [
-                'billable_hours' => 0,
-                'non_billable_hours' => 0,
-                'uncategorized_hours' => 0,
-                'total_hours' => 0,
-                'billable_entries' => 0,
-                'non_billable_entries' => 0,
+                'billable_hours'        => 0,
+                'non_billable_hours'    => 0,
+                'uncategorized_hours'   => 0,
+                'total_hours'           => 0,
+                'billable_entries'      => 0,
+                'non_billable_entries'  => 0,
                 'uncategorized_entries' => 0,
-                'total_entries' => 0,
+                'total_entries'         => 0,
             ];
         }
     }
@@ -279,9 +279,9 @@ if (! function_exists('calculateDailyBreakdownFromSummaries')) {
                 ->keyBy('report_date');
 
             // Generate complete date range
-            $dailyData = [];
+            $dailyData   = [];
             $currentDate = Carbon::parse($startDate);
-            $endDate = Carbon::parse($endDate);
+            $endDate     = Carbon::parse($endDate);
 
             while ($currentDate <= $endDate) {
                 $dateString = $currentDate->toDateString();
@@ -290,18 +290,18 @@ if (! function_exists('calculateDailyBreakdownFromSummaries')) {
                 $dayMetrics = $dailyMetrics->get($dateString);
 
                 $dailyData[] = [
-                    'date' => $dateString,
-                    'day_name' => $currentDate->format('l'),
-                    'day_short' => $currentDate->format('D'),
-                    'is_weekend' => $currentDate->isWeekend(),
-                    'billable_hours' => $dayMetrics ? (float) $dayMetrics->billable_hours : 0,
-                    'non_billable_hours' => $dayMetrics ? (float) $dayMetrics->non_billable_hours : 0,
-                    'uncategorized_hours' => $dayMetrics ? (float) $dayMetrics->uncategorized_hours : 0,
-                    'total_hours' => $dayMetrics ? (float) $dayMetrics->total_hours : 0,
-                    'billable_entries' => $dayMetrics ? (int) $dayMetrics->billable_entries : 0,
-                    'non_billable_entries' => $dayMetrics ? (int) $dayMetrics->non_billable_entries : 0,
+                    'date'                  => $dateString,
+                    'day_name'              => $currentDate->format('l'),
+                    'day_short'             => $currentDate->format('D'),
+                    'is_weekend'            => $currentDate->isWeekend(),
+                    'billable_hours'        => $dayMetrics ? (float) $dayMetrics->billable_hours : 0,
+                    'non_billable_hours'    => $dayMetrics ? (float) $dayMetrics->non_billable_hours : 0,
+                    'uncategorized_hours'   => $dayMetrics ? (float) $dayMetrics->uncategorized_hours : 0,
+                    'total_hours'           => $dayMetrics ? (float) $dayMetrics->total_hours : 0,
+                    'billable_entries'      => $dayMetrics ? (int) $dayMetrics->billable_entries : 0,
+                    'non_billable_entries'  => $dayMetrics ? (int) $dayMetrics->non_billable_entries : 0,
                     'uncategorized_entries' => $dayMetrics ? (int) $dayMetrics->uncategorized_entries : 0,
-                    'total_entries' => $dayMetrics ? (int) $dayMetrics->total_entries : 0,
+                    'total_entries'         => $dayMetrics ? (int) $dayMetrics->total_entries : 0,
                 ];
 
                 $currentDate->addDay();
@@ -310,22 +310,22 @@ if (! function_exists('calculateDailyBreakdownFromSummaries')) {
             return $dailyData;
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to calculate daily breakdown from summaries: '.$e->getMessage(), [
-                'iva_id' => $ivaId,
+            \Illuminate\Support\Facades\Log::error('Failed to calculate daily breakdown from summaries: ' . $e->getMessage(), [
+                'iva_id'     => $ivaId,
                 'start_date' => $startDate,
-                'end_date' => $endDate,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
 
             return [
-                'success' => false,
-                'message' => 'Failed to calculate daily breakdown: '.$e->getMessage(),
-                'data' => [],
+                'success'       => false,
+                'message'       => 'Failed to calculate daily breakdown: ' . $e->getMessage(),
+                'data'          => [],
                 'error_details' => [
                     'error_message' => $e->getMessage(),
-                    'error_file' => $e->getFile(),
-                    'error_line' => $e->getLine(),
+                    'error_file'    => $e->getFile(),
+                    'error_line'    => $e->getLine(),
                 ],
             ];
         }
@@ -355,8 +355,8 @@ if (! function_exists('calculatePerformanceMetricsDailySummaries')) {
             if (! $targetHoursResult['success']) {
                 return [
                     'success' => false,
-                    'message' => 'Failed to calculate target hours: '.$targetHoursResult['message'],
-                    'data' => [],
+                    'message' => 'Failed to calculate target hours: ' . $targetHoursResult['message'],
+                    'data'    => [],
                 ];
             }
 
@@ -374,12 +374,12 @@ if (! function_exists('calculatePerformanceMetricsDailySummaries')) {
             // Get performance thresholds from constants
             $thresholds = config('constants.performance_percentage_thresholds', [
                 'EXCEEDED' => 101,
-                'MEET' => 99,
+                'MEET'     => 99,
             ]);
 
             $statusLabels = config('constants.performance_status', [
-                'BELOW' => 'BELOW',
-                'MEET' => 'MEET',
+                'BELOW'    => 'BELOW',
+                'MEET'     => 'MEET',
                 'EXCEEDED' => 'EXCEEDED',
             ]);
 
@@ -388,7 +388,7 @@ if (! function_exists('calculatePerformanceMetricsDailySummaries')) {
             // Process each target calculation combination
             foreach ($targetHoursResult['target_calculations'] as $combination) {
                 $targetTotalHours = $combination['target_total_hours'];
-                $percentage = $targetTotalHours > 0 ? ($overallBillableHours / $targetTotalHours) * 100 : 0;
+                $percentage       = $targetTotalHours > 0 ? ($overallBillableHours / $targetTotalHours) * 100 : 0;
 
                 // Determine status based on thresholds
                 $status = $statusLabels['BELOW'];
@@ -399,40 +399,40 @@ if (! function_exists('calculatePerformanceMetricsDailySummaries')) {
                 }
 
                 $performances[] = [
-                    'target_id' => $combination['target_id'],
-                    'work_status' => $combination['work_status'],
+                    'target_id'             => $combination['target_id'],
+                    'work_status'           => $combination['work_status'],
                     'target_hours_per_week' => $combination['target_hours_per_week'],
-                    'target_total_hours' => round($targetTotalHours, 2),
-                    'actual_hours' => round($overallBillableHours, 2),
-                    'percentage' => round($percentage, 1),
-                    'status' => $status,
-                    'actual_vs_target' => round($overallBillableHours - $targetTotalHours, 2),
-                    'period_weeks' => round($combination['period_weeks'], 1),
-                    'period_days' => $combination['period_days'],
-                    'combination_details' => $combination['combination_details'],
+                    'target_total_hours'    => round($targetTotalHours, 2),
+                    'actual_hours'          => round($overallBillableHours, 2),
+                    'percentage'            => round($percentage, 1),
+                    'status'                => $status,
+                    'actual_vs_target'      => round($overallBillableHours - $targetTotalHours, 2),
+                    'period_weeks'          => round($combination['period_weeks'], 1),
+                    'period_days'           => $combination['period_days'],
+                    'combination_details'   => $combination['combination_details'],
                 ];
             }
 
             return $performances;
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to calculate performance metrics from daily summaries: '.$e->getMessage(), [
-                'iva_id' => $user->id ?? null,
-                'start_date' => $startDate,
-                'end_date' => $endDate,
+            \Illuminate\Support\Facades\Log::error('Failed to calculate performance metrics from daily summaries: ' . $e->getMessage(), [
+                'iva_id'                 => $user->id ?? null,
+                'start_date'             => $startDate,
+                'end_date'               => $endDate,
                 'overall_billable_hours' => $overallBillableHours,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error'                  => $e->getMessage(),
+                'trace'                  => $e->getTraceAsString(),
             ]);
 
             return [
-                'success' => false,
-                'message' => 'Failed to calculate performance metrics: '.$e->getMessage(),
-                'data' => [],
+                'success'       => false,
+                'message'       => 'Failed to calculate performance metrics: ' . $e->getMessage(),
+                'data'          => [],
                 'error_details' => [
                     'error_message' => $e->getMessage(),
-                    'error_file' => $e->getFile(),
-                    'error_line' => $e->getLine(),
+                    'error_file'    => $e->getFile(),
+                    'error_line'    => $e->getLine(),
                 ],
             ];
         }
@@ -473,29 +473,29 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
                 return [
                     'success' => true,
                     'message' => 'No category data found for the specified period',
-                    'data' => [],
+                    'data'    => [],
                     'summary' => [
-                        'iva_id' => $ivaId,
-                        'start_date' => $startDate,
-                        'end_date' => $endDate,
-                        'total_categories' => 0,
-                        'billable_categories' => 0,
+                        'iva_id'                  => $ivaId,
+                        'start_date'              => $startDate,
+                        'end_date'                => $endDate,
+                        'total_categories'        => 0,
+                        'billable_categories'     => 0,
                         'non_billable_categories' => 0,
                     ],
                 ];
             }
 
             // Group by category type and process
-            $billableCategories = [];
+            $billableCategories    = [];
             $nonBillableCategories = [];
-            $billableTotalHours = 0;
+            $billableTotalHours    = 0;
             $nonBillableTotalHours = 0;
 
             foreach ($categoryData as $category) {
                 $categoryInfo = [
-                    'category_id' => $category->report_category_id,
+                    'category_id'   => $category->report_category_id,
                     'category_name' => $category->category_name ?? 'Uncategorized',
-                    'total_hours' => (float) $category->total_hours,
+                    'total_hours'   => (float) $category->total_hours,
                     'entries_count' => (int) $category->entries_count,
                 ];
 
@@ -518,50 +518,50 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
             // Add billable breakdown if exists
             if (! empty($billableCategories)) {
                 $categoryBreakdown[] = [
-                    'type' => 'Billable',
-                    'total_hours' => round($billableTotalHours, 2),
+                    'type'             => 'Billable',
+                    'total_hours'      => round($billableTotalHours, 2),
                     'categories_count' => count($billableCategories),
-                    'categories' => $billableCategories,
+                    'categories'       => $billableCategories,
                 ];
             }
 
             // Add non-billable breakdown if exists
             if (! empty($nonBillableCategories)) {
                 $categoryBreakdown[] = [
-                    'type' => 'Non-Billable',
-                    'total_hours' => round($nonBillableTotalHours, 2),
+                    'type'             => 'Non-Billable',
+                    'total_hours'      => round($nonBillableTotalHours, 2),
                     'categories_count' => count($nonBillableCategories),
-                    'categories' => $nonBillableCategories,
+                    'categories'       => $nonBillableCategories,
                 ];
             }
 
             return $categoryBreakdown;
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to calculate category breakdown from summaries: '.$e->getMessage(), [
-                'iva_id' => $ivaId,
+            \Illuminate\Support\Facades\Log::error('Failed to calculate category breakdown from summaries: ' . $e->getMessage(), [
+                'iva_id'     => $ivaId,
                 'start_date' => $startDate,
-                'end_date' => $endDate,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
 
             return [
-                'success' => false,
-                'message' => 'Failed to calculate category breakdown: '.$e->getMessage(),
-                'data' => [],
-                'summary' => [
-                    'iva_id' => $ivaId,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'total_categories' => 0,
-                    'billable_categories' => 0,
+                'success'       => false,
+                'message'       => 'Failed to calculate category breakdown: ' . $e->getMessage(),
+                'data'          => [],
+                'summary'       => [
+                    'iva_id'                  => $ivaId,
+                    'start_date'              => $startDate,
+                    'end_date'                => $endDate,
+                    'total_categories'        => 0,
+                    'billable_categories'     => 0,
                     'non_billable_categories' => 0,
                 ],
                 'error_details' => [
                     'error_message' => $e->getMessage(),
-                    'error_file' => $e->getFile(),
-                    'error_line' => $e->getLine(),
+                    'error_file'    => $e->getFile(),
+                    'error_line'    => $e->getLine(),
                 ],
             ];
         }
@@ -608,8 +608,8 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
 
                 // Get detailed worklog entries for each task
                 $tasksWithEntries = [];
-                $totalHours = 0;
-                $totalEntries = 0;
+                $totalHours       = 0;
+                $totalEntries     = 0;
 
                 foreach ($tasks as $task) {
                     // Get worklog entries for this specific task
@@ -630,11 +630,11 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
                         ->toArray();
 
                     $tasksWithEntries[] = [
-                        'task_id' => (int) $task->task_id,
-                        'task_name' => $task->task_name,
-                        'total_hours' => (float) $task->total_hours,
+                        'task_id'       => (int) $task->task_id,
+                        'task_name'     => $task->task_name,
+                        'total_hours'   => (float) $task->total_hours,
                         'entries_count' => (int) $task->entries_count,
-                        'entries' => $entries,
+                        'entries'       => $entries,
                     ];
 
                     $totalHours += (float) $task->total_hours;
@@ -658,32 +658,32 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
                 // ];
 
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Failed to get tasks by report category: '.$e->getMessage(), [
+                \Illuminate\Support\Facades\Log::error('Failed to get tasks by report category: ' . $e->getMessage(), [
                     'report_category_id' => $reportCategoryId,
-                    'iva_id' => $ivaId,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
+                    'iva_id'             => $ivaId,
+                    'start_date'         => $startDate,
+                    'end_date'           => $endDate,
+                    'error'              => $e->getMessage(),
+                    'trace'              => $e->getTraceAsString(),
                 ]);
 
                 return [
-                    'success' => false,
-                    'message' => 'Failed to get tasks by report category: '.$e->getMessage(),
-                    'data' => [],
-                    'summary' => [
+                    'success'       => false,
+                    'message'       => 'Failed to get tasks by report category: ' . $e->getMessage(),
+                    'data'          => [],
+                    'summary'       => [
                         'report_category_id' => $reportCategoryId,
-                        'iva_id' => $ivaId,
-                        'start_date' => $startDate,
-                        'end_date' => $endDate,
-                        'total_tasks' => 0,
-                        'total_hours' => 0,
-                        'total_entries' => 0,
+                        'iva_id'             => $ivaId,
+                        'start_date'         => $startDate,
+                        'end_date'           => $endDate,
+                        'total_tasks'        => 0,
+                        'total_hours'        => 0,
+                        'total_entries'      => 0,
                     ],
                     'error_details' => [
                         'error_message' => $e->getMessage(),
-                        'error_file' => $e->getFile(),
-                        'error_line' => $e->getLine(),
+                        'error_file'    => $e->getFile(),
+                        'error_line'    => $e->getLine(),
                     ],
                 ];
             }
@@ -751,15 +751,15 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
                 }
 
                 $periodStartDate = Carbon::parse($periodStart);
-                $periodEndDate = Carbon::parse($periodEnd);
+                $periodEndDate   = Carbon::parse($periodEnd);
 
                 foreach ($userCustomizations[$settingId] as $customization) {
                     $customStart = $customization->start_date ? Carbon::parse($customization->start_date) : null;
-                    $customEnd = $customization->end_date ? Carbon::parse($customization->end_date) : null;
+                    $customEnd   = $customization->end_date ? Carbon::parse($customization->end_date) : null;
 
                     // Check if customization overlaps with period
                     $startsBeforeOrDuring = ! $customStart || $customStart->lte($periodEndDate);
-                    $endsAfterOrDuring = ! $customEnd || $customEnd->gte($periodStartDate);
+                    $endsAfterOrDuring    = ! $customEnd || $customEnd->gte($periodStartDate);
 
                     if ($startsBeforeOrDuring && $endsAfterOrDuring) {
                         return (float) $customization->custom_value;
@@ -778,16 +778,16 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
                 foreach ($configSettings as $setting) {
                     if ($setting->key === $settingKey) {
                         $defaultHours = (float) $setting->setting_value;
-                        $customHours = $getCustomValueForPeriod($setting->id, $periodStart, $periodEnd);
-                        $actualHours = $customHours !== null ? $customHours : $defaultHours;
+                        $customHours  = $getCustomValueForPeriod($setting->id, $periodStart, $periodEnd);
+                        $actualHours  = $customHours !== null ? $customHours : $defaultHours;
 
                         $hourSettings[] = [
-                            'id' => $setting->id,
-                            'setting_name' => $setting->setting_value,
-                            'hours' => $actualHours,
-                            'is_custom' => $customHours !== null,
+                            'id'            => $setting->id,
+                            'setting_name'  => $setting->setting_value,
+                            'hours'         => $actualHours,
+                            'is_custom'     => $customHours !== null,
                             'default_hours' => $defaultHours,
-                            'custom_hours' => $customHours,
+                            'custom_hours'  => $customHours,
                         ];
                     }
                 }
@@ -806,16 +806,17 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
             // but using our optimized data
 
             // Calculate work status periods (same logic as calculateWorkStatusPeriods)
-            $periods = [];
+            $periods     = [];
             $startCarbon = Carbon::parse($startDate);
-            $endCarbon = Carbon::parse($endDate);
+            $endCarbon   = Carbon::parse($endDate);
 
             $currentWeekStart = $startCarbon->copy()->startOfWeek(Carbon::MONDAY);
-            $finalWeekEnd = $endCarbon->copy()->endOfWeek(Carbon::SUNDAY);
+            $finalWeekEnd     = $endCarbon->copy()->endOfWeek(Carbon::SUNDAY);
 
             // Get initial work status (same as getInitialWorkStatus)
-            $currentWorkStatus = 'full-time'; // Default
-            $earliestChange = $workStatusChanges->where('effective_date', '<=', $currentWeekStart->toDateString())->last();
+            // $currentWorkStatus = 'full-time'; // Default
+            $currentWorkStatus = $user->work_status;
+            $earliestChange    = $workStatusChanges->where('effective_date', '<=', $currentWeekStart->toDateString())->last();
             if ($earliestChange) {
                 $currentWorkStatus = json_decode($earliestChange->new_value, true) ?: 'full-time';
             }
@@ -831,25 +832,25 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
                 })->sortBy('effective_date');
 
                 if ($changesInWeek->isNotEmpty()) {
-                    $lastChange = $changesInWeek->last();
+                    $lastChange        = $changesInWeek->last();
                     $currentWorkStatus = json_decode($lastChange->new_value, true) ?: 'full-time';
                 }
 
                 // Calculate actual period dates
                 $periodStart = $currentWeekStart->lt($startCarbon) ? $startCarbon : $currentWeekStart;
-                $periodEnd = $currentWeekEnd->gt($endCarbon) ? $endCarbon : $currentWeekEnd;
+                $periodEnd   = $currentWeekEnd->gt($endCarbon) ? $endCarbon : $currentWeekEnd;
 
                 if ($periodStart->lte($endCarbon) && $periodEnd->gte($startCarbon)) {
                     $startDateOnly = Carbon::parse($periodStart->toDateString());
-                    $endDateOnly = Carbon::parse($periodEnd->toDateString());
+                    $endDateOnly   = Carbon::parse($periodEnd->toDateString());
 
                     $periods[] = [
                         'work_status' => $currentWorkStatus,
-                        'start_date' => $periodStart->toDateString(),
-                        'end_date' => $periodEnd->toDateString(),
-                        'days' => $startDateOnly->diffInDays($endDateOnly) + 1,
-                        'week_start' => $currentWeekStart->toDateString(),
-                        'week_end' => $currentWeekEnd->toDateString(),
+                        'start_date'  => $periodStart->toDateString(),
+                        'end_date'    => $periodEnd->toDateString(),
+                        'days'        => $startDateOnly->diffInDays($endDateOnly) + 1,
+                        'week_start'  => $currentWeekStart->toDateString(),
+                        'week_end'    => $currentWeekEnd->toDateString(),
                     ];
                 }
 
@@ -864,16 +865,16 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
             $combinations = [];
 
             if (count($uniqueStatuses) === 1) {
-                $status = $uniqueStatuses[0];
+                $status   = $uniqueStatuses[0];
                 $settings = $getWorkHourSettings($status);
 
                 foreach ($settings as $setting) {
                     $combinations[] = [
-                        'id' => $setting['id'],
+                        'id'            => $setting['id'],
                         'display_hours' => $setting['hours'],
-                        'details' => [
-                            'type' => 'single_status',
-                            'status' => $status,
+                        'details'       => [
+                            'type'       => 'single_status',
+                            'status'     => $status,
                             'setting_id' => $setting['id'],
                         ],
                     ];
@@ -883,12 +884,12 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
 
                 foreach ($fullTimeSettings as $setting) {
                     $combinations[] = [
-                        'id' => $setting['id'],
+                        'id'            => $setting['id'],
                         'display_hours' => $setting['hours'],
-                        'details' => [
-                            'type' => 'mixed_status',
+                        'details'       => [
+                            'type'               => 'mixed_status',
                             'primary_setting_id' => $setting['id'],
-                            'statuses' => $uniqueStatuses,
+                            'statuses'           => $uniqueStatuses,
                         ],
                     ];
                 }
@@ -898,26 +899,26 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
             $allTargetCalculations = [];
 
             foreach ($combinations as $combination) {
-                $targetTotalHours = 0;
-                $totalPeriodWeeks = 0;
-                $totalPeriodDays = 0;
-                $workStatusDisplay = [];
-                $periodBreakdown = [];
+                $targetTotalHours      = 0;
+                $totalPeriodWeeks      = 0;
+                $totalPeriodDays       = 0;
+                $workStatusDisplay     = [];
+                $periodBreakdown       = [];
                 $periodHoursForAverage = []; // Track hours per week for each period
 
                 foreach ($periods as $periodIndex => $period) {
-                    $workStatus = $period['work_status'] ?: 'full-time';
-                    $periodDays = $period['days'];
+                    $workStatus  = $period['work_status'] ?: 'full-time';
+                    $periodDays  = $period['days'];
                     $periodWeeks = $periodDays / 7;
                     $periodStart = $period['start_date'];
-                    $periodEnd = $period['end_date'];
+                    $periodEnd   = $period['end_date'];
 
                     // Get setting for this period (same logic as getSettingForPeriod)
                     $settingForPeriod = null;
 
                     if ($combination['details']['type'] === 'single_status') {
                         $periodHourSettings = $getWorkHourSettings($workStatus, $periodStart, $periodEnd);
-                        $settingForPeriod = collect($periodHourSettings)->firstWhere('id', $combination['details']['setting_id']) ?? $periodHourSettings[0] ?? ['hours' => 0];
+                        $settingForPeriod   = collect($periodHourSettings)->firstWhere('id', $combination['details']['setting_id']) ?? $periodHourSettings[0] ?? ['hours' => 0];
                     } else {
                         $periodHourSettings = $getWorkHourSettings($workStatus, $periodStart, $periodEnd);
 
@@ -942,74 +943,74 @@ if (! function_exists('calculateUserTargetHoursOptimized')) {
                     }
 
                     $periodBreakdown[] = [
-                        'period_start' => $periodStart,
-                        'period_end' => $periodEnd,
-                        'work_status' => $workStatus,
+                        'period_start'        => $periodStart,
+                        'period_end'          => $periodEnd,
+                        'work_status'         => $workStatus,
                         'work_status_display' => $statusDisplay,
-                        'days' => $periodDays,
-                        'weeks' => round($periodWeeks, 2),
-                        'hours_per_week' => $settingForPeriod['hours'],
-                        'target_hours' => round($targetHoursForPeriod, 2),
-                        'setting_used' => $settingForPeriod,
-                        'week_start' => $period['week_start'],
-                        'week_end' => $period['week_end'],
+                        'days'                => $periodDays,
+                        'weeks'               => round($periodWeeks, 2),
+                        'hours_per_week'      => $settingForPeriod['hours'],
+                        'target_hours'        => round($targetHoursForPeriod, 2),
+                        'setting_used'        => $settingForPeriod,
+                        'week_start'          => $period['week_start'],
+                        'week_end'            => $period['week_end'],
                     ];
                 }
 
                 // Calculate simple average of period-specific hours per week
                 $averageHoursPerWeek = ! empty($periodHoursForAverage)
-                ? round(array_sum($periodHoursForAverage) / count($periodHoursForAverage), 1)
-                : $combination['display_hours'];
+                    ? round(array_sum($periodHoursForAverage) / count($periodHoursForAverage), 1)
+                    : $combination['display_hours'];
 
                 $allTargetCalculations[] = [
-                    'target_id' => $combination['id'],
-                    'work_status' => implode(' + ', $workStatusDisplay),
+                    'target_id'             => $combination['id'],
+                    'work_status'           => implode(' + ', $workStatusDisplay),
                     'target_hours_per_week' => $averageHoursPerWeek,
-                    'target_total_hours' => round($targetTotalHours, 2),
-                    'period_weeks' => round($totalPeriodWeeks, 1),
-                    'period_days' => $totalPeriodDays,
-                    'combination_details' => $combination['details'],
-                    'period_breakdown' => $periodBreakdown,
+                    'target_total_hours'    => round($targetTotalHours, 2),
+                    'period_weeks'          => round($totalPeriodWeeks, 1),
+                    'period_days'           => $totalPeriodDays,
+                    'combination_details'   => $combination['details'],
+                    'period_breakdown'      => $periodBreakdown,
                 ];
             }
 
             return [
-                'success' => true,
-                'user_id' => $user->id,
-                'date_range' => [
+                'success'                   => true,
+                'user_id'                   => $user->id,
+                'date_range'                => [
                     'start_date' => $startDate,
-                    'end_date' => $endDate,
+                    'end_date'   => $endDate,
                 ],
-                'has_work_status_changes' => $workStatusChanges->isNotEmpty(),
+                'has_work_status_changes'   => $workStatusChanges->isNotEmpty(),
                 'work_status_periods_count' => count($periods),
-                'target_calculations' => $allTargetCalculations,
-                'calculation_date' => Carbon::now()->toDateTimeString(),
+                'target_calculations'       => $allTargetCalculations,
+                'calculation_date'          => Carbon::now()->toDateTimeString(),
             ];
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to calculate optimized user target hours: '.$e->getMessage(), [
-                'user_id' => $user->id ?? null,
+            \Illuminate\Support\Facades\Log::error('Failed to calculate optimized user target hours: ' . $e->getMessage(), [
+                'user_id'    => $user->id ?? null,
                 'start_date' => $startDate,
-                'end_date' => $endDate,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
 
             // Fallback to original function
             if (function_exists('calculateUserTargetHours')) {
-                $fallbackResult = calculateUserTargetHours($user, $startDate, $endDate);
-                $fallbackResult['used_fallback'] = true;
+                $fallbackResult                       = calculateUserTargetHours($user, $startDate, $endDate);
+                $fallbackResult['used_fallback']      = true;
                 $fallbackResult['optimization_error'] = $e->getMessage();
 
                 return $fallbackResult;
             }
 
             return [
-                'success' => false,
-                'error' => 'Optimized calculation failed: '.$e->getMessage(),
-                'user_id' => $user->id ?? null,
+                'success'             => false,
+                'error'               => 'Optimized calculation failed: ' . $e->getMessage(),
+                'user_id'             => $user->id ?? null,
                 'target_calculations' => [],
-                'used_fallback' => false,
+                'used_fallback'       => false,
             ];
         }
     }
@@ -1042,28 +1043,28 @@ if (! function_exists('calculateFullCategoryBreakdownFromSummaries')) {
                 return [
                     'success' => true,
                     'message' => 'No category data found for the specified period',
-                    'data' => [],
+                    'data'    => [],
                     'summary' => [
-                        'iva_id' => $ivaId,
-                        'start_date' => $startDate,
-                        'end_date' => $endDate,
-                        'total_categories' => 0,
-                        'billable_categories' => 0,
+                        'iva_id'                  => $ivaId,
+                        'start_date'              => $startDate,
+                        'end_date'                => $endDate,
+                        'total_categories'        => 0,
+                        'billable_categories'     => 0,
                         'non_billable_categories' => 0,
                     ],
                 ];
             }
 
-            $billableCategories = [];
+            $billableCategories    = [];
             $nonBillableCategories = [];
-            $billableTotalHours = 0;
+            $billableTotalHours    = 0;
             $nonBillableTotalHours = 0;
 
             foreach ($categoryData as $category) {
                 $categoryInfo = [
-                    'category_id' => $category->category_id,
+                    'category_id'   => $category->category_id,
                     'category_name' => $category->category_name ?? 'Uncategorized',
-                    'total_hours' => (float) $category->total_hours,
+                    'total_hours'   => (float) $category->total_hours,
                     'entries_count' => (int) $category->entries_count,
                 ];
 
@@ -1082,49 +1083,49 @@ if (! function_exists('calculateFullCategoryBreakdownFromSummaries')) {
 
             if (! empty($billableCategories)) {
                 $categoryBreakdown[] = [
-                    'type' => 'Billable',
-                    'total_hours' => round($billableTotalHours, 2),
+                    'type'             => 'Billable',
+                    'total_hours'      => round($billableTotalHours, 2),
                     'categories_count' => count($billableCategories),
-                    'categories' => $billableCategories,
+                    'categories'       => $billableCategories,
                 ];
             }
 
             if (! empty($nonBillableCategories)) {
                 $categoryBreakdown[] = [
-                    'type' => 'Non-Billable',
-                    'total_hours' => round($nonBillableTotalHours, 2),
+                    'type'             => 'Non-Billable',
+                    'total_hours'      => round($nonBillableTotalHours, 2),
                     'categories_count' => count($nonBillableCategories),
-                    'categories' => $nonBillableCategories,
+                    'categories'       => $nonBillableCategories,
                 ];
             }
 
             return $categoryBreakdown;
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to calculate category breakdown from summaries: '.$e->getMessage(), [
-                'iva_id' => $ivaId,
+            \Illuminate\Support\Facades\Log::error('Failed to calculate category breakdown from summaries: ' . $e->getMessage(), [
+                'iva_id'     => $ivaId,
                 'start_date' => $startDate,
-                'end_date' => $endDate,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'end_date'   => $endDate,
+                'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
 
             return [
-                'success' => false,
-                'message' => 'Failed to calculate category breakdown: '.$e->getMessage(),
-                'data' => [],
-                'summary' => [
-                    'iva_id' => $ivaId,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'total_categories' => 0,
-                    'billable_categories' => 0,
+                'success'       => false,
+                'message'       => 'Failed to calculate category breakdown: ' . $e->getMessage(),
+                'data'          => [],
+                'summary'       => [
+                    'iva_id'                  => $ivaId,
+                    'start_date'              => $startDate,
+                    'end_date'                => $endDate,
+                    'total_categories'        => 0,
+                    'billable_categories'     => 0,
                     'non_billable_categories' => 0,
                 ],
                 'error_details' => [
                     'error_message' => $e->getMessage(),
-                    'error_file' => $e->getFile(),
-                    'error_line' => $e->getLine(),
+                    'error_file'    => $e->getFile(),
+                    'error_line'    => $e->getLine(),
                 ],
             ];
         }
@@ -1170,10 +1171,10 @@ if (! function_exists('getReportCategories')) {
                 ->get()
                 ->map(function ($r) {
                     return [
-                        'id' => (int) $r->id,
-                        'name' => $r->name,
+                        'id'    => (int) $r->id,
+                        'name'  => $r->name,
                         'order' => $r->category_order !== null ? (int) $r->category_order : null,
-                        'type' => $r->category_type,
+                        'type'  => $r->category_type,
                     ];
                 })
                 ->toArray();
@@ -1181,15 +1182,15 @@ if (! function_exists('getReportCategories')) {
             return [
                 'success' => true,
                 'message' => 'Categories retrieved successfully.',
-                'data' => $rows,
+                'data'    => $rows,
             ];
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to get report categories: '.$e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Failed to get report categories: ' . $e->getMessage());
 
             return [
                 'success' => false,
                 'message' => 'Failed to get report categories.',
-                'data' => [],
+                'data'    => [],
             ];
         }
     }

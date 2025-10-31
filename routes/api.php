@@ -198,6 +198,7 @@ Route::middleware('auth.jwt')->group(function () {
 
         // Long operation routes
         Route::get('/stream-worklog-sync', [TimeDoctorLongOperationController::class, 'streamWorklogSync']);
+        Route::get('/stream-worklog-sync-by-users', [TimeDoctorLongOperationController::class, 'streamWorklogSyncByUsers']);
 
         Route::post('/refresh', [TimeDoctorAuthController::class, 'refreshToken']);
     });
@@ -253,15 +254,11 @@ Route::middleware('auth.jwt')->group(function () {
 
         Route::get('/region-performance', [IvaRegionReportController::class, 'getRegionPerformanceReport'])
             ->name('region-performance');
-        Route::post('/region-performance/clear-cache', [IvaRegionReportController::class, 'clearRegionReportCache'])
-            ->name('region-performance.clear-cache');
         Route::get('/region-performance/regions', [IvaRegionReportController::class, 'getAvailableRegions'])
             ->name('region-performance.regions');
 
         Route::get('/overall-performance', [IvaOverallReportController::class, 'getOverallPerformanceReport'])
             ->name('overall-performance');
-        Route::post('/overall-performance/clear-cache', [IvaOverallReportController::class, 'clearOverallReportCache'])
-            ->name('overall-performance.clear-cache');
 
         // Export routes
         Route::post('/export', [ReportExportController::class, 'exportReport'])

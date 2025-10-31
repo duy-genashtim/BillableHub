@@ -1,8 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+const authStore = useAuthStore();
 const router = useRouter()
 const route = useRoute()
 const regionId = route.params.id
@@ -255,7 +257,7 @@ function closeUserDialog() {
                 class="mr-2 mr-md-4" aria-label="Region status: {{ region.is_active ? 'Active' : 'Inactive' }}">
                 {{ region.is_active ? 'Active' : 'Inactive' }}
               </VChip>
-              <VBtn color="secondary" variant="outlined" prepend-icon="ri-pencil-line"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="secondary" variant="outlined" prepend-icon="ri-pencil-line"
                 :size="isMobile ? 'small' : 'default'" @click="editRegion" aria-label="Edit region" class="mr-2">
                 Edit
               </VBtn>
@@ -288,7 +290,7 @@ function closeUserDialog() {
             <h2 class="text-h5 text-md-h5 mr-auto mb-2 mb-md-0" tabindex="0">
               IVA Users in this Region
             </h2>
-            <VBtn color="primary" prepend-icon="ri-user-add-line" :size="isMobile ? 'small' : 'default'"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-user-add-line" :size="isMobile ? 'small' : 'default'"
               @click="openAddUserDialog" aria-label="Add IVA users to this region">
               <span v-if="!isMobile">Add IVA Users</span>
               <span v-else>Add</span>
@@ -300,7 +302,7 @@ function closeUserDialog() {
             aria-label="Search for IVA users" />
 
           <VDataTable :headers="userHeaders" :items="filteredUsers" :loading="loading" density="comfortable" hover
-            class="elevation-1 rounded" aria-label="IVA users table" hide-default-footer>
+            class="elevation-1 rounded" aria-label="IVA users table" hide-default-footer items-per-page="-1">
             <!-- ID Column (desktop only) -->
             <template v-if="!isMobile" #[`item.id`]="{ item }">
               <span>{{ item.id }}</span>
@@ -356,7 +358,7 @@ function closeUserDialog() {
 
             <!-- Actions Column -->
             <template #[`item.actions`]="{ item }">
-              <VBtn icon size="small" variant="text" color="error" @click="confirmRemoveUsers(item.id)"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="error" @click="confirmRemoveUsers(item.id)"
                 aria-label="Remove user from region">
                 <VIcon size="20">ri-link-unlink</VIcon>
                 <VTooltip activator="parent">Remove from Region</VTooltip>

@@ -26,9 +26,28 @@ class DailyWorklogSummaryService
         $totalErrors = 0;
 
         try {
+            // Log calculation parameters for debugging
+            Log::info('Starting daily worklog summary calculation', [
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'calculate_all' => $calculateAll,
+                'iva_user_ids' => $ivaUserIds,
+                'iva_user_count' => count($ivaUserIds),
+            ]);
+
             // Get IVA users to process
             $ivaUsers = $this->getIvaUsersToProcess($ivaUserIds, $calculateAll);
             $dateRange = $this->getDateRange($startDate, $endDate, $calculateAll);
+
+            Log::info('Calculation scope determined', [
+                'users_to_process' => $ivaUsers->count(),
+                'user_names' => $ivaUsers->pluck('full_name')->toArray(),
+                'date_range_count' => count($dateRange),
+                'date_range' => [
+                    'start' => $dateRange[0] ?? null,
+                    'end' => $dateRange[count($dateRange) - 1] ?? null,
+                ]
+            ]);
 
             foreach ($ivaUsers as $ivaUser) {
                 $userResult = [
@@ -184,13 +203,16 @@ class DailyWorklogSummaryService
 
     /**
      * Get IVA users to process
+     * Note: $calculateAll refers to date range calculation, not user selection
      */
     protected function getIvaUsersToProcess(array $ivaUserIds, bool $calculateAll): \Illuminate\Database\Eloquent\Collection
     {
-        if ($calculateAll || empty($ivaUserIds)) {
+        // If no specific user IDs provided, calculate for all active users
+        if (empty($ivaUserIds)) {
             return IvaUser::where('is_active', true)->get();
         }
 
+        // Calculate only for specified users
         return IvaUser::whereIn('id', $ivaUserIds)->where('is_active', true)->get();
     }
 

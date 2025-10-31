@@ -242,19 +242,19 @@ function handleViewCohort(cohortId) {
             </VCol>
 
             <!-- Cohort Breakdown -->
-            <VCol cols="12" md="6">
+            <VCol v-if="authStore.hasPermission('view_reports')" cols="12" md="6">
               <CohortBreakdownCard :cohort-data="dashboardData.cohort_breakdown" :is-mobile="isMobile"
                 @view-cohort="handleViewCohort" />
             </VCol>
 
             <!-- Regional Breakdown -->
-            <VCol cols="12" md="6">
+            <VCol v-if="authStore.hasPermission('view_reports')" cols="12" md="6">
               <RegionalBreakdownCard :regional-data="dashboardData.regional_breakdown" :is-mobile="isMobile"
                 @view-region="handleViewRegion" />
             </VCol>
 
             <!-- Quick Actions -->
-            <VCol cols="12">
+            <VCol v-if="authStore.hasPermission('view_reports')" cols="12">
               <QuickActionsCard :is-mobile="isMobile" />
             </VCol>
           </VRow>

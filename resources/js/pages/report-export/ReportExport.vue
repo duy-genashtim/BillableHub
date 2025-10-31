@@ -8,6 +8,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 // Data
 const loading = ref(false);
 const regions = ref([]);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
 
 // Form data
 const formData = ref({
@@ -155,6 +156,20 @@ const canExport = computed(() => {
   return true;
 });
 
+const isReportTypeDisabled = computed(() => {
+  return regionFilter.value.applied;
+});
+
+const isRegionSelectorDisabled = computed(() => {
+  return regionFilter.value.applied;
+});
+
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied || !formData.value.regionId) return '';
+  const region = regions.value.find(r => r.id === formData.value.regionId);
+  return region ? region.name : '';
+});
+
 // Helper functions
 function getOrdinalSuffix(num) {
   const j = num % 10;
@@ -197,6 +212,16 @@ async function loadRegions() {
     const response = await axios.get('/api/reports/available-regions');
     if (response.data.success) {
       regions.value = response.data.regions;
+
+      // Handle region filter from backend
+      if (response.data.region_filter) {
+        regionFilter.value = response.data.region_filter;
+        // If region filter is applied, force report type and region
+        if (regionFilter.value.applied && regionFilter.value.region_id) {
+          formData.value.reportType = 'region';
+          formData.value.regionId = regionFilter.value.region_id;
+        }
+      }
     }
   } catch (error) {
     console.error('Error loading regions:', error);
@@ -394,6 +419,18 @@ onMounted(async () => {
       { title: 'Export', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
 
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6" prominent>
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-lock-line" class="me-2" />
+        Region-Filtered Export
+      </VAlertTitle>
+      <p class="mb-0">
+        You can only export data for <strong>{{ regionFilteredRegionName }}</strong> based on your permissions.
+        Report type is locked to "Region Report" and region selection is restricted to your assigned region.
+      </p>
+    </VAlert>
+
     <VRow>
       <VCol cols="12">
         <VCard>
@@ -416,7 +453,8 @@ onMounted(async () => {
                 <VCol cols="12" md="6">
                   <VSelect v-model="formData.reportType" :items="reportTypeOptions" item-title="title"
                     item-value="value" label="Report Type" placeholder="Select report type" variant="outlined"
-                    :loading="loading" />
+                    :loading="loading" :disabled="isReportTypeDisabled"
+                    :prepend-inner-icon="isReportTypeDisabled ? 'ri-lock-line' : undefined" />
                   <VCardText class="text-body-2 text-medium-emphasis pa-0 mt-1">
                     📍 Region: Single region performance | Overall: All regions combined
                   </VCardText>
@@ -425,7 +463,8 @@ onMounted(async () => {
                 <!-- Region Selection (only for region reports) -->
                 <VCol v-if="showRegionSelect" cols="12" md="6">
                   <VSelect v-model="formData.regionId" :items="regionOptions" item-title="title" item-value="value"
-                    label="Region" placeholder="Select region" variant="outlined" :loading="loading">
+                    label="Region" placeholder="Select region" variant="outlined" :loading="loading"
+                    :disabled="isRegionSelectorDisabled" :prepend-inner-icon="isRegionSelectorDisabled ? 'ri-lock-line' : undefined">
                     <template #item="{ item, props }">
                       <VListItem v-bind="props">
                         <template #prepend>

@@ -17,6 +17,7 @@ const loading = ref(true);
 const searchQuery = ref('');
 const selectedWorkStatus = ref('');
 const isMobile = ref(window.innerWidth < 768);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
 
 // Pagination
 const currentPage = ref(1);
@@ -63,6 +64,12 @@ const paginationInfo = computed(() => {
   const from = (currentPage.value - 1) * perPage.value + 1;
   const to = Math.min(currentPage.value * perPage.value, totalItems.value);
   return `${from}-${to} of ${totalItems.value}`;
+});
+
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // Get region name from the first nsh data entry
+  return nshData.value.length > 0 ? nshData.value[0].region : 'your region';
 });
 
 function getHoursColor(hours, workStatus) {
@@ -120,6 +127,11 @@ async function fetchNshData() {
     const pagination = response.data.pagination;
     totalItems.value = pagination.total;
     lastPage.value = pagination.last_page;
+
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+    }
 
   } catch (error) {
     console.error('Error fetching NSH data:', error);
@@ -194,6 +206,17 @@ function goToToday() {
       { title: 'Reports', disabled: true },
       { title: 'NSH Performance', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
+
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6">
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-information-line" class="me-2" />
+        Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing NSH performance data for <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+      </p>
+    </VAlert>
 
     <!-- Header Card -->
     <VCard class="mb-6">

@@ -1,8 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
+const authStore = useAuthStore();
 const router = useRouter();
 const managers = ref([]);
 const regions = ref([]);
@@ -12,6 +14,7 @@ const searchQuery = ref('');
 const selectedRegionId = ref(null);
 const selectedManagerTypeId = ref(null);
 const isMobile = ref(window.innerWidth < 768);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
 
 const deleteDialog = ref(false);
 const managerToDelete = ref(null);
@@ -74,6 +77,11 @@ async function fetchManagers() {
     page.value = response.data.managers.current_page;
     regions.value = response.data.regions;
     managerTypes.value = response.data.managerTypes;
+
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+    }
   } catch (error) {
     console.error('Error fetching managers:', error);
     snackbarText.value = 'Failed to load managers';
@@ -139,6 +147,13 @@ function onPageChange(newPage) {
   fetchManagers();
 }
 
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // Find the region from regions array
+  const region = regions.value.find(r => r.id === regionFilter.value.region_id);
+  return region ? region.name : 'your region';
+});
+
 // Computed properties for filtering
 const filteredManagers = computed(() => {
   if (!searchQuery.value || !managers.value) return managers.value;
@@ -161,13 +176,24 @@ const filteredManagers = computed(() => {
       { title: 'IVA Managers', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
 
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6">
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-information-line" class="me-2" />
+        Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing IVA managers from <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+      </p>
+    </VAlert>
+
     <VCard>
       <VCardText>
         <div class="d-flex flex-wrap align-center mb-6">
           <h1 class="text-h5 text-md-h4 mr-auto mb-2 mb-md-0" tabindex="0">
             IVA Managers
           </h1>
-          <VBtn color="primary" prepend-icon="ri-user-add-line" :size="isMobile ? 'small' : 'default'"
+          <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-user-add-line" :size="isMobile ? 'small' : 'default'"
             @click="addNewManager" aria-label="Assign new manager">
             <span v-if="!isMobile">Assign New Manager</span>
             <span v-else>Assign</span>
@@ -257,7 +283,7 @@ const filteredManagers = computed(() => {
                 <VTooltip activator="parent">View Details</VTooltip>
               </VBtn>
 
-              <VBtn icon size="small" variant="text" color="error" @click="confirmDelete(item)"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="error" @click="confirmDelete(item)"
                 aria-label="Remove manager assignment">
                 <VIcon size="20">ri-delete-bin-line</VIcon>
                 <VTooltip activator="parent">Remove</VTooltip>
@@ -279,7 +305,7 @@ const filteredManagers = computed(() => {
                   @click="resetFilters" aria-label="Clear all filters">
                   Clear Filters
                 </VBtn>
-                <VBtn color="primary" @click="addNewManager" aria-label="Assign a new manager">
+                <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="addNewManager" aria-label="Assign a new manager">
                   Assign Manager
                 </VBtn>
               </div>

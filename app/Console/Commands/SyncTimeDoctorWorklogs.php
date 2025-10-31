@@ -20,6 +20,7 @@ class SyncTimeDoctorWorklogs extends Command
     protected $signature = 'timedoctor:sync-worklogs
                             {--start-date= : Start date for sync (Y-m-d format)}
                             {--end-date= : End date for sync (Y-m-d format)}
+                            {--days-ago= : Number of days ago to sync (default: 2)}
                             {--dry-run : Run without making changes}';
 
     /**
@@ -27,7 +28,7 @@ class SyncTimeDoctorWorklogs extends Command
      *
      * @var string
      */
-    protected $description = 'Sync TimeDoctor v1 worklog data for all IVA users within a date range';
+    protected $description = 'Sync TimeDoctor v1 worklog data for all IVA users within a date range or for a specific number of days ago';
 
     protected $timeDoctorService;
 
@@ -70,6 +71,37 @@ class SyncTimeDoctorWorklogs extends Command
 
             $this->info("Sync Date Range: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
             $this->info('Total Days: '.($startDate->diffInDays($endDate) + 1));
+
+            // Validate token before starting sync (includes 3-day proactive refresh)
+            $this->info('🔐 Validating TimeDoctor token (3-day expiry buffer for 6-day tokens)...');
+
+            try {
+                $accessToken = $this->timeDoctorService->validateAndGetToken();
+
+                // Get token details for user information
+                $token = \App\Models\TimeDoctorToken::where('version', '1')->first();
+                if ($token) {
+                    $hoursUntilExpiry = \Carbon\Carbon::parse($token->expires_at)->diffInHours(now());
+                    $daysUntilExpiry = round($hoursUntilExpiry / 24, 1);
+
+                    $this->info("✅ TimeDoctor token validated successfully");
+                    $this->info("📅 Token expires in {$daysUntilExpiry} days ({$hoursUntilExpiry} hours)");
+
+                    if ($hoursUntilExpiry < 24) {
+                        $this->error("⚠️  CRITICAL: Token expires in less than 24 hours!");
+                        $this->error("    Please refresh token manually via admin panel immediately");
+                    } elseif ($hoursUntilExpiry < 72) {
+                        $this->warn("⚠️  Token expires in less than 3 days - automatic refresh should have occurred");
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $this->error("❌ Token validation failed: {$e->getMessage()}");
+                $this->error("💡 Please re-authenticate TimeDoctor via admin panel: /admin/timedoctor");
+                throw $e;
+            }
+
+            $this->info('🚀 Starting TimeDoctor sync with validated token...');
 
             // Get TimeDoctor company info
             $this->info('Connecting to TimeDoctor API...');
@@ -169,23 +201,10 @@ class SyncTimeDoctorWorklogs extends Command
     {
         $startDateInput = $this->option('start-date');
         $endDateInput = $this->option('end-date');
+        $daysAgoInput = $this->option('days-ago');
 
-        // Default to yesterday if no dates provided
-        if (! $startDateInput && ! $endDateInput) {
-            $yesterday = Carbon::yesterday();
-            $startDate = $yesterday->copy();
-            $endDate = $yesterday->copy();
-            $this->info("No date range specified, defaulting to yesterday: {$yesterday->format('Y-m-d')}");
-        } else {
-            // Validate start date
-            if (! $startDateInput) {
-                throw new \InvalidArgumentException('Start date is required when end date is provided');
-            }
-
-            if (! $endDateInput) {
-                throw new \InvalidArgumentException('End date is required when start date is provided');
-            }
-
+        // Priority 1: If explicit date range is provided
+        if ($startDateInput && $endDateInput) {
             try {
                 $startDate = Carbon::createFromFormat('Y-m-d', $startDateInput);
                 $endDate = Carbon::createFromFormat('Y-m-d', $endDateInput);
@@ -201,6 +220,31 @@ class SyncTimeDoctorWorklogs extends Command
             if ($startDate->diffInDays($endDate) > 30) {
                 throw new \InvalidArgumentException('Date range cannot exceed 31 days');
             }
+
+            $this->info("Using explicit date range: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
+        }
+        // Priority 2: If only start date or only end date is provided (error)
+        elseif ($startDateInput || $endDateInput) {
+            throw new \InvalidArgumentException('Both start-date and end-date are required when using date range');
+        }
+        // Priority 3: If days-ago is provided
+        elseif ($daysAgoInput) {
+            $daysAgo = (int) $daysAgoInput;
+            if ($daysAgo < 1 || $daysAgo > 30) {
+                throw new \InvalidArgumentException('Days ago must be between 1 and 30');
+            }
+
+            $targetDate = Carbon::now()->subDays($daysAgo);
+            $startDate = $targetDate->copy();
+            $endDate = $targetDate->copy();
+            $this->info("Using --days-ago={$daysAgo}: syncing data for {$targetDate->format('Y-m-d')}");
+        }
+        // Priority 4: Default to 2 days ago if no parameters provided
+        else {
+            $targetDate = Carbon::now()->subDays(2);
+            $startDate = $targetDate->copy();
+            $endDate = $targetDate->copy();
+            $this->info("No parameters specified, defaulting to 2 days ago: {$targetDate->format('Y-m-d')}");
         }
 
         return [

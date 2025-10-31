@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Middleware;
 
 use App\Models\User;
@@ -16,6 +15,7 @@ class AuthenticateWithJWT
         'api/timedoctor/stream-worklog-sync',
         'api/timedoctor-v2/stream-worklog-sync',
         'test/export-data',
+        'api/timedoctor/stream-worklog-sync-by-users',
     ];
 
     public function handle(Request $request, Closure $next)

@@ -36,10 +36,11 @@ class TimeDoctorService
     private function getAccessToken()
     {
         if (! $this->accessToken) {
-            $this->accessToken = $this->authController->getAccessToken();
+            // Use the new method that includes proactive refresh
+            $this->accessToken = $this->authController->getValidAccessToken();
 
             if (! $this->accessToken) {
-                throw new \Exception('Not connected to TimeDoctor or token expired');
+                throw new \Exception('Not connected to TimeDoctor or token expired - please re-authenticate via admin panel');
             }
         }
 
@@ -76,47 +77,42 @@ class TimeDoctorService
                     }
 
                     // Handle 401 authentication errors - attempt token refresh
-                    if ($response->status() === 401 && ! $tokenRefreshed) {
+                    if ($response->status() === 401) {
                         $responseBody = $response->json();
 
                         // Check if it's an expired token error
                         if (isset($responseBody['error']) && $responseBody['error'] === 'invalid_grant') {
-                            Log::info('TimeDoctor access token expired, attempting refresh', [
+                            Log::warning('TimeDoctor access token expired during API call, attempting emergency refresh', [
                                 'endpoint' => $endpoint,
                                 'attempt' => $retries + 1,
                             ]);
 
                             try {
-                                // Attempt to refresh the token
-                                $refreshResult = $this->authController->refreshToken();
+                                // Clear cached token and force refresh
+                                $this->accessToken = null;
 
-                                if ($refreshResult && is_object($refreshResult) && method_exists($refreshResult, 'getData')) {
-                                    $refreshData = $refreshResult->getData(true);
+                                // Get fresh token (this will trigger refresh if needed)
+                                $newToken = $this->authController->getValidAccessToken();
 
-                                    if (isset($refreshData['success']) && $refreshData['success']) {
-                                        // Token refresh successful, get the new token and retry
-                                        $this->accessToken = null; // Clear cached token
-                                        $token = $this->getAccessToken();
-                                        $tokenRefreshed = true;
-
-                                        Log::info('TimeDoctor token refreshed successfully, retrying request', [
-                                            'endpoint' => $endpoint,
-                                        ]);
-
-                                        continue; // Retry with new token without incrementing retries
-                                    }
+                                if ($newToken) {
+                                    $token = $newToken;
+                                    Log::info('TimeDoctor token emergency refresh successful, retrying request', [
+                                        'endpoint' => $endpoint,
+                                    ]);
+                                    continue; // Retry without incrementing retry count
+                                } else {
+                                    Log::error('TimeDoctor token emergency refresh failed', [
+                                        'endpoint' => $endpoint,
+                                    ]);
+                                    throw new \Exception('Token refresh failed - please re-authenticate TimeDoctor via admin panel');
                                 }
 
-                                Log::error('TimeDoctor token refresh failed', [
-                                    'endpoint' => $endpoint,
-                                    'refresh_result' => $refreshResult,
-                                ]);
-
                             } catch (\Exception $refreshException) {
-                                Log::error('Exception during TimeDoctor token refresh', [
+                                Log::error('Exception during TimeDoctor emergency token refresh', [
                                     'endpoint' => $endpoint,
                                     'error' => $refreshException->getMessage(),
                                 ]);
+                                throw new \Exception('Emergency token refresh failed: ' . $refreshException->getMessage());
                             }
                         }
                     }
@@ -443,5 +439,26 @@ class TimeDoctorService
             'processed' => $totalProcessed,
             'items' => $allItems,
         ];
+    }
+
+    public function validateAndGetToken()
+    {
+        try {
+            $token = $this->getAccessToken();
+
+            // Additional validation - check if we can get company info
+            $companyInfo = $this->getCompanyInfo();
+            if (!$companyInfo || !isset($companyInfo['accounts'])) {
+                throw new \Exception('Token validation failed - unable to fetch company info');
+            }
+
+            return $token;
+        } catch (\Exception $e) {
+            Log::error('Token validation failed in sync command', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \Exception('TimeDoctor token validation failed: ' . $e->getMessage());
+        }
     }
 }

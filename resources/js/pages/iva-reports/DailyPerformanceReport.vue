@@ -23,6 +23,7 @@ const showDetails = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 const regionOptions = ref([]);
 const selectedRegion = ref('');
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
 
 // UI state
 const snackbar = ref(false);
@@ -72,6 +73,13 @@ const filteredWorkStatusOptions = computed(() => {
 
 const maxSelectableDate = computed(() => getMaxSelectableDate());
 
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // regionOptions is an array of {title: 'RegionName', value: 'RegionName'}
+  // Return the first region option title since only one region is returned when filtered
+  return regionOptions.value.length > 0 ? regionOptions.value[0].title : 'your region';
+});
+
 function getWorkStatusDescription(value, options) {
   if (!value || !Array.isArray(options)) return 'Unknown'
 
@@ -119,6 +127,11 @@ async function fetchPerformanceData() {
       title: region,
       value: region
     }));
+
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+    }
 
   } catch (error) {
     console.error('Error fetching performance data:', error);
@@ -248,6 +261,17 @@ onMounted(() => {
       { title: 'Reports', disabled: true },
       { title: 'Daily Performance', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
+
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6">
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-information-line" class="me-2" />
+        Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing daily performance data for <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+      </p>
+    </VAlert>
 
     <!-- Header Card -->
     <VCard class="mb-6">

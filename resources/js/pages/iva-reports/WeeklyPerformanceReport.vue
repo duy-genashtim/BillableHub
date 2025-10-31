@@ -19,6 +19,7 @@ const workStatusOptions = ref([]);
 const regionOptions = ref([]);
 const loading = ref(true);
 const clearingCache = ref(false);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
 const searchQuery = ref('');
 const selectedWorkStatus = ref('');
 const selectedRegion = ref('');
@@ -91,6 +92,16 @@ const filteredRegionOptions = computed(() => {
       value: region
     }))
   ];
+});
+
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // Find the region name from the region options
+  return regionOptions.value.find(r => r === selectedRegion.value) || 'your region';
+});
+
+const isRegionSelectorDisabled = computed(() => {
+  return regionFilter.value.applied;
 });
 
 const yearOptions = computed(() => {
@@ -205,6 +216,19 @@ async function fetchPerformanceData(forceReload = false) {
     isCachedData.value = response.data.cached || false;
     cachedAt.value = response.data.cached_at || null;
     generatedAt.value = response.data.generated_at || null;
+
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+      // If region filter is applied, pre-select the region
+      if (regionFilter.value.applied && regionFilter.value.region_id) {
+        // Find the region name from response
+        const regionName = regionOptions.value.find(r => r === selectedRegion.value);
+        if (!selectedRegion.value && regionName) {
+          selectedRegion.value = regionName;
+        }
+      }
+    }
 
     if (forceReload) {
       showSnackbar('Data reloaded successfully', 'success');
@@ -459,6 +483,18 @@ watch(showDetails, (newValue) => {
       </VCardText>
     </VCard>
 
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6" prominent>
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-lock-line" class="me-2" />
+        Region-Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing data for <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+        The region selector is locked to your assigned region.
+      </p>
+    </VAlert>
+
     <!-- Filters Card -->
     <VCard class="mb-6">
       <VCardText>
@@ -498,7 +534,8 @@ watch(showDetails, (newValue) => {
           <!-- Region Filter -->
           <VCol cols="12" md="3">
             <VSelect v-model="selectedRegion" :items="filteredRegionOptions" label="Region" density="comfortable"
-              variant="outlined" @update:model-value="onFilterChange" />
+              variant="outlined" @update:model-value="onFilterChange" :disabled="isRegionSelectorDisabled"
+              :prepend-inner-icon="isRegionSelectorDisabled ? 'ri-lock-line' : undefined" />
           </VCol>
 
           <!-- Show/Hide Switch -->

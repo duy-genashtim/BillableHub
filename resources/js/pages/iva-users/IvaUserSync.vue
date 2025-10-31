@@ -22,6 +22,7 @@ const snackbarColor = ref('success');
 
 // Sync results
 const syncResults = ref(null);
+const timedoctorResults = ref(null);
 const showResults = ref(false);
 
 onMounted(() => {
@@ -98,6 +99,7 @@ async function syncUsers() {
     const response = await axios.post('/api/admin/iva-users/sync', payload);
 
     syncResults.value = response.data.results;
+    timedoctorResults.value = response.data.timedoctor_results || null;
     showResults.value = true;
 
     snackbarText.value = response.data.message;
@@ -133,6 +135,7 @@ function resetForm() {
   errors.value = {};
   showResults.value = false;
   syncResults.value = null;
+  timedoctorResults.value = null;
 }
 </script>
 
@@ -319,6 +322,107 @@ function resetForm() {
                   appropriate
                   change date.
                 </VAlert>
+              </div>
+            </VCard>
+          </div>
+
+          <!-- TimeDoctor Task Sync Results -->
+          <div v-if="showResults && timedoctorResults && timedoctorResults.length > 0" class="mb-6">
+            <VCard variant="outlined" class="pa-4">
+              <h3 class="text-subtitle-1 mb-3">
+                <VIcon icon="ri-task-line" class="mr-2" />
+                TimeDoctor Task Sync Results
+              </h3>
+
+              <!-- TimeDoctor Summary -->
+              <VRow class="mb-4">
+                <VCol cols="12" md="4">
+                  <VCard variant="tonal" color="success">
+                    <VCardText class="text-center">
+                      <h4 class="text-h4 font-weight-bold">{{ timedoctorResults.filter(r => r.found_in_timedoctor).length }}</h4>
+                      <p class="text-body-2 mb-0">Found in TimeDoctor</p>
+                    </VCardText>
+                  </VCard>
+                </VCol>
+                <VCol cols="12" md="4">
+                  <VCard variant="tonal" color="warning">
+                    <VCardText class="text-center">
+                      <h4 class="text-h4 font-weight-bold">{{ timedoctorResults.filter(r => !r.found_in_timedoctor).length }}</h4>
+                      <p class="text-body-2 mb-0">Not Found</p>
+                    </VCardText>
+                  </VCard>
+                </VCol>
+                <VCol cols="12" md="4">
+                  <VCard variant="tonal" color="info">
+                    <VCardText class="text-center">
+                      <h4 class="text-h4 font-weight-bold">{{ timedoctorResults.reduce((sum, r) => sum + (r.tasks_synced || 0), 0) }}</h4>
+                      <p class="text-body-2 mb-0">Total Tasks Synced</p>
+                    </VCardText>
+                  </VCard>
+                </VCol>
+              </VRow>
+
+              <!-- Successfully Synced Users -->
+              <div v-if="timedoctorResults.filter(r => r.found_in_timedoctor && r.sync_success).length > 0" class="mb-4">
+                <h4 class="text-subtitle-2 mb-2 text-success">
+                  <VIcon icon="ri-check-circle-line" class="mr-2" />
+                  Successfully Synced ({{ timedoctorResults.filter(r => r.found_in_timedoctor && r.sync_success).length }})
+                </h4>
+                <VCard variant="tonal" color="success" class="pa-3">
+                  <VList density="compact">
+                    <VListItem v-for="result in timedoctorResults.filter(r => r.found_in_timedoctor && r.sync_success)" :key="result.email" class="px-0">
+                      <VListItemTitle>{{ result.email }}</VListItemTitle>
+                      <VListItemSubtitle>
+                        <VIcon icon="ri-check-line" size="small" class="mr-1" />
+                        {{ result.tasks_synced }} tasks synced • {{ result.message }}
+                      </VListItemSubtitle>
+                    </VListItem>
+                  </VList>
+                </VCard>
+              </div>
+
+              <!-- Users Not Found in TimeDoctor -->
+              <div v-if="timedoctorResults.filter(r => !r.found_in_timedoctor).length > 0" class="mb-4">
+                <h4 class="text-subtitle-2 mb-2 text-warning">
+                  <VIcon icon="ri-alert-line" class="mr-2" />
+                  Not Found in TimeDoctor V1 ({{ timedoctorResults.filter(r => !r.found_in_timedoctor).length }})
+                </h4>
+                <VCard variant="tonal" color="warning" class="pa-3">
+                  <VList density="compact">
+                    <VListItem v-for="result in timedoctorResults.filter(r => !r.found_in_timedoctor)" :key="result.email" class="px-0">
+                      <VListItemTitle>{{ result.email }}</VListItemTitle>
+                      <VListItemSubtitle>
+                        <VIcon icon="ri-close-line" size="small" class="mr-1" />
+                        {{ result.message }}
+                      </VListItemSubtitle>
+                    </VListItem>
+                  </VList>
+                </VCard>
+                <VAlert type="info" variant="tonal" density="compact" class="mt-3">
+                  <template #prepend>
+                    <VIcon icon="ri-information-line" />
+                  </template>
+                  These users need to be synced in TimeDoctor V1 first before their tasks can be synced. Please check the TimeDoctor Integration page.
+                </VAlert>
+              </div>
+
+              <!-- Sync Errors -->
+              <div v-if="timedoctorResults.filter(r => r.found_in_timedoctor && !r.sync_success).length > 0" class="mb-4">
+                <h4 class="text-subtitle-2 mb-2 text-error">
+                  <VIcon icon="ri-error-warning-line" class="mr-2" />
+                  Sync Errors ({{ timedoctorResults.filter(r => r.found_in_timedoctor && !r.sync_success).length }})
+                </h4>
+                <VCard variant="tonal" color="error" class="pa-3">
+                  <VList density="compact">
+                    <VListItem v-for="result in timedoctorResults.filter(r => r.found_in_timedoctor && !r.sync_success)" :key="result.email" class="px-0">
+                      <VListItemTitle>{{ result.email }}</VListItemTitle>
+                      <VListItemSubtitle>
+                        <VIcon icon="ri-error-warning-line" size="small" class="mr-1" />
+                        {{ result.message }}
+                      </VListItemSubtitle>
+                    </VListItem>
+                  </VList>
+                </VCard>
               </div>
             </VCard>
           </div>

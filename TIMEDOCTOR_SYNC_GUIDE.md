@@ -321,3 +321,97 @@ DRY RUN RESULTS (No actual changes made):
 ```
 
 This guide should help you successfully set up and manage TimeDoctor v1 worklog synchronization on your server.
+------------
+
+Sure! Here's a clean, copy-ready **Markdown (`.md`) version** of your plan:
+
+````md
+# 🛠️ TimeDoctor Worklogs Sync – Implementation Summary
+
+## 1. Modify `SyncTimeDoctorWorklogs` Command
+
+**File:** `app/Console/Commands/SyncTimeDoctorWorklogs.php`
+
+### 🔧 Changes Required:
+- Add new `--days-ago` parameter to command signature:
+    ```php
+    protected $signature = 'timedoctor:sync-worklogs
+                            {--start-date= : Start date for sync (Y-m-d format)}
+                            {--end-date= : End date for sync (Y-m-d format)}
+                            {--days-ago= : Number of days ago to sync (default: 2)}
+                            {--dry-run : Run without making changes}';
+    ```
+- Update command description to mention the new `--days-ago` parameter.
+- Modify the `parseDateRange()` method:
+  - Accept the `--days-ago` parameter.
+  - Default to **2 days ago** when no parameters are provided.
+  - Retain support for existing `--start-date` and `--end-date` parameters.
+
+### 🧠 Logic Overview:
+- If `--days-ago` is provided → sync data from N days ago.
+- If `--start-date` and `--end-date` are provided → sync the given date range (existing behavior).
+- If no parameters are provided → default to syncing **2 days ago**.
+
+---
+
+## 2. Update Cronjob Time
+
+### 🕔 Current Crontab:
+```cron
+0 5 * * * cd /var/www/iva && /usr/bin/php artisan timedoctor:sync-worklogs >> /var/log/laravel/timedoctor-sync.log 2>&1
+````
+
+**Problem:** Runs at 5 AM UTC → 1 PM GMT+8 (too late)
+
+### 🕓 New Crontab (4 AM GMT+8 = 8 PM UTC):
+
+```cron
+0 20 * * * cd /var/www/iva && /usr/bin/php artisan timedoctor:sync-worklogs >> /var/log/laravel/timedoctor-sync.log 2>&1
+```
+
+### ⏱ Timezone Conversion:
+
+* 4 AM GMT+8 = 4 AM - 8 hours = **8 PM UTC (previous day)**
+* So `0 20 * * *` runs at **8 PM UTC = 4 AM GMT+8**
+
+---
+
+## 3. Command Usage Examples
+
+| Command                                                                              | Description                                         |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| `php artisan timedoctor:sync-worklogs`                                               | Syncs data from **2 days ago** (default)            |
+| `php artisan timedoctor:sync-worklogs --days-ago=3`                                  | Syncs data from 3 days ago                          |
+| `php artisan timedoctor:sync-worklogs --start-date=2025-10-06 --end-date=2025-10-06` | Syncs data for a specific date                      |
+| `php artisan timedoctor:sync-worklogs --dry-run`                                     | Runs logic without changes (defaults to 2 days ago) |
+
+---
+
+## 4. Testing Checklist
+
+* ✅ Test the command with:
+
+  * No parameters
+  * `--days-ago`
+  * Date range (`--start-date`, `--end-date`)
+  * `--dry-run`
+* ✅ Verify cron timing: `0 20 * * *` = 8 PM UTC = 4 AM GMT+8
+* ✅ Check log output at: `/var/log/laravel/timedoctor-sync.log`
+* ✅ Confirm data is synced for the correct "N days ago"
+* ✅ Validate fallback to **2-days-ago** logic
+
+---
+
+## ✅ Final Result
+
+At **4:00 AM GMT+8 every day**,
+the cron job (running at **8:00 PM UTC**) automatically syncs
+**TimeDoctor worklogs from 2 days ago**,
+allowing proper buffer time for complete data from the TimeDoctor system.
+
+```
+
+You can now **copy and paste** this entire block into any `.md` file (like `timedoctor-sync.md`) for documentation or team sharing.
+
+Let me know if you'd like a sample `parseDateRange()` update as well!
+```

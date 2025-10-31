@@ -14,7 +14,14 @@ class DashboardController extends Controller
      */
     public function getDashboardOverview(Request $request)
     {
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        // Update cache key to include region if filtered
         $cacheKey = 'dashboard_overview_'.auth()->id();
+        if ($managerRegionFilter) {
+            $cacheKey .= '_region_'.$managerRegionFilter;
+        }
 
         // Try to get cached data (5 minute TTL)
         $cachedData = Cache::get($cacheKey);
@@ -28,7 +35,7 @@ class DashboardController extends Controller
         }
 
         // Generate fresh data
-        $dashboardData = $this->generateDashboardData();
+        $dashboardData = $this->generateDashboardData($managerRegionFilter);
 
         // Cache the data
         $wrappedData = [
@@ -48,7 +55,7 @@ class DashboardController extends Controller
     /**
      * Generate dashboard data
      */
-    private function generateDashboardData()
+    private function generateDashboardData($regionFilter = null)
     {
         // Get current week date range (Monday to Sunday)
         $now = Carbon::now();
@@ -61,43 +68,75 @@ class DashboardController extends Controller
 
         return [
             // System overview
-            'system_overview' => $this->getSystemOverview(),
+            'system_overview' => $this->getSystemOverview($regionFilter),
 
             // Current week performance
-            'current_week_performance' => $this->getCurrentWeekPerformance($startOfWeek, $endOfWeek),
+            'current_week_performance' => $this->getCurrentWeekPerformance($startOfWeek, $endOfWeek, $regionFilter),
 
             // Current month performance
-            'current_month_performance' => $this->getCurrentMonthPerformance($startOfMonth, $endOfMonth),
+            'current_month_performance' => $this->getCurrentMonthPerformance($startOfMonth, $endOfMonth, $regionFilter),
 
             // Regional breakdown
-            'regional_breakdown' => $this->getRegionalBreakdown(),
+            'regional_breakdown' => $this->getRegionalBreakdown($regionFilter),
 
             // Cohort breakdown
-            'cohort_breakdown' => $this->getCohortBreakdown(),
+            'cohort_breakdown' => $this->getCohortBreakdown($regionFilter),
 
             // Recent activity
-            'recent_activity' => $this->getRecentActivity(),
+            'recent_activity' => $this->getRecentActivity($regionFilter),
 
             // Top performers (last 3 days)
-            'top_performers' => $this->getTopPerformers(),
+            'top_performers' => $this->getTopPerformers($regionFilter),
 
             // Performance trends (last 4 weeks)
-            'performance_trends' => $this->getPerformanceTrends(),
+            'performance_trends' => $this->getPerformanceTrends($regionFilter),
         ];
     }
 
     /**
      * Get system overview metrics
      */
-    private function getSystemOverview()
+    private function getSystemOverview($regionFilter = null)
     {
         // Use the correct table name 'iva_user' from migrations
-        $totalUsers = DB::table('iva_user')->where('is_active', true)->count();
-        $fullTimeUsers = DB::table('iva_user')->where('is_active', true)->where('work_status', 'full-time')->count();
-        $partTimeUsers = DB::table('iva_user')->where('is_active', true)->where('work_status', 'part-time')->count();
+        $userQuery = DB::table('iva_user')->where('is_active', true);
+        if ($regionFilter) {
+            $userQuery->where('region_id', $regionFilter);
+        }
+        $totalUsers = $userQuery->count();
 
-        $totalRegions = DB::table('regions')->where('is_active', true)->count();
-        $totalCohorts = DB::table('cohorts')->where('is_active', true)->count();
+        $fullTimeQuery = DB::table('iva_user')->where('is_active', true)->where('work_status', 'full-time');
+        if ($regionFilter) {
+            $fullTimeQuery->where('region_id', $regionFilter);
+        }
+        $fullTimeUsers = $fullTimeQuery->count();
+
+        $partTimeQuery = DB::table('iva_user')->where('is_active', true)->where('work_status', 'part-time');
+        if ($regionFilter) {
+            $partTimeQuery->where('region_id', $regionFilter);
+        }
+        $partTimeUsers = $partTimeQuery->count();
+
+        // Filter regions if user has view_team_data only
+        $regionQuery = DB::table('regions')->where('is_active', true);
+        if ($regionFilter) {
+            $regionQuery->where('id', $regionFilter);
+        }
+        $totalRegions = $regionQuery->count();
+
+        // Filter cohorts by region if applicable
+        $cohortQuery = DB::table('cohorts')->where('is_active', true);
+        if ($regionFilter) {
+            // Get cohorts that have users in the filtered region
+            $cohortQuery->whereIn('id', function ($query) use ($regionFilter) {
+                $query->select('cohort_id')
+                    ->from('iva_user')
+                    ->where('region_id', $regionFilter)
+                    ->where('is_active', true)
+                    ->distinct();
+            });
+        }
+        $totalCohorts = $cohortQuery->count();
 
         // Use correct table names from migrations
         $totalTasks = DB::table('tasks')->where('is_active', true)->count();
@@ -132,12 +171,12 @@ class DashboardController extends Controller
     /**
      * Get current week performance
      */
-    private function getCurrentWeekPerformance($startDate, $endDate)
+    private function getCurrentWeekPerformance($startDate, $endDate, $regionFilter = null)
     {
         $taskCategories = $this->getTaskCategoriesMapping();
 
         // Use correct table name from migrations
-        $activeUsers = DB::table('iva_user')
+        $activeUsersQuery = DB::table('iva_user')
             ->where('is_active', true)
             ->where(function ($query) use ($startDate, $endDate) {
                 $query->where(function ($q) use ($startDate) {
@@ -148,14 +187,20 @@ class DashboardController extends Controller
                         $q->whereNull('end_date')
                             ->orWhere('end_date', '>=', $endDate);
                     });
-            })
-            ->count();
+            });
+
+        // Apply region filter if set
+        if ($regionFilter) {
+            $activeUsersQuery->where('region_id', $regionFilter);
+        }
+
+        $activeUsers = $activeUsersQuery->count();
 
         // Get worklog data for current week
-        $worklogSummary = $this->getWorklogSummary($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $taskCategories);
+        $worklogSummary = $this->getWorklogSummary($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $taskCategories, $regionFilter);
 
         // Get NAD data
-        $nadData = $this->getNADDataForPeriod($startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+        $nadData = $this->getNADDataForPeriod($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $regionFilter);
 
         return [
             'active_users' => $activeUsers,
@@ -171,15 +216,15 @@ class DashboardController extends Controller
     /**
      * Get current month performance
      */
-    private function getCurrentMonthPerformance($startDate, $endDate)
+    private function getCurrentMonthPerformance($startDate, $endDate, $regionFilter = null)
     {
         $taskCategories = $this->getTaskCategoriesMapping();
 
         // Get worklog data for current month
-        $worklogSummary = $this->getWorklogSummary($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $taskCategories);
+        $worklogSummary = $this->getWorklogSummary($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $taskCategories, $regionFilter);
 
         // Get NAD data
-        $nadData = $this->getNADDataForPeriod($startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+        $nadData = $this->getNADDataForPeriod($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $regionFilter);
 
         return [
             'billable_hours' => $worklogSummary['billable_hours'],
@@ -194,14 +239,21 @@ class DashboardController extends Controller
     /**
      * Get regional breakdown
      */
-    private function getRegionalBreakdown()
+    private function getRegionalBreakdown($regionFilter = null)
     {
-        return DB::table('regions as r')
+        $query = DB::table('regions as r')
             ->leftJoin('iva_user as iu', function ($join) {
                 $join->on('r.id', '=', 'iu.region_id')
                     ->where('iu.is_active', true);
             })
-            ->where('r.is_active', true)
+            ->where('r.is_active', true);
+
+        // Filter by region if set
+        if ($regionFilter) {
+            $query->where('r.id', $regionFilter);
+        }
+
+        return $query
             ->select([
                 'r.id',
                 'r.name',
@@ -228,14 +280,31 @@ class DashboardController extends Controller
     /**
      * Get cohort breakdown
      */
-    private function getCohortBreakdown()
+    private function getCohortBreakdown($regionFilter = null)
     {
-        return DB::table('cohorts as c')
-            ->leftJoin('iva_user as iu', function ($join) {
+        $query = DB::table('cohorts as c')
+            ->leftJoin('iva_user as iu', function ($join) use ($regionFilter) {
                 $join->on('c.id', '=', 'iu.cohort_id')
                     ->where('iu.is_active', true);
+                // Filter users by region if set
+                if ($regionFilter) {
+                    $join->where('iu.region_id', $regionFilter);
+                }
             })
-            ->where('c.is_active', true)
+            ->where('c.is_active', true);
+
+        // Only show cohorts that have users in the filtered region
+        if ($regionFilter) {
+            $query->whereExists(function ($subQuery) use ($regionFilter) {
+                $subQuery->select(DB::raw(1))
+                    ->from('iva_user as iu2')
+                    ->whereColumn('iu2.cohort_id', 'c.id')
+                    ->where('iu2.is_active', true)
+                    ->where('iu2.region_id', $regionFilter);
+            });
+        }
+
+        return $query
             ->select([
                 'c.id',
                 'c.name',
@@ -307,15 +376,22 @@ class DashboardController extends Controller
     /**
      * Get recent activity (latest worklogs)
      */
-    private function getRecentActivity()
+    private function getRecentActivity($regionFilter = null)
     {
-        return DB::table('worklogs_data as wd')
+        $query = DB::table('worklogs_data as wd')
             ->join('iva_user as iu', 'wd.iva_id', '=', 'iu.id')
             ->leftJoin('tasks as t', 'wd.task_id', '=', 't.id')
             ->leftJoin('projects as p', 'wd.project_id', '=', 'p.id')
             ->leftJoin('regions as r', 'iu.region_id', '=', 'r.id')
             ->where('wd.is_active', true)
-            ->where('wd.start_time', '>=', Carbon::now()->subDays(7))
+            ->where('wd.start_time', '>=', Carbon::now()->subDays(7));
+
+        // Filter by region if set
+        if ($regionFilter) {
+            $query->where('iu.region_id', $regionFilter);
+        }
+
+        return $query
             ->select([
                 'wd.id',
                 'wd.start_time',
@@ -350,13 +426,20 @@ class DashboardController extends Controller
     /**
      * Get top performers (highest hours in last 3 days)
      */
-    private function getTopPerformers()
+    private function getTopPerformers($regionFilter = null)
     {
-        return DB::table('worklogs_data as wd')
+        $query = DB::table('worklogs_data as wd')
             ->join('iva_user as iu', 'wd.iva_id', '=', 'iu.id')
             ->leftJoin('regions as r', 'iu.region_id', '=', 'r.id')
             ->where('wd.is_active', true)
-            ->where('wd.start_time', '>=', Carbon::now()->subDays(3))
+            ->where('wd.start_time', '>=', Carbon::now()->subDays(3));
+
+        // Filter by region if set
+        if ($regionFilter) {
+            $query->where('iu.region_id', $regionFilter);
+        }
+
+        return $query
             ->select([
                 'iu.id as user_id',
                 'iu.full_name as user_name',
@@ -386,7 +469,7 @@ class DashboardController extends Controller
     /**
      * Get performance trends for last 4 weeks
      */
-    private function getPerformanceTrends()
+    private function getPerformanceTrends($regionFilter = null)
     {
         $taskCategories = $this->getTaskCategoriesMapping();
         $trends = [];
@@ -395,7 +478,7 @@ class DashboardController extends Controller
             $weekStart = Carbon::now()->subWeeks($i)->startOfWeek();
             $weekEnd = Carbon::now()->subWeeks($i)->endOfWeek();
 
-            $weekData = $this->getWorklogSummary($weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d'), $taskCategories);
+            $weekData = $this->getWorklogSummary($weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d'), $taskCategories, $regionFilter);
 
             $trends[] = [
                 'week_start' => $weekStart->format('Y-m-d'),
@@ -445,55 +528,74 @@ class DashboardController extends Controller
         ];
     }
 
-    private function getWorklogSummary($startDate, $endDate, $taskCategories)
+    private function getWorklogSummary($startDate, $endDate, $taskCategories, $regionFilter = null)
     {
         // Handle case where no task categories are defined yet
         if (empty($taskCategories['billable_task_ids']) && empty($taskCategories['non_billable_task_ids'])) {
             // Just get total hours without categorization
-            $result = DB::table('worklogs_data')
-                ->select([
-                    DB::raw('0 as billable_hours'),
-                    DB::raw('0 as non_billable_hours'),
-                    DB::raw('SUM(duration) / 3600 as total_hours'),
-                    DB::raw('COUNT(*) as total_entries'),
-                ])
-                ->where('is_active', true)
-                ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
-                ->first();
+            $query = DB::table('worklogs_data as wd')
+                ->where('wd.is_active', true)
+                ->whereBetween('wd.start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59']);
+
+            // Apply region filter if set
+            if ($regionFilter) {
+                $query->join('iva_user as iu', 'wd.iva_id', '=', 'iu.id')
+                    ->where('iu.region_id', $regionFilter);
+            }
+
+            $result = $query->select([
+                DB::raw('0 as billable_hours'),
+                DB::raw('0 as non_billable_hours'),
+                DB::raw('SUM(wd.duration) / 3600 as total_hours'),
+                DB::raw('COUNT(*) as total_entries'),
+            ])->first();
         } else {
             $billableIds = $taskCategories['billable_task_ids'] ?? [];
             $nonBillableIds = $taskCategories['non_billable_task_ids'] ?? [];
 
             if (empty($billableIds) && empty($nonBillableIds)) {
                 // No categorization available
-                $result = DB::table('worklogs_data')
-                    ->where('is_active', true)
-                    ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
-                    ->select([
-                        DB::raw('0 as billable_hours'),
-                        DB::raw('0 as non_billable_hours'),
-                        DB::raw('SUM(duration) / 3600 as total_hours'),
-                        DB::raw('COUNT(*) as total_entries'),
-                    ])->first();
+                $query = DB::table('worklogs_data as wd')
+                    ->where('wd.is_active', true)
+                    ->whereBetween('wd.start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59']);
+
+                // Apply region filter if set
+                if ($regionFilter) {
+                    $query->join('iva_user as iu', 'wd.iva_id', '=', 'iu.id')
+                        ->where('iu.region_id', $regionFilter);
+                }
+
+                $result = $query->select([
+                    DB::raw('0 as billable_hours'),
+                    DB::raw('0 as non_billable_hours'),
+                    DB::raw('SUM(wd.duration) / 3600 as total_hours'),
+                    DB::raw('COUNT(*) as total_entries'),
+                ])->first();
             } else {
-                $result = DB::table('worklogs_data')
-                    ->where('is_active', true)
-                    ->whereBetween('start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
-                    ->select([
-                        // Billable hours - only tasks explicitly marked as billable
-                        DB::raw(empty($billableIds) ? '0 as billable_hours' :
-                            'COALESCE(SUM(CASE WHEN task_id IN ('.implode(',', $billableIds).') THEN duration END), 0) / 3600 as billable_hours'
-                        ),
-                        // Non-billable hours - only tasks explicitly marked as non-billable
-                        DB::raw(empty($nonBillableIds) ? '0 as non_billable_hours' :
-                            'COALESCE(SUM(CASE WHEN task_id IN ('.implode(',', $nonBillableIds).') THEN duration END), 0) / 3600 as non_billable_hours'
-                        ),
-                        // Total hours - all tasks
-                        DB::raw('COALESCE(SUM(duration), 0) / 3600 as total_hours'),
-                        // Total entries
-                        DB::raw('COUNT(*) as total_entries'),
-                    ])
-                    ->first();
+                $query = DB::table('worklogs_data as wd')
+                    ->where('wd.is_active', true)
+                    ->whereBetween('wd.start_time', [$startDate.' 00:00:00', $endDate.' 23:59:59']);
+
+                // Apply region filter if set
+                if ($regionFilter) {
+                    $query->join('iva_user as iu', 'wd.iva_id', '=', 'iu.id')
+                        ->where('iu.region_id', $regionFilter);
+                }
+
+                $result = $query->select([
+                    // Billable hours - only tasks explicitly marked as billable
+                    DB::raw(empty($billableIds) ? '0 as billable_hours' :
+                        'COALESCE(SUM(CASE WHEN wd.task_id IN ('.implode(',', $billableIds).') THEN wd.duration END), 0) / 3600 as billable_hours'
+                    ),
+                    // Non-billable hours - only tasks explicitly marked as non-billable
+                    DB::raw(empty($nonBillableIds) ? '0 as non_billable_hours' :
+                        'COALESCE(SUM(CASE WHEN wd.task_id IN ('.implode(',', $nonBillableIds).') THEN wd.duration END), 0) / 3600 as non_billable_hours'
+                    ),
+                    // Total hours - all tasks
+                    DB::raw('COALESCE(SUM(wd.duration), 0) / 3600 as total_hours'),
+                    // Total entries
+                    DB::raw('COUNT(*) as total_entries'),
+                ])->first();
             }
         }
 
@@ -505,15 +607,25 @@ class DashboardController extends Controller
         ];
     }
 
-    private function getNADDataForPeriod($startDate, $endDate)
+    private function getNADDataForPeriod($startDate, $endDate, $regionFilter = null)
     {
         $nadHourRate = config('services.nad.nad_hour_rate.rate', 8);
+
+        // Get email list filtered by region if applicable
+        $emailList = [];
+        if ($regionFilter) {
+            $emailList = DB::table('iva_user')
+                ->where('region_id', $regionFilter)
+                ->where('is_active', true)
+                ->pluck('email')
+                ->toArray();
+        }
 
         $nadData = [
             'start_date' => $startDate,
             'end_date' => $endDate,
             'blab_only' => 1,
-            'email_list' => [],
+            'email_list' => $emailList,
         ];
 
         $nadResponse = callNADApi('get_nad_by_date_range', $nadData);
@@ -536,9 +648,16 @@ class DashboardController extends Controller
     /**
      * Clear dashboard cache
      */
-    public function clearDashboardCache()
+    public function clearDashboardCache(Request $request)
     {
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        // Clear the appropriate cache key
         $cacheKey = 'dashboard_overview_'.auth()->id();
+        if ($managerRegionFilter) {
+            $cacheKey .= '_region_'.$managerRegionFilter;
+        }
         Cache::forget($cacheKey);
 
         return response()->json([
