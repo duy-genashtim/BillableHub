@@ -1,8 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
+const authStore = useAuthStore();
 const router = useRouter();
 
 // Form data
@@ -241,7 +243,7 @@ function cancel() {
 
             <VSpacer />
 
-            <VBtn color="primary" type="submit" prepend-icon="ri-save-line" :loading="submitting" :disabled="submitting"
+            <VBtn color="primary" type="submit" prepend-icon="ri-save-line" :loading="submitting" :disabled="submitting || !authStore.hasPermission('edit_iva_data')"
               aria-label="Create new user">
               Create User
             </VBtn>

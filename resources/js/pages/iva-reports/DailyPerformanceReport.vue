@@ -23,6 +23,9 @@ const showDetails = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 const regionOptions = ref([]);
 const selectedRegion = ref('');
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
+const regionAccessError = ref(false);
+const regionAccessErrorMessage = ref('');
 
 // UI state
 const snackbar = ref(false);
@@ -72,6 +75,13 @@ const filteredWorkStatusOptions = computed(() => {
 
 const maxSelectableDate = computed(() => getMaxSelectableDate());
 
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // regionOptions is an array of {title: 'RegionName', value: 'RegionName'}
+  // Return the first region option title since only one region is returned when filtered
+  return regionOptions.value.length > 0 ? regionOptions.value[0].title : 'your region';
+});
+
 function getWorkStatusDescription(value, options) {
   if (!value || !Array.isArray(options)) return 'Unknown'
 
@@ -111,6 +121,13 @@ async function fetchPerformanceData() {
 
     const response = await axios.get('/api/reports/daily-performance', { params });
 
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     performanceData.value = response.data.performance_data;
     summary.value = response.data.summary;
     isYesterday.value = response.data.is_yesterday;
@@ -120,7 +137,19 @@ async function fetchPerformanceData() {
       value: region
     }));
 
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+    }
+
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error fetching performance data:', error);
     showSnackbar('Failed to load performance data', 'error');
   } finally {
@@ -249,9 +278,34 @@ onMounted(() => {
       { title: 'Daily Performance', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
 
-    <!-- Header Card -->
-    <VCard class="mb-6">
-      <VCardText>
+    <!-- Region Access Error Alert -->
+    <VAlert v-if="regionAccessError" type="error" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2">
+        <VIcon icon="ri-error-warning-line" class="me-2" />
+        Region Assignment Required
+      </VAlertTitle>
+      <p>{{ regionAccessErrorMessage }}</p>
+      <p class="mt-3 mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have a region assigned to your account.
+      </p>
+    </VAlert>
+
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied && !regionAccessError" type="info" variant="tonal" class="mb-6">
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-information-line" class="me-2" />
+        Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing daily performance data for <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+      </p>
+    </VAlert>
+
+    <!-- Hide all data when error exists -->
+    <template v-if="!regionAccessError">
+      <!-- Header Card -->
+      <VCard class="mb-6">
+        <VCardText>
         <div class="d-flex flex-wrap align-center justify-space-between gap-4">
           <div>
             <h1 class="text-h5 text-md-h4 font-weight-bold mb-2" tabindex="0">
@@ -502,6 +556,7 @@ onMounted(() => {
         </p>
       </VCardText>
     </VCard>
+    </template>
 
     <!-- Snackbar for notifications -->
     <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="3000" role="alert" aria-live="assertive">

@@ -147,6 +147,12 @@ export const routes = [
         meta: { permission: 'manage_configuration' },
       },
       {
+        path: 'admin/timedoctor/sync-by-week',
+        name: 'timedoctor-sync-by-week',
+        component: () => import('@/pages/timedoctor/TimeDoctorSyncByWeek.vue'),
+        meta: { permission: 'sync_timedoctor_data' },
+      },
+      {
         path: 'admin/timedoctor-v2',
         name: 'timedoctor-v2-integration',
         component: () => import('@/pages/timedoctor/TimeDoctorV2Integration.vue'),
@@ -187,6 +193,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/IvaUsersList.vue'),
         meta: {
           requiresAuth: true,
+          permission: ['manage_ivas', 'view_team_data'],
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -200,6 +207,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/IvaUserSync.vue'),
         meta: {
           requiresAuth: true,
+          permission: 'manage_ivas',
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -214,6 +222,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/IvaUserCreate.vue'),
         meta: {
           requiresAuth: true,
+          permission: 'manage_ivas',
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -228,6 +237,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/DailyWorklogSummaryCalculation.vue'),
         meta: {
           requiresAuth: true,
+          permission: 'manage_ivas',
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -242,6 +252,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/IvaUserDetail.vue'),
         meta: {
           requiresAuth: true,
+          permission: ['manage_ivas', 'view_team_data'],
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -257,6 +268,7 @@ export const routes = [
         props: { isEditMode: true },
         meta: {
           requiresAuth: true,
+          permission: 'manage_ivas',
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -271,6 +283,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/IvaWorklogDashboard.vue'),
         meta: {
           requiresAuth: true,
+          permission: ['manage_ivas', 'view_team_data'],
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -285,6 +298,7 @@ export const routes = [
         component: () => import('@/pages/iva-users/IvaUserTimeDoctorRecords.vue'),
         meta: {
           requiresAuth: true,
+          permission: ['manage_ivas', 'view_team_data'],
           layout: 'admin',
           breadcrumb: [
             { title: 'Home', url: '/' },
@@ -299,44 +313,44 @@ export const routes = [
         path: 'admin/iva-managers',
         name: 'iva-managers-list',
         component: () => import('@/pages/iva-managers/IvaManagersList.vue'),
-        meta: { permission: 'manage_configuration' },
+        meta: { permission: ['manage_ivas', 'view_team_data'] },
       },
       {
         path: 'admin/iva-managers/assign',
         name: 'iva-manager-assign',
         component: () => import('@/pages/iva-managers/IvaManagerAssign.vue'),
-        meta: { permission: 'manage_configuration' },
+        meta: { permission: 'manage_ivas' },
       },
       {
         path: 'admin/iva-managers/:id',
         name: 'iva-manager-detail',
         component: () => import('@/pages/iva-managers/IvaManagerDetail.vue'),
-        meta: { permission: 'manage_configuration' },
+        meta: { permission: ['manage_ivas', 'view_team_data'] },
       },
       // IVA Reports routes
       {
         path: 'admin/reports/nsh-performance',
         name: 'nsh-performance-report',
         component: () => import('@/pages/iva-reports/NshPerformanceReport.vue'),
-        meta: { permission: 'view_reports' },
+        meta: { permission: ['view_reports', 'view_team_data'] },
       },
       {
         path: 'admin/reports/daily-performance',
         name: 'daily-performance-report',
         component: () => import('@/pages/iva-reports/DailyPerformanceReport.vue'),
-        meta: { permission: 'view_reports' },
+        meta: { permission: ['view_reports', 'view_team_data'] },
       },
       {
         path: 'admin/reports/weekly-performance',
         name: 'weekly-performance-report',
         component: () => import('@/pages/iva-reports/WeeklyPerformanceReport.vue'),
-        meta: { permission: 'view_reports' },
+        meta: { permission: ['view_reports', 'view_team_data'] },
       },
       {
         path: 'admin/reports/region-performance',
         name: 'region-performance-report',
         component: () => import('@/pages/iva-reports/RegionPerformanceReport.vue'),
-        meta: { permission: 'view_reports' },
+        meta: { permission: ['view_reports', 'view_team_data'] },
       },
       {
         path: 'admin/reports/overall-performance',
@@ -348,7 +362,7 @@ export const routes = [
         path: 'admin/reports/export',
         name: 'reports-export',
         component: () => import('@/pages/report-export/ReportExport.vue'),
-        meta: { permission: 'export_reports' },
+        meta: { permission: ['export_reports', 'view_team_data'] },
       },
     ],
   },

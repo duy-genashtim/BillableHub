@@ -22,6 +22,7 @@ const snackbarColor = ref('success');
 
 // Sync results
 const syncResults = ref(null);
+const timedoctorResults = ref(null);
 const showResults = ref(false);
 
 onMounted(() => {
@@ -98,6 +99,7 @@ async function syncUsers() {
     const response = await axios.post('/api/admin/iva-users/sync', payload);
 
     syncResults.value = response.data.results;
+    timedoctorResults.value = response.data.timedoctor_results || null;
     showResults.value = true;
 
     snackbarText.value = response.data.message;
@@ -133,6 +135,7 @@ function resetForm() {
   errors.value = {};
   showResults.value = false;
   syncResults.value = null;
+  timedoctorResults.value = null;
 }
 </script>
 
@@ -319,6 +322,162 @@ function resetForm() {
                   appropriate
                   change date.
                 </VAlert>
+              </div>
+            </VCard>
+          </div>
+
+          <!-- TimeDoctor Sync Results (Enhanced) -->
+          <div v-if="showResults && timedoctorResults" class="mb-6">
+            <VCard variant="outlined" class="pa-4">
+              <h3 class="text-subtitle-1 mb-3">
+                <VIcon icon="ri-task-line" class="mr-2" />
+                TimeDoctor Sync Results
+              </h3>
+
+              <!-- Phase 1: User Validation Results -->
+              <div v-if="timedoctorResults.validation" class="mb-4">
+                <VAlert
+                  :type="timedoctorResults.validation.not_found_in_timedoctor.length > 0 ? 'warning' : 'success'"
+                  variant="tonal"
+                  density="comfortable"
+                >
+                  <template #prepend>
+                    <VIcon :icon="timedoctorResults.validation.not_found_in_timedoctor.length > 0 ? 'ri-alert-line' : 'ri-check-circle-line'" />
+                  </template>
+                  <strong>TimeDoctor User Validation</strong>
+                  <ul class="mt-2 ml-4">
+                    <li>Found in TimeDoctor: {{ timedoctorResults.validation.found_initially }}</li>
+                    <li v-if="timedoctorResults.validation.sync_attempted">
+                      Synced from TimeDoctor: {{ timedoctorResults.validation.found_after_sync }}
+                    </li>
+                    <li v-if="timedoctorResults.validation.not_found_in_timedoctor.length > 0" class="text-error">
+                      Not found in TimeDoctor: {{ timedoctorResults.validation.not_found_in_timedoctor.length }}
+                    </li>
+                  </ul>
+                </VAlert>
+              </div>
+
+              <!-- Users NOT found in TimeDoctor -->
+              <div v-if="timedoctorResults.validation && timedoctorResults.validation.not_found_in_timedoctor.length > 0" class="mb-4">
+                <VAlert type="error" variant="tonal" density="comfortable">
+                  <template #prepend>
+                    <VIcon icon="ri-error-warning-line" />
+                  </template>
+                  <strong>⚠️ Users Not Found in TimeDoctor</strong>
+                  <VList density="compact" class="mt-2 bg-transparent">
+                    <VListItem
+                      v-for="email in timedoctorResults.validation.not_found_in_timedoctor"
+                      :key="email"
+                      class="px-0"
+                    >
+                      <VListItemTitle>
+                        <VIcon icon="ri-close-circle-line" size="small" class="mr-2" />
+                        {{ email }}
+                      </VListItemTitle>
+                    </VListItem>
+                  </VList>
+                  <p class="mt-3 mb-0 text-caption">
+                    <em>These users are not in TimeDoctor. Please ensure they are added to TimeDoctor first.</em>
+                  </p>
+                </VAlert>
+              </div>
+
+              <!-- Phase 2: Projects Sync -->
+              <div v-if="timedoctorResults.projects_sync" class="mb-4">
+                <VAlert
+                  :type="timedoctorResults.projects_sync.success ? 'success' : 'error'"
+                  variant="tonal"
+                  density="comfortable"
+                >
+                  <template #prepend>
+                    <VIcon :icon="timedoctorResults.projects_sync.success ? 'ri-folder-check-line' : 'ri-folder-warning-line'" />
+                  </template>
+                  <strong>TimeDoctor Projects Sync:</strong>
+                  {{ timedoctorResults.projects_sync.message }}
+                  ({{ timedoctorResults.projects_sync.synced_count }} projects)
+                </VAlert>
+              </div>
+
+              <!-- Phase 3: Tasks Sync -->
+              <div v-if="timedoctorResults.tasks_sync && timedoctorResults.tasks_sync.length > 0" class="mb-4">
+                <h4 class="text-subtitle-2 mb-3">
+                  <VIcon icon="ri-task-line" class="mr-2" />
+                  TimeDoctor Tasks Sync
+                </h4>
+
+                <!-- Summary Cards -->
+                <VRow class="mb-3">
+                  <VCol cols="12" md="4">
+                    <VCard variant="tonal" color="success">
+                      <VCardText class="text-center">
+                        <h4 class="text-h4 font-weight-bold">{{ timedoctorResults.tasks_sync.filter(r => r.found_in_timedoctor).length }}</h4>
+                        <p class="text-body-2 mb-0">Users Synced</p>
+                      </VCardText>
+                    </VCard>
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VCard variant="tonal" color="info">
+                      <VCardText class="text-center">
+                        <h4 class="text-h4 font-weight-bold">{{ timedoctorResults.tasks_sync.reduce((sum, r) => sum + (r.tasks_synced || 0), 0) }}</h4>
+                        <p class="text-body-2 mb-0">Total Tasks</p>
+                      </VCardText>
+                    </VCard>
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VCard variant="tonal" color="success">
+                      <VCardText class="text-center">
+                        <h4 class="text-h4 font-weight-bold">{{ timedoctorResults.tasks_sync.filter(r => r.sync_success).length }}</h4>
+                        <p class="text-body-2 mb-0">Successful</p>
+                      </VCardText>
+                    </VCard>
+                  </VCol>
+                </VRow>
+
+                <!-- Successfully Synced Users -->
+                <div v-if="timedoctorResults.tasks_sync.filter(r => r.sync_success).length > 0">
+                  <VCard variant="tonal" color="success" class="pa-3">
+                    <h4 class="text-subtitle-2 mb-2">
+                      <VIcon icon="ri-check-circle-line" class="mr-2" />
+                      Successfully Synced ({{ timedoctorResults.tasks_sync.filter(r => r.sync_success).length }})
+                    </h4>
+                    <VList density="compact">
+                      <VListItem
+                        v-for="result in timedoctorResults.tasks_sync.filter(r => r.sync_success)"
+                        :key="result.email"
+                        class="px-0"
+                      >
+                        <VListItemTitle>{{ result.email }}</VListItemTitle>
+                        <VListItemSubtitle>
+                          <VIcon icon="ri-check-line" size="small" class="mr-1" />
+                          {{ result.tasks_synced }} tasks synced • {{ result.message }}
+                        </VListItemSubtitle>
+                      </VListItem>
+                    </VList>
+                  </VCard>
+                </div>
+
+                <!-- Sync Errors -->
+                <div v-if="timedoctorResults.tasks_sync.filter(r => !r.sync_success).length > 0" class="mt-3">
+                  <VCard variant="tonal" color="error" class="pa-3">
+                    <h4 class="text-subtitle-2 mb-2">
+                      <VIcon icon="ri-error-warning-line" class="mr-2" />
+                      Sync Errors ({{ timedoctorResults.tasks_sync.filter(r => !r.sync_success).length }})
+                    </h4>
+                    <VList density="compact">
+                      <VListItem
+                        v-for="result in timedoctorResults.tasks_sync.filter(r => !r.sync_success)"
+                        :key="result.email"
+                        class="px-0"
+                      >
+                        <VListItemTitle>{{ result.email }}</VListItemTitle>
+                        <VListItemSubtitle>
+                          <VIcon icon="ri-error-warning-line" size="small" class="mr-1" />
+                          {{ result.message }}
+                        </VListItemSubtitle>
+                      </VListItem>
+                    </VList>
+                  </VCard>
+                </div>
               </div>
             </VCard>
           </div>

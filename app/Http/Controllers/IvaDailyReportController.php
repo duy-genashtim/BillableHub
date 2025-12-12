@@ -33,6 +33,20 @@ class IvaDailyReportController extends Controller
             ], 422);
         }
 
+        // Validate region access for users with view_team_data permission
+        $regionValidation = validateManagerRegionAccess($request->user());
+        if ($regionValidation) {
+            return response()->json([
+                'success' => false,
+                'error' => $regionValidation['error'],
+                'message' => $regionValidation['message'],
+                'region_access_error' => true
+            ], 403);
+        }
+
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
         // Get date (default to yesterday)
         $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::yesterday();
         $startOfDay = $date->copy()->startOfDay();
@@ -54,13 +68,18 @@ class IvaDailyReportController extends Controller
             ->with(['region:id,name', 'cohort:id,name'])
             ->where('is_active', true);
 
+        // Apply region filter for managers with view_team_data only
+        if ($managerRegionFilter) {
+            $usersQuery->where('region_id', $managerRegionFilter);
+        }
+
         // Apply work status filter
         if ($request->filled('work_status')) {
             $usersQuery->where('work_status', $request->input('work_status'));
         }
 
-        // Apply region filter
-        if ($request->filled('region')) {
+        // Apply region filter (only if not already filtered by manager region)
+        if (!$managerRegionFilter && $request->filled('region')) {
             $usersQuery->whereHas('region', function ($q) use ($request) {
                 $q->where('name', $request->input('region'));
             });
@@ -167,12 +186,16 @@ class IvaDailyReportController extends Controller
             })
             ->toArray();
 
-        // Get region options
-        $regionOptions = DB::table('regions')
+        // Get region options (filtered if manager has view_team_data only)
+        $regionOptionsQuery = DB::table('regions')
             ->where('is_active', true)
-            ->orderBy('name')
-            ->pluck('name')
-            ->toArray();
+            ->orderBy('name');
+
+        if ($managerRegionFilter) {
+            $regionOptionsQuery->where('id', $managerRegionFilter);
+        }
+
+        $regionOptions = $regionOptionsQuery->pluck('name')->toArray();
 
         // Calculate summary statistics
         $summary = [
@@ -193,6 +216,11 @@ class IvaDailyReportController extends Controller
             'summary' => $summary,
             'work_status_options' => $workStatusOptions,
             'region_options' => $regionOptions,
+            'region_filter' => $managerRegionFilter ? [
+                'applied' => true,
+                'region_id' => $managerRegionFilter,
+                'reason' => 'view_team_data_permission'
+            ] : ['applied' => false],
         ]);
     }
 

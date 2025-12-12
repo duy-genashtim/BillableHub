@@ -1,7 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+
+const authStore = useAuthStore();
 
 // Data
 const categories = ref([]);
@@ -183,7 +186,7 @@ function onBeforeUnmount() {
         <h1 class="text-h5 text-md-h4 mr-auto" tabindex="0" aria-level="1">
           Task Categories
         </h1>
-        <VBtn color="primary" :prepend-icon="isMobile ? undefined : 'ri-add-line'"
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" :prepend-icon="isMobile ? undefined : 'ri-add-line'"
           :icon="isMobile ? 'ri-add-line' : false" :size="isMobile ? 'default' : 'default'" @click="addNewCategory"
           aria-label="Add new category">
           <span v-if="!isMobile">Add New Category</span>
@@ -268,20 +271,20 @@ function onBeforeUnmount() {
               <VTooltip activator="parent" location="top">View Details</VTooltip>
             </VBtn>
 
-            <VBtn icon size="small" variant="text" color="secondary" @click="editCategory(item)"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="secondary" @click="editCategory(item)"
               :aria-label="`Edit ${item.cat_name}`">
               <VIcon size="20">ri-pencil-line</VIcon>
               <VTooltip activator="parent" location="top">Edit</VTooltip>
             </VBtn>
 
-            <VBtn icon size="small" variant="text" :color="item.is_active ? 'warning' : 'success'"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" :color="item.is_active ? 'warning' : 'success'"
               @click="toggleStatus(item)"
               :aria-label="`${item.is_active ? 'Deactivate' : 'Activate'} ${item.cat_name}`">
               <VIcon size="20">{{ item.is_active ? 'ri-pause-circle-line' : 'ri-play-circle-line' }}</VIcon>
               <VTooltip activator="parent" location="top">{{ item.is_active ? 'Deactivate' : 'Activate' }}</VTooltip>
             </VBtn>
 
-            <VBtn icon size="small" variant="text" color="error" @click="confirmDelete(item)"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="error" @click="confirmDelete(item)"
               :aria-label="`Delete ${item.cat_name}`">
               <VIcon size="20">ri-delete-bin-line</VIcon>
               <VTooltip activator="parent" location="top">Delete</VTooltip>
@@ -297,7 +300,7 @@ function onBeforeUnmount() {
             <p class="text-secondary text-center mb-4">
               There are no task categories available. Create one to get started.
             </p>
-            <VBtn color="primary" @click="addNewCategory" aria-label="Add new category">
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="addNewCategory" aria-label="Add new category">
               Add New Category
             </VBtn>
           </div>

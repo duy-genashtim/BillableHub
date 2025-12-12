@@ -28,11 +28,6 @@ const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
 
-// Cache related
-const isCachedData = ref(false);
-const cachedAt = ref(null);
-const generatedAt = ref(null);
-const clearingCache = ref(false);
 
 // Computed properties
 const dateModeOptions = computed(() => [
@@ -61,38 +56,6 @@ const dateRangeOptions = computed(() => {
   }));
 });
 
-const cacheStatusText = computed(() => {
-  if (isCachedData.value && cachedAt.value) {
-    const cacheTime = new Date(cachedAt.value);
-    const now = new Date();
-    const diffMinutes = Math.floor((now - cacheTime) / (1000 * 60));
-
-    if (diffMinutes < 1) {
-      return 'Just cached';
-    } else if (diffMinutes < 60) {
-      return `Cached ${diffMinutes}m ago`;
-    } else {
-      const diffHours = Math.floor(diffMinutes / 60);
-      return `Cached ${diffHours}h ago`;
-    }
-  } else if (generatedAt.value) {
-    return 'Fresh data';
-  }
-  return '';
-});
-
-const cacheStatusColor = computed(() => {
-  if (isCachedData.value) {
-    const cacheTime = new Date(cachedAt.value);
-    const now = new Date();
-    const diffMinutes = Math.floor((now - cacheTime) / (1000 * 60));
-
-    if (diffMinutes < 10) return 'success';
-    if (diffMinutes < 30) return 'warning';
-    return 'error';
-  }
-  return 'info';
-});
 
 const hasData = computed(() => {
   return performanceData.value && performanceData.value.users_data && performanceData.value.users_data.length > 0;
@@ -219,7 +182,7 @@ function generateDateRanges() {
   selectedDateRange.value = dateRanges.value.length > 0 ? 0 : null;
 }
 
-async function loadPerformanceData(forceReload = false) {
+async function loadPerformanceData() {
   if (!canLoadData.value) {
     showSnackbar('Please select a date range', 'warning');
     return;
@@ -236,22 +199,12 @@ async function loadPerformanceData(forceReload = false) {
       start_date: range.start_date,
       end_date: range.end_date,
       mode: dateMode.value,
-      show_details: showDetails.value,
-      force_reload: forceReload
+      show_details: showDetails.value
     };
 
     const response = await axios.get('/api/reports/overall-performance', { params });
 
     performanceData.value = response.data;
-
-    // Update cache status
-    isCachedData.value = response.data.cached || false;
-    cachedAt.value = response.data.cached_at || null;
-    generatedAt.value = response.data.generated_at || null;
-
-    if (forceReload) {
-      showSnackbar('Data reloaded successfully', 'success');
-    }
 
   } catch (error) {
     console.error('Error loading performance data:', error);
@@ -261,29 +214,6 @@ async function loadPerformanceData(forceReload = false) {
   }
 }
 
-async function reloadCache() {
-  clearingCache.value = true;
-
-  try {
-    // Clear cache first
-    const params = {
-      year: selectedYear.value,
-      mode: dateMode.value
-    };
-
-    await axios.post('/api/reports/overall-performance/clear-cache', params);
-
-    // Then fetch fresh data
-    await loadPerformanceData(true);
-
-    showSnackbar('Cache reloaded successfully', 'success');
-  } catch (error) {
-    console.error('Error reloading cache:', error);
-    showSnackbar('Failed to reload cache', 'error');
-  } finally {
-    clearingCache.value = false;
-  }
-}
 
 function viewUserDashboard(userId) {
   if (!performanceData.value) return;
@@ -479,10 +409,6 @@ watch(showDetails, (newValue) => {
               <VChip v-if="totalRegionsCount > 0" color="info" size="small" variant="tonal" prepend-icon="ri-map-pin-line">
                 {{ totalRegionsCount }} Regions
               </VChip>
-              <VChip v-if="cacheStatusText" :color="cacheStatusColor" size="small" variant="tonal"
-                prepend-icon="ri-database-line">
-                {{ cacheStatusText }}
-              </VChip>
               <VChip v-if="dateRangeInfo.start" color="secondary" size="small" variant="tonal"
                 prepend-icon="ri-calendar-line">
                 {{ formatDate(dateRangeInfo.start) }} - {{ formatDate(dateRangeInfo.end) }}
@@ -496,15 +422,6 @@ watch(showDetails, (newValue) => {
               Export CSV
             </VBtn>
 
-            <VTooltip text="Reload fresh data and clear cache" location="top">
-              <template #activator="{ props }">
-                <VBtn v-bind="props" color="warning" variant="outlined" prepend-icon="ri-refresh-line"
-                  @click="reloadCache" :loading="clearingCache" :disabled="loading || !hasData"
-                  aria-label="Reload cache">
-                  Reload
-                </VBtn>
-              </template>
-            </VTooltip>
           </div>
         </div>
       </VCardText>
@@ -572,10 +489,10 @@ watch(showDetails, (newValue) => {
         <VProgressCircular indeterminate color="primary" :size="60" :width="6" class="mb-4"
           aria-label="Loading performance data" />
         <h3 class="text-h6 font-weight-regular mb-2">
-          {{ clearingCache ? 'Reloading Fresh Data...' : 'Loading Overall Performance Data' }}
+          Loading Overall Performance Data
         </h3>
         <p class="text-secondary">
-          {{ clearingCache ? 'Clearing cache and fetching fresh data...' : 'Analyzing all IVA users across regions...' }}
+          Analyzing all IVA users across regions...
         </p>
       </div>
     </div>

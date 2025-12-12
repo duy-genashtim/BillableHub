@@ -1,8 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 const id = route.params.id;
@@ -287,7 +289,7 @@ function getUserStatusText(isActive) {
             <h2 class="text-h6 text-md-h5 flex-grow-1" tabindex="0" aria-level="2">
               Managed Users ({{ users.length }})
             </h2>
-            <VBtn color="primary" :prepend-icon="isMobile ? undefined : 'ri-user-add-line'"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" :prepend-icon="isMobile ? undefined : 'ri-user-add-line'"
               :icon="isMobile ? 'ri-user-add-line' : false" @click="openAddUsersDialog"
               aria-label="Add users to manager">
               <span v-if="!isMobile">Add Users</span>
@@ -338,7 +340,7 @@ function getUserStatusText(isActive) {
 
             <!-- Actions Column -->
             <template #[`item.actions`]="{ item }">
-              <VBtn icon size="small" variant="text" color="error" @click="confirmRemoveUser(item)"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="error" @click="confirmRemoveUser(item)"
                 :aria-label="`Remove ${item.full_name} from manager`">
                 <VIcon size="20">ri-link-unlink</VIcon>
                 <VTooltip activator="parent" location="top">Remove User</VTooltip>
@@ -359,7 +361,7 @@ function getUserStatusText(isActive) {
                     aria-label="Clear search">
                     Clear Search
                   </VBtn>
-                  <VBtn color="primary" @click="openAddUsersDialog" aria-label="Add users to manager">
+                  <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="openAddUsersDialog" aria-label="Add users to manager">
                     Add Users
                   </VBtn>
                 </div>

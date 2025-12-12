@@ -79,7 +79,7 @@ if (! function_exists('encryptUserData')) {
             return null;
         }
 
-        $key = env('API_NAD_SECRET_KEY');
+        $key = config('services.nad.secret_key');
         if (! $key) {
             return null;
         }
@@ -103,7 +103,7 @@ if (! function_exists('decryptUserToken')) {
             return null;
         }
 
-        $key = env('API_NAD_SECRET_KEY');
+        $key = config('services.nad.secret_key');
         if (! $key) {
             return null;
         }
@@ -117,7 +117,7 @@ if (! function_exists('decryptUserToken')) {
 if (! function_exists('encryptSecureHRMSToken')) {
     function encryptSecureHRMSToken(): ?string
     {
-        $key = env('API_NAD_SECRET_KEY');
+        $key = config('services.nad.secret_key');
         if (! $key) {
             return null;
         }
@@ -150,7 +150,7 @@ if (! function_exists('TestencryptSecureHRMSToken')) {
 if (! function_exists('decryptAndValidateSecureHRMSToken')) {
     function decryptAndValidateSecureHRMSToken(string $encrypted): bool
     {
-        $key = env('API_NAD_SECRET_KEY');
+        $key = config('services.nad.secret_key');
         if (! $key || ! $encrypted) {
             return false;
         }
@@ -730,7 +730,9 @@ if (! function_exists('ivaAdjustStartDate')) {
 }
 if (! function_exists('calculateWorkStatusPeriods')) {
     /**
-     * Calculate work status periods during the date range.
+     * Calculate work status periods during the date range using day-by-day logic.
+     * This ensures changes only affect dates on or after the change date.
+     * Updated to match the improved logic used in calculateRegionPeriods.
      */
     function calculateWorkStatusPeriods($user, $startDate, $endDate, $workStatusChanges)
     {
@@ -738,54 +740,52 @@ if (! function_exists('calculateWorkStatusPeriods')) {
         $startDate = Carbon::parse($startDate);
         $endDate = Carbon::parse($endDate);
 
-        // Get the Monday of the week containing startDate
-        $currentWeekStart = $startDate->copy()->startOfWeek(Carbon::MONDAY);
-
-        // Get the Sunday of the week containing endDate
-        $finalWeekEnd = $endDate->copy()->endOfWeek(Carbon::SUNDAY);
+        // Sort changes by effective date
+        $sortedChanges = $workStatusChanges->sortBy('effective_date');
 
         // Determine initial work status (before any changes)
-        $currentWorkStatus = getInitialWorkStatus($user, $workStatusChanges, $currentWeekStart);
+        $initialWorkStatus = getInitialWorkStatus($user, $sortedChanges, $startDate);
 
-        while ($currentWeekStart->lte($finalWeekEnd)) {
-            $currentWeekEnd = $currentWeekStart->copy()->endOfWeek(Carbon::SUNDAY);
+        // Calculate work status for each day in the period
+        $currentDate = $startDate->copy();
+        $currentWorkStatus = $initialWorkStatus;
+        $periodStart = $currentDate->copy();
+        $periodWorkStatus = $currentWorkStatus;
 
-            // Find all changes that occur in this week
-            $changesInWeek = $workStatusChanges->filter(function ($change) use ($currentWeekStart, $currentWeekEnd) {
-                $changeDate = Carbon::parse($change->effective_date);
+        while ($currentDate->lte($endDate)) {
+            // Check if there's a work status change on this date
+            $changeOnThisDate = $sortedChanges->first(function ($change) use ($currentDate) {
+                return Carbon::parse($change->effective_date)->isSameDay($currentDate);
+            });
 
-                return $changeDate->gte($currentWeekStart) && $changeDate->lte($currentWeekEnd);
-            })->sortBy('effective_date');
+            if ($changeOnThisDate) {
+                // If we have accumulated days in the current period, save it
+                if ($currentDate->gt($periodStart)) {
+                    $periods[] = [
+                        'work_status' => $periodWorkStatus,
+                        'start_date' => $periodStart->toDateString(),
+                        'end_date' => $currentDate->copy()->subDay()->toDateString(),
+                        'days' => $periodStart->diffInDays($currentDate),
+                    ];
+                }
 
-            // If there are changes in this week, use the last change
-            if ($changesInWeek->isNotEmpty()) {
-                $lastChange = $changesInWeek->last();
-                $currentWorkStatus = json_decode($lastChange->new_value, true);
+                // Start new period with the new work status
+                $currentWorkStatus = json_decode($changeOnThisDate->new_value, true);
+                $periodStart = $currentDate->copy();
+                $periodWorkStatus = $currentWorkStatus;
             }
 
-            // Calculate the actual start and end dates for this period
-            // (constrain to the original date range)
-            $periodStart = $currentWeekStart->lt($startDate) ? $startDate : $currentWeekStart;
-            $periodEnd = $currentWeekEnd->gt($endDate) ? $endDate : $currentWeekEnd;
+            $currentDate->addDay();
+        }
 
-            // Only add period if it's within our date range
-            if ($periodStart->lte($endDate) && $periodEnd->gte($startDate)) {
-                // Ensure we're working with date-only for accurate day calculation
-                $startDateOnly = Carbon::parse($periodStart->toDateString());
-                $endDateOnly = Carbon::parse($periodEnd->toDateString());
-
-                $periods[] = [
-                    'work_status' => $currentWorkStatus,
-                    'start_date' => $periodStart->toDateString(),
-                    'end_date' => $periodEnd->toDateString(),
-                    'days' => $startDateOnly->diffInDays($endDateOnly) + 1,
-                    'week_start' => $currentWeekStart->toDateString(),
-                    'week_end' => $currentWeekEnd->toDateString(),
-                ];
-            }
-
-            // Move to next week
-            $currentWeekStart->addWeek();
+        // Add the final period if it exists
+        if ($periodStart->lte($endDate)) {
+            $periods[] = [
+                'work_status' => $periodWorkStatus,
+                'start_date' => $periodStart->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'days' => $periodStart->diffInDays($endDate) + 1,
+            ];
         }
 
         return $periods;
@@ -1178,6 +1178,253 @@ if (! function_exists('getWorkStatusChanges')) {
     }
 }
 
+if (! function_exists('getPredominantWorkStatusForPeriod')) {
+    /**
+     * Calculate the predominant work status for a user during a specific period.
+     * Uses existing helper functions to determine historical work status.
+     *
+     * @param object $user The IvaUser model instance
+     * @param string $startDate Start date (Y-m-d format)
+     * @param string $endDate End date (Y-m-d format)
+     * @return string The predominant work status ('full-time' or 'part-time')
+     */
+    function getPredominantWorkStatusForPeriod($user, $startDate, $endDate)
+    {
+        try {
+            // Get work status changes for this user
+            $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
+
+            // Calculate work status periods during the date range
+            $workStatusPeriods = calculateWorkStatusPeriods($user, $startDate, $endDate, $workStatusChanges);
+
+            if (empty($workStatusPeriods)) {
+                // No periods found, fall back to current work status
+                return $user->work_status ?: 'full-time';
+            }
+
+            // Calculate total days for each work status
+            $fullTimeDays = 0;
+            $partTimeDays = 0;
+
+            foreach ($workStatusPeriods as $period) {
+                $workStatus = $period['work_status'] ?: 'full-time';
+                $days = $period['days'];
+
+                if ($workStatus === 'full-time') {
+                    $fullTimeDays += $days;
+                } else {
+                    $partTimeDays += $days;
+                }
+            }
+
+            // Return the status with more days (or full-time in case of tie)
+            return $fullTimeDays >= $partTimeDays ? 'full-time' : 'part-time';
+
+        } catch (\Exception $e) {
+            // In case of any error, fall back to current work status
+            \Illuminate\Support\Facades\Log::warning('Error calculating predominant work status', [
+                'user_id' => $user->id,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'error' => $e->getMessage()
+            ]);
+
+            return $user->work_status ?: 'full-time';
+        }
+    }
+}
+
+if (! function_exists('getRegionChanges')) {
+    /**
+     * Get region changes for a user during the specified period.
+     * Mirrors getWorkStatusChanges() pattern exactly.
+     */
+    function getRegionChanges($user, $startDate, $endDate)
+    {
+        return IvaUserChangelog::where('iva_user_id', $user->id)
+            ->where('field_changed', 'region')
+            ->orderBy('effective_date')
+            ->get();
+    }
+}
+
+if (! function_exists('calculateRegionPeriods')) {
+    /**
+     * Calculate region periods during the date range using day-by-day logic.
+     * Mirrors calculateWorkStatusPeriods() pattern exactly.
+     * This ensures changes only affect dates on or after the change date.
+     */
+    function calculateRegionPeriods($user, $startDate, $endDate, $regionChanges)
+    {
+        $periods = [];
+        $startDate = Carbon::parse($startDate);
+        $endDate = Carbon::parse($endDate);
+
+        // Sort changes by effective date
+        $sortedChanges = $regionChanges->sortBy('effective_date');
+
+        // Determine initial region (before any changes)
+        $initialRegion = getInitialRegion($user, $sortedChanges, $startDate);
+
+        // Calculate region for each day in the period
+        $currentDate = $startDate->copy();
+        $currentRegion = $initialRegion;
+        $periodStart = $currentDate->copy();
+        $periodRegion = $currentRegion;
+
+        while ($currentDate->lte($endDate)) {
+            // Check if there's a region change on this date
+            $changeOnThisDate = $sortedChanges->first(function ($change) use ($currentDate) {
+                return Carbon::parse($change->effective_date)->isSameDay($currentDate);
+            });
+
+            if ($changeOnThisDate) {
+                // If we have accumulated days in the current period, save it
+                if ($currentDate->gt($periodStart)) {
+                    $periods[] = [
+                        'region_id' => $periodRegion,
+                        'start_date' => $periodStart->toDateString(),
+                        'end_date' => $currentDate->copy()->subDay()->toDateString(),
+                        'days' => $periodStart->diffInDays($currentDate),
+                    ];
+                }
+
+                // Start new period with the new region
+                $currentRegion = $changeOnThisDate->new_value;
+                $periodStart = $currentDate->copy();
+                $periodRegion = $currentRegion;
+            }
+
+            $currentDate->addDay();
+        }
+
+        // Add the final period if it exists
+        if ($periodStart->lte($endDate)) {
+            $periods[] = [
+                'region_id' => $periodRegion,
+                'start_date' => $periodStart->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'days' => $periodStart->diffInDays($endDate) + 1,
+            ];
+        }
+
+        return $periods;
+    }
+}
+
+if (! function_exists('getInitialRegion')) {
+    /**
+     * Helper method to determine initial region before any changes.
+     * Mirrors getInitialWorkStatus() pattern exactly.
+     */
+    function getInitialRegion($user, $regionChanges, $targetDate)
+    {
+        $targetDate = Carbon::parse($targetDate);
+
+        // Sort all changes by effective date
+        $sortedChanges = $regionChanges->sortBy('effective_date');
+
+        if ($sortedChanges->isEmpty()) {
+            // No changes at all, use user's current region
+            return $user->region_id;
+        }
+
+        $firstChange = $sortedChanges->first();
+        $firstChangeDate = Carbon::parse($firstChange->effective_date);
+
+        // If target date is before the first change, use the old_value from first change
+        if ($targetDate->lt($firstChangeDate)) {
+            $oldValue = $firstChange->old_value;
+
+            // Handle various null representations
+            if ($oldValue === 'null' || $oldValue === null || $oldValue === '') {
+                return $user->region_id;
+            }
+
+            return (int) $oldValue;
+        }
+
+        // Find the most recent change that happened before the target date
+        $applicableChange = null;
+        foreach ($sortedChanges as $change) {
+            $changeDate = Carbon::parse($change->effective_date);
+            if ($changeDate->lt($targetDate)) {
+                $applicableChange = $change;
+            } else {
+                break;
+            }
+        }
+
+        if ($applicableChange) {
+            return (int) $applicableChange->new_value;
+        }
+
+        // If no change happened before target date, use old_value of first change
+        $oldValue = $firstChange->old_value;
+        if ($oldValue === 'null' || $oldValue === null || $oldValue === '') {
+            return $user->region_id;
+        }
+
+        return (int) $oldValue;
+    }
+}
+
+if (! function_exists('getPredominantRegionForPeriod')) {
+    /**
+     * Calculate the predominant region for a user during a specific period.
+     * Mirrors getPredominantWorkStatusForPeriod() pattern exactly.
+     *
+     * @param object $user The IvaUser model instance
+     * @param string $startDate Start date (Y-m-d format)
+     * @param string $endDate End date (Y-m-d format)
+     * @return int|null The predominant region ID for the period
+     */
+    function getPredominantRegionForPeriod($user, $startDate, $endDate)
+    {
+        try {
+            // Get region changes for this user
+            $regionChanges = getRegionChanges($user, $startDate, $endDate);
+
+            // Calculate region periods during the date range
+            $regionPeriods = calculateRegionPeriods($user, $startDate, $endDate, $regionChanges);
+
+            if (empty($regionPeriods)) {
+                // No periods found, fall back to current region
+                return $user->region_id;
+            }
+
+            // Calculate total days for each region
+            $regionDays = [];
+
+            foreach ($regionPeriods as $period) {
+                $regionId = $period['region_id'];
+                $days = $period['days'];
+
+                if (!isset($regionDays[$regionId])) {
+                    $regionDays[$regionId] = 0;
+                }
+                $regionDays[$regionId] += $days;
+            }
+
+            // Return the region with the most days (same logic as work status)
+            $predominantRegion = array_keys($regionDays, max($regionDays))[0];
+
+            return (int) $predominantRegion;
+
+        } catch (\Exception $e) {
+            // In case of any error, fall back to current region
+            \Illuminate\Support\Facades\Log::warning('Error calculating predominant region', [
+                'user_id' => $user->id,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'error' => $e->getMessage()
+            ]);
+
+            return $user->region_id;
+        }
+    }
+}
+
 // For Timedoctor v2 Time
 if (! function_exists('convertToTimeDoctorTimezone')) {
     /**
@@ -1466,3 +1713,110 @@ Schema::table('configuration_settings', function (Blueprint $table) {
     $table->index(['setting_type_id', 'is_active'], 'idx_config_settings_type_active');
 });
 */
+
+// Region-based access control helpers for managers
+if (! function_exists('getManagerRegion')) {
+    /**
+     * Get the manager's assigned region from iva_user table
+     *
+     * @param object $user The authenticated user
+     * @return int|null The region_id from the user's IVA user record, or null if not found
+     */
+    function getManagerRegion($user)
+    {
+        if (!$user) {
+            return null;
+        }
+
+        // Look up user's email in iva_user table to get their region
+        $ivaUser = \Illuminate\Support\Facades\DB::table('iva_user')
+            ->where('email', $user->email)
+            ->first();
+
+        return $ivaUser ? $ivaUser->region_id : null;
+    }
+}
+
+if (! function_exists('shouldFilterByRegion')) {
+    /**
+     * Check if the user should be filtered by region
+     * Returns true if user has view_team_data but NOT manage_ivas permission
+     *
+     * @param object $user The authenticated user
+     * @return bool
+     */
+    function shouldFilterByRegion($user)
+    {
+        if (!$user) {
+            return false;
+        }
+
+        // Check permissions
+        $hasViewTeamData = $user->can('view_team_data');
+        $hasManageIvas = $user->can('manage_ivas');
+
+        // Should filter if user has view_team_data but NOT manage_ivas
+        return $hasViewTeamData && !$hasManageIvas;
+    }
+}
+
+if (! function_exists('getManagerRegionFilter')) {
+    /**
+     * Get the region filter for the current manager
+     * Returns region_id if filtering should be applied, null otherwise
+     *
+     * @param object $user The authenticated user
+     * @return int|null The region_id to filter by, or null if no filtering needed
+     */
+    function getManagerRegionFilter($user)
+    {
+        if (!shouldFilterByRegion($user)) {
+            return null;
+        }
+
+        return getManagerRegion($user);
+    }
+}
+
+if (! function_exists('validateManagerRegionAccess')) {
+    /**
+     * Validate that a user who needs region filtering has a valid region assigned
+     *
+     * @param object $user The authenticated user
+     * @return array|null Returns error array if validation fails, null if valid
+     */
+    function validateManagerRegionAccess($user)
+    {
+        // If user doesn't need filtering, validation passes
+        if (!shouldFilterByRegion($user)) {
+            return null;
+        }
+
+        // User needs filtering, check if they have a region
+        $region = getManagerRegion($user);
+
+        if ($region === null) {
+            return [
+                'error' => 'no_region_assigned',
+                'message' => 'Your account does not have a region assigned. Please contact your administrator to assign you to a region.',
+                'user_email' => $user->email
+            ];
+        }
+
+        // Validate that the region exists in regions table
+        $regionExists = DB::table('regions')
+            ->where('id', $region)
+            ->exists();
+
+        if (!$regionExists) {
+            return [
+                'error' => 'invalid_region',
+                'message' => 'Your assigned region (ID: ' . $region . ') is invalid. Please contact your administrator to correct your region assignment.',
+                'user_email' => $user->email,
+                'region_id' => $region
+            ];
+        }
+
+        return null; // Validation passed
+    }
+}

@@ -1,5 +1,6 @@
 <script setup>
 import { formatDateTime } from '@/@core/utils/helpers';
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -11,6 +12,7 @@ import IvaUserSettings from './IvaUserSettings.vue';
 
 const route = useRoute();
 const router = useRouter();
+const authStore = useAuthStore();
 const userId = route.params.id;
 
 const props = defineProps({
@@ -322,7 +324,7 @@ watch(() => route.name, (newName) => {
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-              <VBtn v-if="!isEditing" color="primary" variant="outlined" prepend-icon="ri-edit-line"
+              <VBtn v-if="!isEditing && authStore.hasPermission('edit_iva_data')" color="primary" variant="outlined" prepend-icon="ri-edit-line"
                 :size="isMobile ? 'small' : 'default'" @click="enableEdit" aria-label="Edit user">
                 Edit
               </VBtn>

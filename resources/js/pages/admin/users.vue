@@ -31,6 +31,10 @@ const snackbar = ref({
   color: 'success',
 })
 
+// Delete dialog state
+const deleteDialog = ref(false)
+const userToDelete = ref(null)
+
 // Avatar URLs cache
 const avatarUrls = ref({})
 
@@ -216,6 +220,40 @@ const onRoleFilterChange = () => {
   fetchUsers(1)
 }
 
+// Delete user methods
+const confirmDelete = (user) => {
+  userToDelete.value = user
+  deleteDialog.value = true
+}
+
+const deleteUser = async () => {
+  try {
+    loading.value = true
+
+    await axios.delete(`/api/admin/users/${userToDelete.value.id}`)
+
+    showSnackbar('User deleted successfully')
+
+    // Refresh users list
+    await fetchUsers(pagination.value.current_page)
+
+    // Close dialog
+    deleteDialog.value = false
+    userToDelete.value = null
+  } catch (error) {
+    console.error('Failed to delete user:', error)
+    const message = error.response?.data?.error || 'Failed to delete user'
+    showSnackbar(message, 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+const closeDeleteDialog = () => {
+  deleteDialog.value = false
+  userToDelete.value = null
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   await Promise.all([fetchUsers(), fetchAvailableRoles()])
@@ -334,12 +372,37 @@ onMounted(async () => {
           </template>
 
           <template #item.actions="{ item }">
-            <VTooltip text="Manage Roles">
-              <template #activator="{ props }">
-                <VBtn v-bind="props" icon="ri-user-settings-line" size="small" variant="text" color="primary"
-                  @click="openRoleDialog(item)" :disabled="item.is_super_admin && !authStore.isSuperAdmin" />
-              </template>
-            </VTooltip>
+            <div class="d-flex gap-1">
+              <!-- Manage Roles Button -->
+              <VTooltip text="Manage Roles">
+                <template #activator="{ props }">
+                  <VBtn
+                    v-bind="props"
+                    icon="ri-user-settings-line"
+                    size="small"
+                    variant="text"
+                    color="primary"
+                    @click="openRoleDialog(item)"
+                    :disabled="item.is_super_admin && !authStore.isSuperAdmin"
+                  />
+                </template>
+              </VTooltip>
+
+              <!-- Delete Button -->
+              <VTooltip :text="item.is_super_admin ? 'Cannot delete Super Admin' : 'Delete User'">
+                <template #activator="{ props }">
+                  <VBtn
+                    v-bind="props"
+                    icon="ri-delete-bin-line"
+                    size="small"
+                    variant="text"
+                    color="error"
+                    @click="confirmDelete(item)"
+                    :disabled="item.is_super_admin"
+                  />
+                </template>
+              </VTooltip>
+            </div>
           </template>
 
           <template #no-data>
@@ -429,6 +492,115 @@ onMounted(async () => {
           <VBtn color="primary" @click="saveUserRoles" :loading="loading"
             :disabled="selectedUser.is_super_admin && !authStore.isSuperAdmin">
             Save Changes
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <VDialog v-model="deleteDialog" max-width="600" persistent>
+      <VCard v-if="userToDelete">
+        <VCardTitle class="text-h5 bg-error text-white pa-6">
+          <VIcon icon="ri-error-warning-line" class="me-2" />
+          Delete User
+        </VCardTitle>
+
+        <VDivider />
+
+        <VCardText class="pa-6">
+          <VAlert type="error" variant="tonal" class="mb-4">
+            <VAlertTitle class="mb-2">
+              Warning: This action cannot be undone!
+            </VAlertTitle>
+            <p class="mb-0">
+              Are you sure you want to permanently delete this user? This will remove:
+            </p>
+          </VAlert>
+
+          <!-- User Details -->
+          <div class="mb-4 pa-4 bg-grey-lighten-4 rounded">
+            <div class="d-flex align-center gap-3 mb-3">
+              <VAvatar
+                :color="avatarUrls[userToDelete.email] ? undefined : getAvatarColor(userToDelete.name)"
+                size="48"
+              >
+                <VImg
+                  v-if="avatarUrls[userToDelete.email]"
+                  :src="avatarUrls[userToDelete.email]"
+                  :alt="userToDelete.name"
+                />
+                <span v-else class="text-white font-weight-bold text-h6">
+                  {{ getUserInitials(userToDelete.name) }}
+                </span>
+              </VAvatar>
+              <div>
+                <div class="font-weight-bold text-h6">{{ userToDelete.name }}</div>
+                <div class="text-body-2 text-medium-emphasis">{{ userToDelete.email }}</div>
+              </div>
+            </div>
+
+            <!-- Roles Info -->
+            <div class="mb-2">
+              <span class="font-weight-medium">Roles:</span>
+              <div class="d-flex flex-wrap gap-1 mt-1">
+                <VChip
+                  v-for="role in userToDelete.roles"
+                  :key="role.name"
+                  :color="getUserRoleChipColor(role.name)"
+                  variant="tonal"
+                  size="small"
+                >
+                  {{ role.display_name }}
+                </VChip>
+                <VChip v-if="userToDelete.roles.length === 0" color="warning" variant="outlined" size="small">
+                  No roles
+                </VChip>
+              </div>
+            </div>
+
+            <!-- Permissions Info -->
+            <div>
+              <span class="font-weight-medium">Permissions:</span>
+              <VChip color="info" variant="tonal" size="small" class="ml-2">
+                {{ userToDelete.permissions?.length || 0 }} permissions
+              </VChip>
+            </div>
+          </div>
+
+          <!-- Warning Message -->
+          <VAlert type="warning" variant="outlined" density="compact">
+            <p class="text-body-2 mb-0">
+              This will permanently delete:
+            </p>
+            <ul class="text-body-2 mb-0 mt-2">
+              <li>The user account</li>
+              <li>All assigned roles</li>
+              <li>All granted permissions</li>
+            </ul>
+            <p class="text-body-2 font-weight-bold mb-0 mt-2">
+              This action cannot be undone.
+            </p>
+          </VAlert>
+        </VCardText>
+
+        <VDivider />
+
+        <VCardActions class="pa-6">
+          <VSpacer />
+          <VBtn
+            color="secondary"
+            variant="outlined"
+            @click="closeDeleteDialog"
+            :disabled="loading"
+          >
+            Cancel
+          </VBtn>
+          <VBtn
+            color="error"
+            @click="deleteUser"
+            :loading="loading"
+          >
+            Delete User
           </VBtn>
         </VCardActions>
       </VCard>

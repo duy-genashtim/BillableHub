@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Console\Commands;
 
 use App\Models\IvaUser;
@@ -20,6 +19,8 @@ class SyncTimeDoctorWorklogs extends Command
     protected $signature = 'timedoctor:sync-worklogs
                             {--start-date= : Start date for sync (Y-m-d format)}
                             {--end-date= : End date for sync (Y-m-d format)}
+                            {--days-ago= : Number of days ago to sync (default: 2)}
+                            {--synclastweek : Sync Monday-Saturday of the previous week}
                             {--dry-run : Run without making changes}';
 
     /**
@@ -27,7 +28,7 @@ class SyncTimeDoctorWorklogs extends Command
      *
      * @var string
      */
-    protected $description = 'Sync TimeDoctor v1 worklog data for all IVA users within a date range';
+    protected $description = 'Sync TimeDoctor v1 worklog data for all IVA users within a date range or for a specific number of days ago';
 
     protected $timeDoctorService;
 
@@ -44,7 +45,7 @@ class SyncTimeDoctorWorklogs extends Command
         DailyWorklogSummaryService $dailyWorklogSummaryService
     ) {
         parent::__construct();
-        $this->timeDoctorService = $timeDoctorService;
+        $this->timeDoctorService          = $timeDoctorService;
         $this->dailyWorklogSummaryService = $dailyWorklogSummaryService;
         set_time_limit(0); // Allow script to run indefinitely
         ini_set('memory_limit', '1024M');
@@ -61,15 +62,47 @@ class SyncTimeDoctorWorklogs extends Command
             // Parse and validate date range
             $dateRange = $this->parseDateRange();
             $startDate = $dateRange['start'];
-            $endDate = $dateRange['end'];
-            $isDryRun = $this->option('dry-run');
+            $endDate   = $dateRange['end'];
+            $isDryRun  = $this->option('dry-run');
 
             if ($isDryRun) {
                 $this->warn('DRY RUN MODE - No data will be modified');
             }
 
             $this->info("Sync Date Range: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
-            $this->info('Total Days: '.($startDate->diffInDays($endDate) + 1));
+            $this->info('Total Days: ' . ($startDate->diffInDays($endDate) + 1));
+
+            // Validate token before starting sync (includes 3-day proactive refresh)
+            $this->info('🔐 Validating TimeDoctor token (3-day expiry buffer for 6-day tokens)...');
+
+            try {
+                // This calls getValidAccessToken() which checks if token expires within 3 days
+                $accessToken = $this->timeDoctorService->validateAndGetToken();
+
+                // Get token details for user information
+                $token = \App\Models\TimeDoctorToken::where('version', '1')->first();
+                if ($token) {
+                    $hoursUntilExpiry = now()->diffInHours(\Carbon\Carbon::parse($token->expires_at));
+                    $daysUntilExpiry  = round($hoursUntilExpiry / 24, 1);
+
+                    $this->info("✅ TimeDoctor token validated successfully");
+                    $this->info("📅 Token expires in {$daysUntilExpiry} days ({$hoursUntilExpiry} hours)");
+
+                    if ($hoursUntilExpiry < 24) {
+                        $this->error("⚠️  CRITICAL: Token expires in less than 24 hours!");
+                        $this->error("    Please refresh token manually via admin panel immediately");
+                    } elseif ($hoursUntilExpiry < 72) {
+                        $this->warn("⚠️  Token expires in less than 3 days - automatic refresh should have occurred");
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $this->error("❌ Token validation failed: {$e->getMessage()}");
+                $this->error("💡 Please re-authenticate TimeDoctor via admin panel: /admin/timedoctor");
+                throw $e;
+            }
+
+            $this->info('🚀 Starting TimeDoctor sync with validated token...');
 
             // Get TimeDoctor company info
             $this->info('Connecting to TimeDoctor API...');
@@ -105,37 +138,37 @@ class SyncTimeDoctorWorklogs extends Command
             // Log activity
             if (! $isDryRun) {
                 ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync completed via Artisan command', [
-                    'module' => 'timedoctor_integration',
-                    'start_date' => $startDate->format('Y-m-d'),
-                    'end_date' => $endDate->format('Y-m-d'),
-                    'total_synced' => $results['total_inserted'] + $results['total_updated'],
-                    'total_days' => $startDate->diffInDays($endDate) + 1,
+                    'module'          => 'timedoctor_integration',
+                    'start_date'      => $startDate->format('Y-m-d'),
+                    'end_date'        => $endDate->format('Y-m-d'),
+                    'total_synced'    => $results['total_inserted'] + $results['total_updated'],
+                    'total_days'      => $startDate->diffInDays($endDate) + 1,
                     'users_processed' => $users->count(),
-                    'command' => 'artisan',
+                    'command'         => 'artisan',
                 ]);
 
                 // Auto-calculate daily worklog summaries for all affected users
                 $this->info('📊 Calculating daily worklog summaries...');
                 try {
                     $userIds = $users->pluck('id')->toArray();
-                    $params = [
-                        'start_date' => $startDate->format('Y-m-d'),
-                        'end_date' => $endDate->format('Y-m-d'),
+                    $params  = [
+                        'start_date'    => $startDate->format('Y-m-d'),
+                        'end_date'      => $endDate->format('Y-m-d'),
                         'calculate_all' => false,
-                        'iva_user_ids' => $userIds,
+                        'iva_user_ids'  => $userIds,
                     ];
 
                     $summaryResult = $this->dailyWorklogSummaryService->calculateSummaries($params);
 
                     if ($summaryResult['success']) {
-                        $this->info('✅ Daily summaries calculated successfully! '.
-                            'Processed: '.$summaryResult['summary']['total_processed'].
-                            ', Errors: '.$summaryResult['summary']['total_errors']);
+                        $this->info('✅ Daily summaries calculated successfully! ' .
+                            'Processed: ' . $summaryResult['summary']['total_processed'] .
+                            ', Errors: ' . $summaryResult['summary']['total_errors']);
                     } else {
-                        $this->warn('⚠️  Daily summaries calculation had issues: '.$summaryResult['message']);
+                        $this->warn('⚠️  Daily summaries calculation had issues: ' . $summaryResult['message']);
                     }
                 } catch (\Exception $e) {
-                    $this->error('❌ Failed to calculate daily summaries: '.$e->getMessage());
+                    $this->error('❌ Failed to calculate daily summaries: ' . $e->getMessage());
                 }
             }
 
@@ -153,8 +186,8 @@ class SyncTimeDoctorWorklogs extends Command
             // ]);
 
             ActivityLogService::log('sync_timedoctor_data', 'TimeDoctor worklog sync failed via Artisan command', [
-                'module' => 'timedoctor_integration',
-                'error' => $e->getMessage(),
+                'module'  => 'timedoctor_integration',
+                'error'   => $e->getMessage(),
                 'command' => 'artisan',
             ]);
 
@@ -168,27 +201,15 @@ class SyncTimeDoctorWorklogs extends Command
     private function parseDateRange(): array
     {
         $startDateInput = $this->option('start-date');
-        $endDateInput = $this->option('end-date');
+        $endDateInput   = $this->option('end-date');
+        $daysAgoInput   = $this->option('days-ago');
+        $syncLastWeek   = $this->option('synclastweek');
 
-        // Default to yesterday if no dates provided
-        if (! $startDateInput && ! $endDateInput) {
-            $yesterday = Carbon::yesterday();
-            $startDate = $yesterday->copy();
-            $endDate = $yesterday->copy();
-            $this->info("No date range specified, defaulting to yesterday: {$yesterday->format('Y-m-d')}");
-        } else {
-            // Validate start date
-            if (! $startDateInput) {
-                throw new \InvalidArgumentException('Start date is required when end date is provided');
-            }
-
-            if (! $endDateInput) {
-                throw new \InvalidArgumentException('End date is required when start date is provided');
-            }
-
+        // Priority 1: If explicit date range is provided
+        if ($startDateInput && $endDateInput) {
             try {
                 $startDate = Carbon::createFromFormat('Y-m-d', $startDateInput);
-                $endDate = Carbon::createFromFormat('Y-m-d', $endDateInput);
+                $endDate   = Carbon::createFromFormat('Y-m-d', $endDateInput);
             } catch (\Exception $e) {
                 throw new \InvalidArgumentException('Invalid date format. Use Y-m-d format (e.g., 2024-01-15)');
             }
@@ -201,11 +222,50 @@ class SyncTimeDoctorWorklogs extends Command
             if ($startDate->diffInDays($endDate) > 30) {
                 throw new \InvalidArgumentException('Date range cannot exceed 31 days');
             }
+
+            $this->info("Using explicit date range: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
+        }
+        // Priority 2: If only start date or only end date is provided (error)
+        elseif ($startDateInput || $endDateInput) {
+            throw new \InvalidArgumentException('Both start-date and end-date are required when using date range');
+        }
+        // Priority 3: If synclastweek is provided
+        elseif ($syncLastWeek) {
+            // Validate that synclastweek is not combined with other date options
+            if ($daysAgoInput) {
+                throw new \InvalidArgumentException('--synclastweek cannot be combined with --days-ago');
+            }
+
+            // Calculate previous week's Monday and Saturday
+            // Get the Monday of the previous week
+            $startDate = Carbon::now()->previous(Carbon::MONDAY)->subWeek();
+            // Get the Saturday of the same week (5 days after Monday)
+            $endDate = $startDate->copy()->addDays(5);
+
+            $this->info("Using --synclastweek: syncing previous week from {$startDate->format('Y-m-d')} (Monday) to {$endDate->format('Y-m-d')} (Saturday)");
+        }
+        // Priority 4: If days-ago is provided
+        elseif ($daysAgoInput) {
+            $daysAgo = (int) $daysAgoInput;
+            if ($daysAgo < 1 || $daysAgo > 30) {
+                throw new \InvalidArgumentException('Days ago must be between 1 and 30');
+            }
+
+            $targetDate = Carbon::now()->subDays($daysAgo);
+            $startDate  = $targetDate->copy();
+            $endDate    = $targetDate->copy();
+            $this->info("Using --days-ago={$daysAgo}: syncing data for {$targetDate->format('Y-m-d')}");
+        }
+        // Priority 5: Default to last 2 days if no parameters provided
+        else {
+            $endDate   = Carbon::now()->subDays(1);    // Yesterday
+            $startDate = $endDate->copy()->subDays(1); // Day before yesterday (2 days ago)
+            $this->info("No parameters specified, defaulting to last 2 days: {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
         }
 
         return [
             'start' => $startDate,
-            'end' => $endDate,
+            'end'   => $endDate,
         ];
     }
 
@@ -214,11 +274,11 @@ class SyncTimeDoctorWorklogs extends Command
      */
     private function syncWorklogsForDateRange($companyId, $users, Carbon $startDate, Carbon $endDate, bool $isDryRun): array
     {
-        $totalDays = $startDate->diffInDays($endDate) + 1;
+        $totalDays     = $startDate->diffInDays($endDate) + 1;
         $processedDays = 0;
         $totalInserted = 0;
-        $totalUpdated = 0;
-        $totalErrors = 0;
+        $totalUpdated  = 0;
+        $totalErrors   = 0;
 
         $progressBar = $this->output->createProgressBar($totalDays);
         $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s% -- %message%');
@@ -262,8 +322,8 @@ class SyncTimeDoctorWorklogs extends Command
 
         return [
             'total_inserted' => $totalInserted,
-            'total_updated' => $totalUpdated,
-            'total_errors' => $totalErrors,
+            'total_updated'  => $totalUpdated,
+            'total_errors'   => $totalErrors,
             'processed_days' => $processedDays,
         ];
     }
@@ -274,11 +334,11 @@ class SyncTimeDoctorWorklogs extends Command
      */
     private function processUsersWorklogsForDay($companyId, $users, Carbon $date, bool $isDryRun): array
     {
-        $totalUsers = $users->count();
+        $totalUsers     = $users->count();
         $processedUsers = 0;
-        $totalInserted = 0;
-        $totalUpdated = 0;
-        $totalErrors = 0;
+        $totalInserted  = 0;
+        $totalUpdated   = 0;
+        $totalErrors    = 0;
 
         foreach ($users as $user) {
             if (! $user->timedoctorUser) {
@@ -290,11 +350,11 @@ class SyncTimeDoctorWorklogs extends Command
             $userName = $user->timedoctorUser->tm_fullname;
 
             try {
-                $offset = 1;
-                $hasMoreData = true;
-                $batchNumber = 1;
+                $offset       = 1;
+                $hasMoreData  = true;
+                $batchNumber  = 1;
                 $userInserted = 0;
-                $userUpdated = 0;
+                $userUpdated  = 0;
 
                 while ($hasMoreData) {
                     $worklogData = $this->timeDoctorService->getUserWorklogs(
@@ -369,8 +429,8 @@ class SyncTimeDoctorWorklogs extends Command
 
         return [
             'inserted' => $totalInserted,
-            'updated' => $totalUpdated,
-            'errors' => $totalErrors,
+            'updated'  => $totalUpdated,
+            'errors'   => $totalErrors,
         ];
     }
 
@@ -389,7 +449,7 @@ class SyncTimeDoctorWorklogs extends Command
 
         // Use reflection to call the private method
         $reflection = new \ReflectionClass($controller);
-        $method = $reflection->getMethod('processWorklogBatch');
+        $method     = $reflection->getMethod('processWorklogBatch');
         $method->setAccessible(true);
 
         return $method->invokeArgs($controller, [$worklogItems, $user]);
@@ -411,7 +471,7 @@ class SyncTimeDoctorWorklogs extends Command
         $this->info("Days Processed: {$results['processed_days']}");
         $this->info("Records Inserted: {$results['total_inserted']}");
         $this->info("Records Updated: {$results['total_updated']}");
-        $this->info('Total Records Synced: '.($results['total_inserted'] + $results['total_updated']));
+        $this->info('Total Records Synced: ' . ($results['total_inserted'] + $results['total_updated']));
 
         if ($results['total_errors'] > 0) {
             $this->warn("Errors Encountered: {$results['total_errors']}");

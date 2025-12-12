@@ -1,7 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth'
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
+const authStore = useAuthStore()
 
 // Data
 const cohorts = ref([])
@@ -169,7 +172,7 @@ function onPageChange(page) {
           <h1 class="text-h5 text-md-h4 mr-auto mb-2 mb-md-0">
             Cohorts Management
           </h1>
-          <VBtn color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="addNewCohort">
+          <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="addNewCohort">
             <span v-if="!isMobile">Add New Cohort</span>
             <span v-else>Add</span>
           </VBtn>
@@ -248,13 +251,13 @@ function onPageChange(page) {
                 <VTooltip activator="parent">View Details</VTooltip>
               </VBtn>
 
-              <VBtn v-if="!isMobile" icon size="small" variant="text" color="secondary" class="me-1"
+              <VBtn v-if="!isMobile && authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="secondary" class="me-1"
                 @click="editCohort(item)">
                 <VIcon size="20">ri-pencil-line</VIcon>
                 <VTooltip activator="parent">Edit</VTooltip>
               </VBtn>
 
-              <VBtn icon size="small" variant="text" :color="item.is_active ? 'error' : 'success'" class="me-1"
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" :color="item.is_active ? 'error' : 'success'" class="me-1"
                 @click="confirmStatusChange(item)">
                 <VIcon size="20">{{ item.is_active ? 'ri-close-circle-line' : 'ri-checkbox-circle-line' }}</VIcon>
                 <VTooltip activator="parent">{{ item.is_active ? 'Deactivate' : 'Activate' }}</VTooltip>
@@ -275,7 +278,7 @@ function onPageChange(page) {
                     <VListItemTitle>View Details</VListItemTitle>
                   </VListItem>
 
-                  <VListItem @click="editCohort(item)">
+                  <VListItem v-if="authStore.hasPermission('edit_iva_data')" @click="editCohort(item)">
                     <template v-slot:prepend>
                       <VIcon size="small">ri-pencil-line</VIcon>
                     </template>
@@ -294,7 +297,7 @@ function onPageChange(page) {
               <p class="text-secondary text-center mb-4">
                 There are no cohorts available. Create one to get started.
               </p>
-              <VBtn color="primary" @click="addNewCohort">
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="addNewCohort">
                 Add New Cohort
               </VBtn>
             </div>

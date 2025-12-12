@@ -321,4 +321,67 @@ class UserRoleController extends Controller
             return response()->json(['error' => 'Failed to fetch user: '.$e->getMessage()], 500);
         }
     }
+
+    /**
+     * Delete a user from the system
+     */
+    public function destroy(Request $request, User $targetUser)
+    {
+        try {
+            $currentUser = $request->user();
+
+            // 1. Permission check
+            if (!$currentUser->can('manage_users')) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            // 2. Protect Super Admin (id = 1)
+            if ($targetUser->isSuperAdmin()) {
+                return response()->json([
+                    'error' => 'Cannot delete Super Admin account. This account is protected.',
+                ], 422);
+            }
+
+            // 3. Prevent self-deletion
+            if ($currentUser->id === $targetUser->id) {
+                return response()->json([
+                    'error' => 'You cannot delete your own account.',
+                ], 422);
+            }
+
+            // 4. Store user data for logging (before deletion)
+            $userName = $targetUser->name;
+            $userEmail = $targetUser->email;
+            $userRoles = $targetUser->roles->pluck('name')->toArray();
+            $userPermissions = $targetUser->getAllPermissions()->pluck('name')->toArray();
+
+            // 5. Delete user
+            // Note: Spatie/Permission automatically handles role/permission cleanup
+            $targetUser->delete();
+
+            // 6. Log activity
+            ActivityLogService::log(
+                'delete_user',
+                "Deleted user: {$userName} ({$userEmail})",
+                [
+                    'deleted_user_id' => $targetUser->id,
+                    'deleted_user_name' => $userName,
+                    'deleted_user_email' => $userEmail,
+                    'deleted_user_roles' => $userRoles,
+                    'deleted_user_permissions' => $userPermissions,
+                    'module' => 'user_management',
+                ]
+            );
+
+            // 7. Return success response
+            return response()->json([
+                'message' => 'User deleted successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to delete user: '.$e->getMessage(),
+            ], 500);
+        }
+    }
 }

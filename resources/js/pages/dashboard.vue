@@ -31,6 +31,9 @@ const isCachedData = ref(false)
 const cachedAt = ref(null)
 const generatedAt = ref(null)
 
+// Permission check state
+const noPermissionsError = ref(false)
+
 // Computed properties
 const userName = computed(() => {
   return authStore.user?.name || authStore.user?.email || 'User'
@@ -80,6 +83,11 @@ const cacheStatusColor = computed(() => {
   return 'info'
 })
 
+// Check if user has any permissions
+const hasAnyPermissions = computed(() => {
+  return authStore.userPermissions.length > 0
+})
+
 // Methods
 onMounted(() => {
   window.addEventListener('resize', handleResize)
@@ -91,6 +99,13 @@ function handleResize() {
 }
 
 async function loadDashboardData() {
+  // Check if user has any permissions before loading data
+  if (!hasAnyPermissions.value) {
+    noPermissionsError.value = true
+    loading.value = false
+    return
+  }
+
   loading.value = true
 
   try {
@@ -115,6 +130,12 @@ async function loadDashboardData() {
 }
 
 async function refreshDashboard() {
+  // Check if user has any permissions before refreshing
+  if (!hasAnyPermissions.value) {
+    showSnackbar('You do not have permission to refresh the dashboard', 'warning')
+    return
+  }
+
   refreshing.value = true
 
   try {
@@ -198,11 +219,12 @@ function handleViewCohort(cohortId) {
 
           <div class="d-flex gap-2 flex-wrap">
             <VBtn color="primary" variant="outlined" prepend-icon="ri-refresh-line" @click="refreshDashboard"
-              :loading="refreshing" :disabled="loading">
+              :loading="refreshing" :disabled="loading || noPermissionsError">
               Refresh
             </VBtn>
             <VBtn color="success" variant="flat" prepend-icon="ri-bar-chart-line"
-              @click="router.push('/admin/reports/overall-performance')">
+              @click="router.push('/admin/reports/overall-performance')"
+              :disabled="noPermissionsError">
               View Reports
             </VBtn>
           </div>
@@ -210,8 +232,22 @@ function handleViewCohort(cohortId) {
       </VCardText>
     </VCard>
 
+    <!-- No Permissions Error Alert -->
+    <VAlert v-if="noPermissionsError" type="warning" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2 d-flex align-center">
+        <VIcon icon="ri-lock-line" class="me-2" />
+        No Permissions Assigned
+      </VAlertTitle>
+      <p class="mb-3">
+        You don't have any permissions assigned to your account. Without permissions, you cannot view dashboard data or perform any actions.
+      </p>
+      <p class="mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have permissions assigned to your account.
+      </p>
+    </VAlert>
+
     <!-- Loading State -->
-    <div v-if="loading" class="d-flex justify-center align-center py-12">
+    <div v-if="loading && !noPermissionsError" class="d-flex justify-center align-center py-12">
       <div class="text-center">
         <VProgressCircular indeterminate color="primary" :size="60" :width="6" class="mb-4" />
         <h3 class="text-h6 font-weight-regular mb-2">Loading Dashboard</h3>
@@ -222,7 +258,7 @@ function handleViewCohort(cohortId) {
     </div>
 
     <!-- Dashboard Content -->
-    <div v-else-if="dashboardData">
+    <div v-else-if="dashboardData && !noPermissionsError">
       <!-- System Overview -->
       <SystemOverviewCards :system-overview="dashboardData.system_overview" :is-mobile="isMobile" class="mb-6" />
 
@@ -242,19 +278,19 @@ function handleViewCohort(cohortId) {
             </VCol>
 
             <!-- Cohort Breakdown -->
-            <VCol cols="12" md="6">
+            <VCol v-if="authStore.hasPermission('view_reports')" cols="12" md="6">
               <CohortBreakdownCard :cohort-data="dashboardData.cohort_breakdown" :is-mobile="isMobile"
                 @view-cohort="handleViewCohort" />
             </VCol>
 
             <!-- Regional Breakdown -->
-            <VCol cols="12" md="6">
+            <VCol v-if="authStore.hasPermission('view_reports')" cols="12" md="6">
               <RegionalBreakdownCard :regional-data="dashboardData.regional_breakdown" :is-mobile="isMobile"
                 @view-region="handleViewRegion" />
             </VCol>
 
             <!-- Quick Actions -->
-            <VCol cols="12">
+            <VCol v-if="authStore.hasPermission('view_reports')" cols="12">
               <QuickActionsCard :is-mobile="isMobile" />
             </VCol>
           </VRow>
@@ -282,7 +318,7 @@ function handleViewCohort(cohortId) {
     </div>
 
     <!-- Error State -->
-    <VCard v-else class="text-center py-12">
+    <VCard v-else-if="!noPermissionsError" class="text-center py-12">
       <VCardText>
         <VIcon size="64" color="error" icon="ri-error-warning-line" class="mb-4" />
         <h2 class="text-h5 font-weight-bold mb-2">Failed to Load Dashboard</h2>

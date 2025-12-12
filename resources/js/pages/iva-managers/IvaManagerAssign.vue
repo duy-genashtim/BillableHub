@@ -184,23 +184,28 @@ function cancel() {
 }
 
 // Computed properties for filtering
+// This filters users by both excluding the selected manager AND applying search query
 const filteredUsers = computed(() => {
-  if (!searchQuery.value || !users.value) return users.value;
+  if (!users.value) return [];
 
-  const query = searchQuery.value.toLowerCase();
-  return users.value.filter(user =>
-    (user.full_name && user.full_name.toLowerCase().includes(query)) ||
-    (user.email && user.email.toLowerCase().includes(query)) ||
-    (user.id && user.id.toString().includes(query))
-  );
-});
+  let result = users.value;
 
-// Computed property to filter out selected manager from selectable users
-const selectableUsers = computed(() => {
-  if (!selectedManagerId.value || !users.value) return users.value;
+  // First, filter out the selected manager (they can't manage themselves)
+  if (selectedManagerId.value) {
+    result = result.filter(user => user.id !== selectedManagerId.value);
+  }
 
-  // Remove the manager from the list of users they can manage
-  return users.value.filter(user => user.id !== selectedManagerId.value);
+  // Then, apply search query if exists
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(user =>
+      (user.full_name && user.full_name.toLowerCase().includes(query)) ||
+      (user.email && user.email.toLowerCase().includes(query)) ||
+      (user.id && user.id.toString().includes(query))
+    );
+  }
+
+  return result;
 });
 </script>
 
@@ -270,7 +275,7 @@ const selectableUsers = computed(() => {
                 prepend-inner-icon="ri-search-line" hide-details class="mb-4" single-line :disabled="submitting"
                 aria-label="Search for users" />
 
-              <VDataTable v-model="selectedUserIds" :headers="userHeaders" :items="selectableUsers" item-value="id"
+              <VDataTable v-model="selectedUserIds" :headers="userHeaders" :items="filteredUsers" item-value="id"
                 density="comfortable" show-select class="elevation-1 rounded" :disabled="submitting"
                 aria-label="Users table" aria-describedby="select-users-heading">
                 <!-- ID Column (desktop only) -->

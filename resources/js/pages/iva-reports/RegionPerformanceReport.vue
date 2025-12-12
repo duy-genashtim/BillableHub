@@ -19,6 +19,9 @@ const loading = ref(false);
 const loadingRegions = ref(true);
 const showDetails = ref(false);
 const isMobile = ref(window.innerWidth < 768);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
+const regionAccessError = ref(false);
+const regionAccessErrorMessage = ref('');
 
 // Date selection
 const dateMode = ref('weekly');
@@ -31,11 +34,6 @@ const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
 
-// Cache related
-const isCachedData = ref(false);
-const cachedAt = ref(null);
-const generatedAt = ref(null);
-const clearingCache = ref(false);
 
 // Computed properties
 const dateModeOptions = computed(() => [
@@ -69,38 +67,6 @@ const selectedRegionName = computed(() => {
   return region ? region.name : '';
 });
 
-const cacheStatusText = computed(() => {
-  if (isCachedData.value && cachedAt.value) {
-    const cacheTime = new Date(cachedAt.value);
-    const now = new Date();
-    const diffMinutes = Math.floor((now - cacheTime) / (1000 * 60));
-
-    if (diffMinutes < 1) {
-      return 'Just cached';
-    } else if (diffMinutes < 60) {
-      return `Cached ${diffMinutes}m ago`;
-    } else {
-      const diffHours = Math.floor(diffMinutes / 60);
-      return `Cached ${diffHours}h ago`;
-    }
-  } else if (generatedAt.value) {
-    return 'Fresh data';
-  }
-  return '';
-});
-
-const cacheStatusColor = computed(() => {
-  if (isCachedData.value) {
-    const cacheTime = new Date(cachedAt.value);
-    const now = new Date();
-    const diffMinutes = Math.floor((now - cacheTime) / (1000 * 60));
-
-    if (diffMinutes < 10) return 'success';
-    if (diffMinutes < 30) return 'warning';
-    return 'error';
-  }
-  return 'info';
-});
 
 const hasData = computed(() => {
   return performanceData.value && performanceData.value.users_data && performanceData.value.users_data.length > 0;
@@ -108,6 +74,10 @@ const hasData = computed(() => {
 
 const canLoadData = computed(() => {
   return selectedRegion.value && selectedDateRange.value !== null;
+});
+
+const isRegionSelectorDisabled = computed(() => {
+  return regionFilter.value.applied;
 });
 
 // Fixed: Use correct data sources from server response
@@ -175,13 +145,35 @@ async function fetchRegions() {
 
   try {
     const response = await axios.get('/api/reports/region-performance/regions');
+
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     regions.value = response.data.regions;
 
-    // Auto-select first region if available
-    if (regions.value.length > 0) {
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+      // If region filter is applied, pre-select the filtered region
+      if (regionFilter.value.applied && regionFilter.value.region_id) {
+        selectedRegion.value = regionFilter.value.region_id;
+      }
+    } else if (regions.value.length > 0 && !selectedRegion.value) {
+      // Auto-select first region if available and no filter applied
       selectedRegion.value = regions.value[0].id;
     }
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error fetching regions:', error);
     showSnackbar('Failed to load regions', 'error');
   } finally {
@@ -245,7 +237,7 @@ function generateDateRanges() {
   selectedDateRange.value = dateRanges.value.length > 0 ? 0 : null;
 }
 
-async function loadPerformanceData(forceReload = false) {
+async function loadPerformanceData() {
   if (!canLoadData.value) {
     showSnackbar('Please select a region and date range', 'warning');
     return;
@@ -263,24 +255,28 @@ async function loadPerformanceData(forceReload = false) {
       start_date: range.start_date,
       end_date: range.end_date,
       mode: dateMode.value,
-      show_details: showDetails.value,
-      force_reload: forceReload
+      show_details: showDetails.value
     };
 
     const response = await axios.get('/api/reports/region-performance', { params });
 
-    performanceData.value = response.data;
-
-    // Update cache status - Fixed: Use correct field names from server response
-    isCachedData.value = response.data.cached || false;
-    cachedAt.value = response.data.cached_at || null;
-    generatedAt.value = response.data.generated_at || null;
-
-    if (forceReload) {
-      showSnackbar('Data reloaded successfully', 'success');
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
     }
 
+    performanceData.value = response.data;
+
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error loading performance data:', error);
     showSnackbar(error.response?.data?.message || 'Failed to load performance data', 'error');
   } finally {
@@ -288,30 +284,6 @@ async function loadPerformanceData(forceReload = false) {
   }
 }
 
-async function reloadCache() {
-  clearingCache.value = true;
-
-  try {
-    // Clear cache first
-    const params = {
-      region_id: selectedRegion.value,
-      year: selectedYear.value,
-      mode: dateMode.value
-    };
-
-    await axios.post('/api/reports/region-performance/clear-cache', params);
-
-    // Then fetch fresh data
-    await loadPerformanceData(true);
-
-    showSnackbar('Cache reloaded successfully', 'success');
-  } catch (error) {
-    console.error('Error reloading cache:', error);
-    showSnackbar('Failed to reload cache', 'error');
-  } finally {
-    clearingCache.value = false;
-  }
-}
 
 function viewUserDashboard(userId) {
   if (!performanceData.value) return;
@@ -511,10 +483,6 @@ watch(showDetails, (newValue) => {
               <VChip v-if="regionInfo.id" color="info" size="small" variant="tonal" prepend-icon="ri-information-line">
                 Region ID: {{ regionInfo.id }}
               </VChip>
-              <VChip v-if="cacheStatusText" :color="cacheStatusColor" size="small" variant="tonal"
-                prepend-icon="ri-database-line">
-                {{ cacheStatusText }}
-              </VChip>
               <VChip v-if="dateRangeInfo.start" color="secondary" size="small" variant="tonal"
                 prepend-icon="ri-calendar-line">
                 {{ formatDate(dateRangeInfo.start) }} - {{ formatDate(dateRangeInfo.end) }}
@@ -528,30 +496,48 @@ watch(showDetails, (newValue) => {
               Export CSV
             </VBtn>
 
-            <VTooltip text="Reload fresh data and clear cache" location="top">
-              <template #activator="{ props }">
-                <VBtn v-bind="props" color="warning" variant="outlined" prepend-icon="ri-refresh-line"
-                  @click="reloadCache" :loading="clearingCache" :disabled="loading || !hasData"
-                  aria-label="Reload cache">
-                  Reload
-                </VBtn>
-              </template>
-            </VTooltip>
           </div>
         </div>
       </VCardText>
     </VCard>
 
-    <!-- Region and Date Selection Card -->
-    <VCard class="mb-6">
-      <VCardText>
+    <!-- Region Access Error Alert -->
+    <VAlert v-if="regionAccessError" type="error" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2">
+        <VIcon icon="ri-error-warning-line" class="me-2" />
+        Region Assignment Required
+      </VAlertTitle>
+      <p>{{ regionAccessErrorMessage }}</p>
+      <p class="mt-3 mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have a region assigned to your account.
+      </p>
+    </VAlert>
+
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied && !regionAccessError" type="info" variant="tonal" class="mb-6" prominent>
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-lock-line" class="me-2" />
+        Region-Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing data for <strong>{{ selectedRegionName }}</strong> only, based on your permissions.
+        The region selector is locked to your assigned region.
+      </p>
+    </VAlert>
+
+    <!-- Hide all data when error exists -->
+    <template v-if="!regionAccessError">
+      <!-- Region and Date Selection Card -->
+      <VCard class="mb-6">
+        <VCardText>
         <h2 class="text-h6 font-weight-medium mb-4">Selection Parameters</h2>
 
         <VRow>
           <!-- Region Selection -->
           <VCol cols="12" md="4">
             <VSelect v-model="selectedRegion" :items="regions" item-title="name" item-value="id" label="Select Region"
-              density="comfortable" variant="outlined" :loading="loadingRegions" aria-label="Select region">
+              density="comfortable" variant="outlined" :loading="loadingRegions" aria-label="Select region"
+              :disabled="isRegionSelectorDisabled" :prepend-inner-icon="isRegionSelectorDisabled ? 'ri-lock-line' : undefined">
               <template #item="{ item, props }">
                 <VListItem v-bind="props">
                   <template #prepend>
@@ -631,12 +617,10 @@ watch(showDetails, (newValue) => {
         <VProgressCircular indeterminate color="primary" :size="60" :width="6" class="mb-4"
           aria-label="Loading performance data" />
         <h3 class="text-h6 font-weight-regular mb-2">
-          {{ clearingCache ? 'Reloading Fresh Data...' : 'Loading Region Performance Data' }}
+          Loading Region Performance Data
         </h3>
         <p class="text-secondary">
-          {{ clearingCache ? 'Clearing cache and fetching fresh data...' : `Analyzing ${selectedRegionName}
-          performance...`
-          }}
+          Analyzing {{ selectedRegionName }} performance...
         </p>
       </div>
     </div>
@@ -707,6 +691,7 @@ watch(showDetails, (newValue) => {
         </p>
       </VCardText>
     </VCard>
+    </template>
 
     <!-- Snackbar for notifications -->
     <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="3000" role="alert" aria-live="assertive">

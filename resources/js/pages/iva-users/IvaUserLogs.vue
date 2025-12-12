@@ -1,7 +1,10 @@
 <script setup>
 import { formatDateTime } from '@/@core/utils/helpers';
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { ref, watch } from 'vue';
+
+const authStore = useAuthStore();
 
 const props = defineProps({
   user: {
@@ -208,7 +211,7 @@ defineExpose({
       <div class="d-flex align-center mb-4">
         <h2 class="text-h6 font-weight-medium">User Logs</h2>
         <VSpacer />
-        <VBtn color="primary" prepend-icon="ri-add-line" @click="openLogDialog" aria-label="Add log entry">
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-add-line" @click="openLogDialog" aria-label="Add log entry">
           Add Log
         </VBtn>
       </div>
@@ -249,10 +252,10 @@ defineExpose({
                 Private
               </VChip>
               <VSpacer />
-              <VBtn icon size="small" variant="text" @click="openEditLogDialog(log)">
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" @click="openEditLogDialog(log)">
                 <VIcon size="18">ri-edit-line</VIcon>
               </VBtn>
-              <VBtn icon size="small" variant="text" color="error" @click="openDeleteLogDialog(log)">
+              <VBtn v-if="authStore.hasPermission('edit_iva_data')" icon size="small" variant="text" color="error" @click="openDeleteLogDialog(log)">
                 <VIcon size="18">ri-delete-bin-line</VIcon>
               </VBtn>
             </div>
@@ -286,7 +289,7 @@ defineExpose({
             No logs have been created for this user yet.
           </span>
         </p>
-        <VBtn color="primary" @click="openLogDialog">
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="openLogDialog">
           Add First Log
         </VBtn>
       </div>

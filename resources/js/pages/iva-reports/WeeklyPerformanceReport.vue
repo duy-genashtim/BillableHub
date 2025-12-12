@@ -19,6 +19,9 @@ const workStatusOptions = ref([]);
 const regionOptions = ref([]);
 const loading = ref(true);
 const clearingCache = ref(false);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
+const regionAccessError = ref(false);
+const regionAccessErrorMessage = ref('');
 const searchQuery = ref('');
 const selectedWorkStatus = ref('');
 const selectedRegion = ref('');
@@ -91,6 +94,16 @@ const filteredRegionOptions = computed(() => {
       value: region
     }))
   ];
+});
+
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // Find the region name from the region options
+  return regionOptions.value.find(r => r === selectedRegion.value) || 'your region';
+});
+
+const isRegionSelectorDisabled = computed(() => {
+  return regionFilter.value.applied;
 });
 
 const yearOptions = computed(() => {
@@ -196,6 +209,13 @@ async function fetchPerformanceData(forceReload = false) {
 
     const response = await axios.get('/api/reports/weekly-performance', { params });
 
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     performanceData.value = response.data.performance_data;
     summary.value = response.data.summary;
     workStatusOptions.value = response.data.work_status_options || [];
@@ -206,11 +226,31 @@ async function fetchPerformanceData(forceReload = false) {
     cachedAt.value = response.data.cached_at || null;
     generatedAt.value = response.data.generated_at || null;
 
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+      // If region filter is applied, pre-select the region
+      if (regionFilter.value.applied && regionFilter.value.region_id) {
+        // Find the region name from response
+        const regionName = regionOptions.value.find(r => r === selectedRegion.value);
+        if (!selectedRegion.value && regionName) {
+          selectedRegion.value = regionName;
+        }
+      }
+    }
+
     if (forceReload) {
       showSnackbar('Data reloaded successfully', 'success');
     }
 
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error fetching performance data:', error);
     showSnackbar(error.response?.data?.message || 'Failed to load performance data', 'error');
   } finally {
@@ -459,9 +499,35 @@ watch(showDetails, (newValue) => {
       </VCardText>
     </VCard>
 
-    <!-- Filters Card -->
-    <VCard class="mb-6">
-      <VCardText>
+    <!-- Region Access Error Alert -->
+    <VAlert v-if="regionAccessError" type="error" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2">
+        <VIcon icon="ri-error-warning-line" class="me-2" />
+        Region Assignment Required
+      </VAlertTitle>
+      <p>{{ regionAccessErrorMessage }}</p>
+      <p class="mt-3 mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have a region assigned to your account.
+      </p>
+    </VAlert>
+
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied && !regionAccessError" type="info" variant="tonal" class="mb-6" prominent>
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-lock-line" class="me-2" />
+        Region-Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing data for <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+        The region selector is locked to your assigned region.
+      </p>
+    </VAlert>
+
+    <!-- Hide all data when error exists -->
+    <template v-if="!regionAccessError">
+      <!-- Filters Card -->
+      <VCard class="mb-6">
+        <VCardText>
         <VRow>
           <!-- Year -->
           <VCol cols="12" md="2">
@@ -498,7 +564,8 @@ watch(showDetails, (newValue) => {
           <!-- Region Filter -->
           <VCol cols="12" md="3">
             <VSelect v-model="selectedRegion" :items="filteredRegionOptions" label="Region" density="comfortable"
-              variant="outlined" @update:model-value="onFilterChange" />
+              variant="outlined" @update:model-value="onFilterChange" :disabled="isRegionSelectorDisabled"
+              :prepend-inner-icon="isRegionSelectorDisabled ? 'ri-lock-line' : undefined" />
           </VCol>
 
           <!-- Show/Hide Switch -->
@@ -815,6 +882,7 @@ watch(showDetails, (newValue) => {
         </VBtn>
       </VCardText>
     </VCard>
+    </template>
 
     <!-- Snackbar for notifications -->
     <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="3000" role="alert" aria-live="assertive">

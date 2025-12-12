@@ -11,9 +11,11 @@ use App\Models\IvaUserChangelog;
 use App\Models\IvaUserCustomize;
 use App\Models\IvaUserLog;
 use App\Models\Region;
+use App\Models\Task;
 use App\Models\TimedoctorV1User;
 use App\Models\TimedoctorV2User;
 use App\Services\ActivityLogService;
+use App\Services\TimeDoctor\TimeDoctorService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,13 @@ use Illuminate\Validation\Rule;
 
 class IvaUserController extends Controller
 {
+    protected $timeDoctorService;
+
+    public function __construct(TimeDoctorService $timeDoctorService)
+    {
+        $this->timeDoctorService = $timeDoctorService;
+    }
+
     /**
      * Display a listing of IVA users.
      */
@@ -32,10 +41,29 @@ class IvaUserController extends Controller
         $perPage = $request->input('per_page', config('constants.pagination.iva_users_per_page'));
         $perPage = min($perPage, config('constants.pagination.max_per_page'));
 
+        // Validate region access for users with view_team_data permission
+        $regionValidation = validateManagerRegionAccess($request->user());
+        if ($regionValidation) {
+            return response()->json([
+                'success' => false,
+                'error' => $regionValidation['error'],
+                'message' => $regionValidation['message'],
+                'region_access_error' => true
+            ], 403);
+        }
+
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
         $query = IvaUser::with(['region', 'cohort', 'timedoctorUser']);
 
-        // Apply filters if provided
-        if ($request->has('region_id') && ! empty($request->region_id)) {
+        // Apply region filter for managers with view_team_data only
+        if ($managerRegionFilter) {
+            $query->where('region_id', $managerRegionFilter);
+        }
+
+        // Apply filters if provided (only if not already filtered by manager region)
+        if (!$managerRegionFilter && $request->has('region_id') && ! empty($request->region_id)) {
             $query->where('region_id', $request->region_id);
         }
 
@@ -96,6 +124,11 @@ class IvaUserController extends Controller
             'cohorts' => $cohorts,
             'work_status_options' => $workStatusOptions,
             'timedoctor_versions' => $timedoctorOptions,
+            'region_filter' => $managerRegionFilter ? [
+                'applied' => true,
+                'region_id' => $managerRegionFilter,
+                'reason' => 'view_team_data_permission'
+            ] : ['applied' => false],
         ]);
     }
 
@@ -104,6 +137,11 @@ class IvaUserController extends Controller
      */
     public function store(Request $request)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'full_name' => 'required|string|max:255',
             'job_title' => 'nullable|string|max:255',
@@ -250,6 +288,11 @@ class IvaUserController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
@@ -454,6 +497,48 @@ class IvaUserController extends Controller
 
             $syncResults = $this->processUserSyncData($responseData['data']);
 
+            // Enhanced TimeDoctor sync for specific email type ONLY
+            $timedoctorResults = [];
+            if ($request->sync_type === 'specific') {
+                // Extract emails from synced users
+                $emails = array_column($responseData['data'], 'email');
+
+                // Phase 2: Validate users exist in TimeDoctor, sync if missing
+                $tdValidation = $this->validateAndSyncTimeDoctorUsers($emails);
+
+                // Phase 3: Sync TimeDoctor Projects
+                $tdProjectSync = $this->syncTimeDoctorProjects();
+
+                // Phase 4: Sync tasks only for users found in TimeDoctor
+                $emailsToSync = array_merge(
+                    $tdValidation['found'],
+                    $tdValidation['found_after_sync'] ?? []
+                );
+
+                // Convert emails to user data format expected by syncTimeDocTasksForSyncedUsers
+                $usersToSync = array_filter($responseData['data'], function ($user) use ($emailsToSync) {
+                    return in_array($user['email'], $emailsToSync);
+                });
+
+                $tasksSyncResults = [];
+                if (! empty($usersToSync)) {
+                    $tasksSyncResults = $this->syncTimeDocTasksForSyncedUsers($usersToSync);
+                }
+
+                // Build comprehensive results
+                $timedoctorResults = [
+                    'validation' => [
+                        'found_initially' => count($tdValidation['found']),
+                        'missing_initially' => count($tdValidation['not_found_before_sync']),
+                        'sync_attempted' => $tdValidation['sync_attempted'],
+                        'found_after_sync' => count($tdValidation['found_after_sync'] ?? []),
+                        'not_found_in_timedoctor' => $tdValidation['not_found_after_sync'] ?? [],
+                    ],
+                    'projects_sync' => $tdProjectSync,
+                    'tasks_sync' => $tasksSyncResults,
+                ];
+            }
+
             // Log the activity
             ActivityLogService::log(
                 'sync_iva_users',
@@ -464,13 +549,32 @@ class IvaUserController extends Controller
                     'created' => $syncResults['created'],
                     'updated' => $syncResults['updated'],
                     'work_status_warnings' => $syncResults['work_status_warnings'],
+                    'timedoctor_results' => $timedoctorResults,
                 ]
             );
 
-            return response()->json([
-                'message' => 'Users sync completed successfully',
+            // Build success/warning message
+            $message = 'Users sync completed successfully';
+            if ($request->sync_type === 'specific' && ! empty($timedoctorResults)) {
+                $notFoundCount = count($timedoctorResults['validation']['not_found_in_timedoctor'] ?? []);
+                if ($notFoundCount > 0) {
+                    $message = "Users synced successfully. Warning: $notFoundCount user(s) not found in TimeDoctor.";
+                } else {
+                    $message = 'Users sync and TimeDoctor sync completed successfully';
+                }
+            }
+
+            $response = [
+                'message' => $message,
                 'results' => $syncResults,
-            ]);
+            ];
+
+            // Add TimeDoctor results if available
+            if (! empty($timedoctorResults)) {
+                $response['timedoctor_results'] = $timedoctorResults;
+            }
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
             Log::error('User sync error', [
@@ -733,6 +837,11 @@ class IvaUserController extends Controller
      */
     public function addCustomizations(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
@@ -829,8 +938,13 @@ class IvaUserController extends Controller
     /**
      * Remove a specific customization.
      */
-    public function removeCustomization($userId, $customizationId)
+    public function removeCustomization(Request $request, $userId, $customizationId)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($userId);
         $customization = IvaUserCustomize::with('setting.settingType')
             ->where('iva_user_id', $userId)
@@ -1087,6 +1201,11 @@ class IvaUserController extends Controller
      */
     public function updateCustomization(Request $request, $id, $customizationId)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
         $customization = IvaUserCustomize::where('iva_user_id', $id)
             ->where('id', $customizationId)
@@ -1182,6 +1301,11 @@ class IvaUserController extends Controller
      */
     public function addLog(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
@@ -1249,6 +1373,11 @@ class IvaUserController extends Controller
      */
     public function updateLog(Request $request, $id, $logId)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
         $log = IvaUserLog::where('iva_user_id', $id)->findOrFail($logId);
 
@@ -1314,8 +1443,13 @@ class IvaUserController extends Controller
     /**
      * Delete a log entry
      */
-    public function deleteLog($id, $logId)
+    public function deleteLog(Request $request, $id, $logId)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
         $log = IvaUserLog::where('iva_user_id', $id)->findOrFail($logId);
 
@@ -1385,6 +1519,11 @@ class IvaUserController extends Controller
      */
     public function addManager(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
@@ -1477,8 +1616,13 @@ class IvaUserController extends Controller
     /**
      * Remove a manager from a user
      */
-    public function removeManager($userId, $managerId)
+    public function removeManager(Request $request, $userId, $managerId)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $user = IvaUser::findOrFail($userId);
         $managerAssignment = IvaManager::with(['manager', 'managerType', 'region'])
             ->where('iva_id', $userId)
@@ -1605,5 +1749,257 @@ class IvaUserController extends Controller
         // Both ranges have end dates
         // Ranges overlap if: start1 <= end2 AND start2 <= end1
         return $start1->lte($end2) && $start2->lte($end1);
+    }
+
+    /**
+     * Validate synced emails exist in TimeDoctor, sync if missing
+     *
+     * @param array $emails Synced user emails
+     * @return array Validation results with missing users
+     */
+    private function validateAndSyncTimeDoctorUsers(array $emails)
+    {
+        $results = [
+            'found' => [],
+            'not_found_before_sync' => [],
+            'found_after_sync' => [],
+            'not_found_after_sync' => [],
+            'sync_attempted' => false,
+        ];
+
+        // Phase 1: Check which emails exist in timedoctor_v1_user
+        foreach ($emails as $email) {
+            $tdUser = TimedoctorV1User::where('tm_email', $email)->first();
+
+            if ($tdUser) {
+                $results['found'][] = $email;
+            } else {
+                $results['not_found_before_sync'][] = $email;
+            }
+        }
+
+        // Phase 2: If any missing, try to sync from TimeDoctor API
+        if (! empty($results['not_found_before_sync'])) {
+            try {
+                $timeDoctorController = app(TimeDoctorController::class);
+                $response = $timeDoctorController->syncUsers(request());
+                $results['sync_attempted'] = true;
+
+                Log::info('TimeDoctor users synced during IVA sync', [
+                    'missing_emails' => $results['not_found_before_sync'],
+                ]);
+
+                // Phase 3: Re-check after sync
+                foreach ($results['not_found_before_sync'] as $email) {
+                    $tdUser = TimedoctorV1User::where('tm_email', $email)->first();
+
+                    if ($tdUser) {
+                        $results['found_after_sync'][] = $email;
+                    } else {
+                        $results['not_found_after_sync'][] = $email;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('TimeDoctor user sync failed during validation', [
+                    'error' => $e->getMessage(),
+                    'emails' => $results['not_found_before_sync'],
+                ]);
+
+                // If sync fails, mark all as not found
+                $results['not_found_after_sync'] = $results['not_found_before_sync'];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Sync TimeDoctor projects
+     *
+     * @return array Sync results
+     */
+    private function syncTimeDoctorProjects()
+    {
+        try {
+            $timeDoctorController = app(TimeDoctorController::class);
+            $response = $timeDoctorController->syncProjects(request());
+
+            $data = $response->getData(true);
+
+            return [
+                'success' => true,
+                'synced_count' => $data['count'] ?? 0,
+                'message' => $data['message'] ?? 'Projects synced successfully',
+            ];
+        } catch (\Exception $e) {
+            Log::error('TimeDoctor project sync failed during IVA sync', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'synced_count' => 0,
+                'message' => 'Failed to sync projects: '.$e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Sync TimeDoctor tasks for all synced users
+     */
+    private function syncTimeDocTasksForSyncedUsers($syncedUsersData)
+    {
+        $results = [];
+
+        foreach ($syncedUsersData as $userData) {
+            $email = $userData['email'] ?? null;
+
+            if (!$email) {
+                continue;
+            }
+
+            // Check if user exists in TimeDoctor V1
+            $timedoctorUser = TimedoctorV1User::where('tm_email', $email)
+                ->whereNotNull('iva_user_id')
+                ->where('is_active', true)
+                ->first();
+
+            if ($timedoctorUser) {
+                // User found in TimeDoctor, sync their tasks
+                $taskSyncResult = $this->syncTimeDocSingleUserTasks(
+                    $timedoctorUser->timedoctor_id,
+                    $email
+                );
+
+                $results[] = [
+                    'email' => $email,
+                    'found_in_timedoctor' => true,
+                    'tasks_synced' => $taskSyncResult['tasks_synced'],
+                    'sync_success' => $taskSyncResult['success'],
+                    'message' => $taskSyncResult['message']
+                ];
+            } else {
+                // User not found in TimeDoctor V1
+                $results[] = [
+                    'email' => $email,
+                    'found_in_timedoctor' => false,
+                    'tasks_synced' => 0,
+                    'sync_success' => false,
+                    'message' => 'User not found in TimeDoctor V1'
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Sync TimeDoctor tasks for a specific user
+     */
+    private function syncTimeDocSingleUserTasks($timedoctorUserId, $userEmail)
+    {
+        try {
+            // Get company info first
+            $companyInfo = $this->timeDoctorService->getCompanyInfo();
+
+            if (!isset($companyInfo['accounts'][0]['company_id'])) {
+                return [
+                    'success' => false,
+                    'message' => 'Could not retrieve company ID from TimeDoctor',
+                    'tasks_synced' => 0
+                ];
+            }
+
+            $companyId = $companyInfo['accounts'][0]['company_id'];
+
+            // Get tasks for this specific user
+            $tasksData = $this->timeDoctorService->getTasks($companyId, $timedoctorUserId);
+
+            if (!isset($tasksData['tasks']) || !is_array($tasksData['tasks'])) {
+                return [
+                    'success' => true,
+                    'message' => 'No tasks found for user',
+                    'tasks_synced' => 0
+                ];
+            }
+
+            $syncCount = 0;
+
+            DB::beginTransaction();
+
+            try {
+                foreach ($tasksData['tasks'] as $task) {
+                    $userListData = [
+                        'tId' => $task['task_id'] ?? null,
+                        'vId' => 1,
+                    ];
+
+                    $existingTask = Task::where('task_name', $task['task_name'])->first();
+
+                    if ($existingTask) {
+                        $existingUserList = $existingTask->user_list ?? [];
+                        $userExists = false;
+
+                        if (is_array($existingUserList)) {
+                            foreach ($existingUserList as $key => $userData) {
+                                // Check if this task already exists for this user by comparing tId
+                                if (isset($userData['tId']) && $userData['tId'] == ($task['task_id'] ?? null)) {
+                                    $existingUserList[$key] = $userListData;
+                                    $userExists = true;
+                                    break;
+                                }
+                            }
+
+                            if (!$userExists) {
+                                $existingUserList[] = $userListData;
+                            }
+                        } else {
+                            $existingUserList = [$userListData];
+                        }
+
+                        $existingTask->update([
+                            'is_active' => ($task['status'] === 'Active' || $task['active'] ?? false),
+                            'last_synced_at' => now(),
+                            'user_list' => $existingUserList,
+                        ]);
+                    } else {
+                        Task::create([
+                            'task_name' => $task['task_name'],
+                            'user_list' => [$userListData],
+                            'is_active' => ($task['status'] === 'Active' || $task['active'] ?? false),
+                            'last_synced_at' => now(),
+                        ]);
+                    }
+
+                    $syncCount++;
+                }
+
+                DB::commit();
+
+                return [
+                    'success' => true,
+                    'message' => "Tasks synced successfully for {$userEmail}",
+                    'tasks_synced' => $syncCount
+                ];
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error syncing TimeDoctor tasks for single user', [
+                'user_email' => $userEmail,
+                'timedoctor_user_id' => $timedoctorUserId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Error syncing tasks: ' . $e->getMessage(),
+                'tasks_synced' => 0
+            ];
+        }
     }
 }

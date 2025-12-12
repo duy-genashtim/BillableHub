@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\IvaUser;
 use App\Services\DailyWorklogSummaryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class DailyWorklogSummaryController extends Controller
@@ -19,13 +20,22 @@ class DailyWorklogSummaryController extends Controller
     /**
      * Get options for calculation page
      */
-    public function getCalculationOptions()
+    public function getCalculationOptions(Request $request)
     {
         try {
-            $ivaUsers = IvaUser::where('is_active', true)
+            // Check if current user should be filtered by region
+            $managerRegionFilter = getManagerRegionFilter($request->user());
+
+            $query = IvaUser::where('is_active', true)
                 ->with('region')
-                ->orderBy('full_name')
-                ->get()
+                ->orderBy('full_name');
+
+            // Apply region filter for managers with view_team_data only
+            if ($managerRegionFilter) {
+                $query->where('region_id', $managerRegionFilter);
+            }
+
+            $ivaUsers = $query->get()
                 ->map(function ($user) {
                     return [
                         'id' => $user->id,
@@ -40,6 +50,11 @@ class DailyWorklogSummaryController extends Controller
                 'data' => [
                     'iva_users' => $ivaUsers,
                 ],
+                'region_filter' => $managerRegionFilter ? [
+                    'applied' => true,
+                    'region_id' => $managerRegionFilter,
+                    'reason' => 'view_team_data_permission'
+                ] : ['applied' => false],
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -112,9 +127,16 @@ class DailyWorklogSummaryController extends Controller
         try {
             $params = $request->only(['start_date', 'end_date', 'calculate_all', 'iva_user_ids']);
 
+            // Log incoming parameters for debugging
+            Log::info('Daily worklog calculation requested', [
+                'params' => $params,
+                'user_id' => auth()->id(),
+            ]);
+
             // Additional validation
             $errors = $this->summaryService->validateCalculationParams($params);
             if (! empty($errors)) {
+                Log::warning('Calculation validation failed', ['errors' => $errors, 'params' => $params]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
@@ -125,12 +147,30 @@ class DailyWorklogSummaryController extends Controller
             // Start calculation
             $result = $this->summaryService->calculateSummaries($params);
 
+            // Log result summary
+            Log::info('Calculation completed', [
+                'success' => $result['success'],
+                'total_ivas' => $result['summary']['total_ivas'] ?? 0,
+                'total_processed' => $result['summary']['total_processed'] ?? 0,
+                'total_errors' => $result['summary']['total_errors'] ?? 0,
+            ]);
+
             return response()->json($result);
 
         } catch (\Exception $e) {
+            Log::error('Daily worklog calculation error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'params' => $params ?? [],
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Calculation failed: '.$e->getMessage(),
+                'debug_info' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ],
             ], 500);
         }
     }

@@ -72,6 +72,11 @@ class CohortController extends Controller
      */
     public function store(Request $request)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:cohorts,name',
             'description' => 'nullable|string|max:1000',
@@ -153,6 +158,11 @@ class CohortController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:cohorts,name,'.$id,
             'description' => 'nullable|string|max:1000',
@@ -211,8 +221,13 @@ class CohortController extends Controller
     /**
      * Remove the specified cohort (soft delete by marking inactive)
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         DB::beginTransaction();
         try {
             $cohort = Cohort::findOrFail($id);
@@ -287,6 +302,11 @@ class CohortController extends Controller
      */
     public function assignUsers(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',
@@ -346,6 +366,11 @@ class CohortController extends Controller
      */
     public function removeUsers(Request $request, $id)
     {
+        // Check if user has permission to edit IVA data
+        if (! $request->user()->can('edit_iva_data')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:iva_user,id',

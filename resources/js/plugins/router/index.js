@@ -34,7 +34,12 @@ router.beforeEach(async (to, from, next) => {
     next('/dashboard')
   } else if (requiredPermission && isAuthenticated) {
     // Check permissions for protected routes
-    if (!authStore.hasPermission(requiredPermission)) {
+    // Support both single permission string and array of permissions
+    const hasRequiredPermission = Array.isArray(requiredPermission)
+      ? requiredPermission.some(permission => authStore.hasPermission(permission))
+      : authStore.hasPermission(requiredPermission)
+
+    if (!hasRequiredPermission) {
       // Redirect to dashboard with error message
       next({
         path: '/dashboard',

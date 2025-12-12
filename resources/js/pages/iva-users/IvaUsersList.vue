@@ -1,8 +1,10 @@
 <script setup>
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
+const authStore = useAuthStore();
 const router = useRouter();
 
 // Data
@@ -13,6 +15,9 @@ const workStatusOptions = ref([]);
 const timedoctorVersions = ref([]);
 const loading = ref(true);
 const isMobile = ref(window.innerWidth < 768);
+const regionFilter = ref({ applied: false, region_id: null, reason: null });
+const regionAccessError = ref(false);
+const regionAccessErrorMessage = ref('');
 
 // Pagination
 const pagination = ref({
@@ -65,6 +70,13 @@ const statusOptions = [
   { title: 'Inactive', value: false }
 ];
 
+const regionFilteredRegionName = computed(() => {
+  if (!regionFilter.value.applied) return null;
+  // Find the region from regions array
+  const region = regions.value.find(r => r.id === regionFilter.value.region_id);
+  return region ? region.name : 'your region';
+});
+
 onMounted(() => {
   fetchUsers();
   window.addEventListener('resize', handleResize);
@@ -93,6 +105,13 @@ async function fetchUsers() {
 
     const response = await axios.get('/api/admin/iva-users', { params });
 
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     users.value = response.data.users.data;
     pagination.value.total = response.data.users.total;
     pagination.value.page = response.data.users.current_page;
@@ -104,7 +123,19 @@ async function fetchUsers() {
     workStatusOptions.value = response.data.work_status_options;
     timedoctorVersions.value = response.data.timedoctor_versions;
 
+    // Handle region filter from backend
+    if (response.data.region_filter) {
+      regionFilter.value = response.data.region_filter;
+    }
+
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error fetching users:', error);
     snackbarText.value = 'Failed to load users';
     snackbarColor.value = 'error';
@@ -225,7 +256,31 @@ function debounce(fn, delay) {
       { title: 'IVA Users', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
 
-    <VCard>
+    <!-- Region Access Error Alert -->
+    <VAlert v-if="regionAccessError" type="error" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2">
+        <VIcon icon="ri-error-warning-line" class="me-2" />
+        Region Assignment Required
+      </VAlertTitle>
+      <p>{{ regionAccessErrorMessage }}</p>
+      <p class="mt-3 mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have a region assigned to your account.
+      </p>
+    </VAlert>
+
+    <!-- Region Filter Notice -->
+    <VAlert v-if="regionFilter.applied && !regionAccessError" type="info" variant="tonal" class="mb-6">
+      <VAlertTitle class="d-flex align-center">
+        <VIcon icon="ri-information-line" class="me-2" />
+        Filtered View
+      </VAlertTitle>
+      <p class="mb-0">
+        You are viewing IVA users from <strong>{{ regionFilteredRegionName }}</strong> only, based on your permissions.
+      </p>
+    </VAlert>
+
+    <!-- Hide all data when error exists -->
+    <VCard v-if="!regionAccessError">
       <VCardText>
         <!-- Header -->
         <div class="d-flex flex-wrap align-center mb-6">
@@ -244,7 +299,7 @@ function debounce(fn, delay) {
               Calculate Daily Summary
             </VBtn>
 
-            <VBtn color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="createUser"
+            <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-add-line" :size="isMobile ? 'small' : 'default'" @click="createUser"
               aria-label="Create new IVA user">
               Create IVA User
             </VBtn>
@@ -428,7 +483,7 @@ function debounce(fn, delay) {
                   aria-label="Calculate daily worklog summaries">
                   Calculate Daily Summary
                 </VBtn>
-                <VBtn color="primary" @click="createUser" aria-label="Create first user">
+                <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="createUser" aria-label="Create first user">
                   Create IVA User
                 </VBtn>
               </div>

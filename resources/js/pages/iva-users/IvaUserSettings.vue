@@ -1,7 +1,10 @@
 <script setup>
 import { formatDateRangeTimezoneSafe } from '@/@core/utils/helpers';
+import { useAuthStore } from '@/@core/stores/auth';
 import axios from 'axios';
 import { computed, ref } from 'vue';
+
+const authStore = useAuthStore();
 
 const props = defineProps({
   user: {
@@ -171,7 +174,7 @@ function isCustomizationActive(customization) {
       <div class="d-flex align-center mb-4">
         <h2 class="text-h6 font-weight-medium">Custom Settings</h2>
         <VSpacer />
-        <VBtn color="primary" prepend-icon="ri-add-line" @click="customizationDialog = true"
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" prepend-icon="ri-add-line" @click="customizationDialog = true"
           :disabled="availableCustomizationSettings.length === 0" aria-label="Add custom setting">
           Add Setting
         </VBtn>
@@ -197,7 +200,7 @@ function isCustomizationActive(customization) {
                       Active
                     </VChip>
                   </div>
-                  <VMenu>
+                  <VMenu v-if="authStore.hasPermission('edit_iva_data')">
                     <template #activator="{ props }">
                       <VBtn icon size="small" variant="text" v-bind="props">
                         <VIcon size="20">ri-more-2-line</VIcon>
@@ -236,7 +239,7 @@ function isCustomizationActive(customization) {
         <p class="text-secondary mb-4">
           This user doesn't have any custom settings configured.
         </p>
-        <VBtn color="primary" @click="customizationDialog = true"
+        <VBtn v-if="authStore.hasPermission('edit_iva_data')" color="primary" @click="customizationDialog = true"
           :disabled="availableCustomizationSettings.length === 0" aria-label="Add first custom setting">
           Add First Setting
         </VBtn>
