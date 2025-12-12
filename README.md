@@ -89,3 +89,9 @@ check port: netsh interface ipv4 show excludedportrange protocol=tcp
 
 > net stop winnat
 > net start winnat
+
+
+ Cron Entry for Debian:
+     # Weekly sync every Tuesday 3AM GMT+8 (Monday 7PM UTC)
+     0 19 * * 1 cd /var/www/iva && /usr/bin/php artisan timedoctor:sync-worklogs
+     --synclastweek >> /var/log/laravel/timedoctor-weekly-sync.log 2>&1

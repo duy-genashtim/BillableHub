@@ -20,6 +20,17 @@ class ReportExportController extends Controller
      */
     public function exportReport(Request $request)
     {
+        // Validate region access for users with view_team_data permission
+        $regionValidation = validateManagerRegionAccess($request->user());
+        if ($regionValidation) {
+            return response()->json([
+                'success' => false,
+                'error' => $regionValidation['error'],
+                'message' => $regionValidation['message'],
+                'region_access_error' => true
+            ], 403);
+        }
+
         // Check if current user should be filtered by region
         $managerRegionFilter = getManagerRegionFilter($request->user());
 
@@ -81,6 +92,91 @@ class ReportExportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to export report',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Export report data as JSON for client-side CSV generation
+     * Same validation and data generation as exportReport() but returns JSON
+     */
+    public function exportReportData(Request $request)
+    {
+        // Validate region access for users with view_team_data permission
+        $regionValidation = validateManagerRegionAccess($request->user());
+        if ($regionValidation) {
+            return response()->json([
+                'success' => false,
+                'error' => $regionValidation['error'],
+                'message' => $regionValidation['message'],
+                'region_access_error' => true
+            ], 403);
+        }
+
+        // Check if current user should be filtered by region
+        $managerRegionFilter = getManagerRegionFilter($request->user());
+
+        // If manager has view_team_data only, override report_type and region_id
+        if ($managerRegionFilter) {
+            $request->merge([
+                'report_type' => 'region',
+                'region_id' => $managerRegionFilter,
+            ]);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'report_type' => 'required|in:region,overall',
+            'report_period' => 'required|in:weekly_summary,monthly_summary,yearly_summary,calendar_month,bimonthly,custom',
+            'region_id' => 'required_if:report_type,region|exists:regions,id',
+            'year' => 'required|integer|min:2024',
+            'month' => 'nullable|integer|min:1|max:12',
+            'bimonthly_date' => 'nullable|integer|min:1|max:28',
+            'start_date' => 'nullable|date|required_if:report_period,custom',
+            'end_date' => 'nullable|date|after_or_equal:start_date|required_if:report_period,custom',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $reportData = $this->generateReportData($request);
+
+            ActivityLogService::log(
+                'export_report_csv',
+                "Exported {$reportData['report_type']} report as CSV for {$reportData['date_range']['start']} to {$reportData['date_range']['end']}",
+                [
+                    'report_type' => $reportData['report_type'],
+                    'date_range' => $reportData['date_range'],
+                    'region' => $reportData['region'] ?? null,
+                ]
+            );
+
+            // For region reports, include users_data (removed at line 164 for XLSX)
+            if ($reportData['report_type'] === 'region' && !isset($reportData['users_data'])) {
+                $reportData = $this->generateReportDataWithUsers($request);
+            }
+
+            // Return JSON data for client-side CSV generation
+            return response()->json([
+                'success' => true,
+                'data' => $reportData,
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Failed to export report data', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export report data',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -164,6 +260,70 @@ class ReportExportController extends Controller
         unset($reportData['users_data']);
 
         return $reportData;
+    }
+
+    /**
+     * Generate report data with users_data included (for CSV export of region reports)
+     * This is a modified version of generateReportData that doesn't remove users_data
+     */
+    private function generateReportDataWithUsers(Request $request)
+    {
+        $reportType = $request->input('report_type');
+        $period = $request->input('report_period');
+        $year = $request->input('year');
+
+        $dateInfo = $this->resolveDateRangeAndMode($period, $year, $request);
+        $startDate = $dateInfo['start_date'];
+        $endDate = $dateInfo['end_date'];
+        $mode = $dateInfo['mode'];
+
+        $reportData = [
+            'report_type' => $reportType,
+            'report_period' => $period,
+            'year' => $year,
+            'mode' => $mode,
+            'date_range' => [
+                'start' => $startDate,
+                'end' => $endDate,
+            ],
+        ];
+
+        if ($reportType === 'region') {
+            $managerRegionFilter = getManagerRegionFilter($request->user());
+            $regionId = $request->input('region_id');
+
+            $region = DB::table('regions')->find($regionId);
+            if (!$region) {
+                throw new \Exception('Region not found');
+            }
+
+            $reportData['region'] = [
+                'id' => $region->id,
+                'name' => $region->name,
+            ];
+
+            $users = $this->getActiveUsersInRegion($regionId, $startDate, $endDate, $managerRegionFilter);
+
+            switch ($mode) {
+                case 'weekly':
+                    $reportData = $this->processWeeklySummaryDataOptimized($users, $startDate, $endDate, $reportData);
+                    break;
+                case 'monthly':
+                    $reportData = $this->processMonthlySummaryDataOptimized($users, $startDate, $endDate, $reportData);
+                    break;
+                case 'yearly':
+                    $reportData = $this->processYearlyDataOptimized($users, $startDate, $endDate, $reportData);
+                    break;
+            }
+
+            $reportData['category_summary'] = $this->calculateCategorySummaryOptimized($reportData['users_data']);
+            // DON'T remove users_data for CSV export (unlike line 238)
+
+            return $reportData;
+        } else {
+            // For overall reports, use the standard method
+            return $this->generateOverallReportData($request, $reportData, $startDate, $endDate, $mode);
+        }
     }
 
     /**
@@ -349,16 +509,16 @@ class ReportExportController extends Controller
             'timedoctor_version',
         ])
             ->with(['customizations.setting.settingType', 'region'])
-            ->where('is_active', true)
+            // ->where('is_active', true) -- Removed to include users active during period
             ->where(function ($query) use ($startDate, $endDate) {
                 // User was active during the period
                 $query->where(function ($q) use ($startDate) {
                     $q->whereNull('hire_date')
                         ->orWhere('hire_date', '<=', $startDate);
                 })
-                    ->where(function ($q) use ($endDate) {
+                    ->where(function ($q) use ($startDate) {
                         $q->whereNull('end_date')
-                            ->orWhere('end_date', '>=', $endDate);
+                            ->orWhere('end_date', '>=', $startDate);
                     });
             });
 
@@ -429,7 +589,7 @@ class ReportExportController extends Controller
                             $categoriesBreakdown[] = [
                                 'category_id' => $category['category_id'],
                                 'category_name' => $category['category_name'],
-                                'hours' => $category['total_hours'],
+                                'hours' => (float) $category['total_hours'],
                             ];
                         }
                     }
@@ -453,12 +613,12 @@ class ReportExportController extends Controller
                 'work_status' => $predominantWorkStatus,
                 'region_id' => $predominantRegionId,
                 'region_name' => $predominantRegionName,
-                'billable_hours' => round($weekMetrics['billable_hours'], 2),
-                'non_billable_hours' => round($weekMetrics['non_billable_hours'], 2),
-                'total_hours' => round($weekMetrics['total_hours'], 2),
-                'target_hours' => round($weekPerformance[0]['target_total_hours'] ?? 0, 2),
+                'billable_hours' => (float) $weekMetrics['billable_hours'],
+                'non_billable_hours' => (float) $weekMetrics['non_billable_hours'],
+                'total_hours' => (float) $weekMetrics['total_hours'],
+                'target_hours' => (float) ($weekPerformance[0]['target_total_hours'] ?? 0),
                 'nad_count' => $userNadData['nad_count'],
-                'nad_hours' => round($userNadData['nad_hours'], 2),
+                'nad_hours' => (float) $userNadData['nad_hours'],
                 'performance' => $weekPerformance[0] ?? null,
                 'categories' => $categoriesBreakdown,
             ];
@@ -543,7 +703,7 @@ class ReportExportController extends Controller
                             $categoriesBreakdown[] = [
                                 'category_id' => $category['category_id'],
                                 'category_name' => $category['category_name'],
-                                'hours' => $category['total_hours'],
+                                'hours' => (float) $category['total_hours'],
                             ];
                         }
                     }
@@ -570,12 +730,12 @@ class ReportExportController extends Controller
                 'work_status' => $predominantWorkStatus,
                 'region_id' => $predominantRegionId,
                 'region_name' => $predominantRegionName,
-                'billable_hours' => round($monthMetrics['billable_hours'], 2),
-                'non_billable_hours' => round($monthMetrics['non_billable_hours'], 2),
-                'total_hours' => round($monthMetrics['total_hours'], 2),
-                'target_hours' => round($monthPerformance[0]['target_total_hours'] ?? 0, 2),
+                'billable_hours' => (float) $monthMetrics['billable_hours'],
+                'non_billable_hours' => (float) $monthMetrics['non_billable_hours'],
+                'total_hours' => (float) $monthMetrics['total_hours'],
+                'target_hours' => (float) ($monthPerformance[0]['target_total_hours'] ?? 0),
                 'nad_count' => $userNadData['nad_count'],
-                'nad_hours' => round($userNadData['nad_hours'], 2),
+                'nad_hours' => (float) $userNadData['nad_hours'],
                 'performance' => $monthPerformance[0] ?? null,
                 'categories' => $categoriesBreakdown,
                 'weekly_breakdown' => $weeklyBreakdown, // Add weekly breakdown for monthly_summary
@@ -661,7 +821,7 @@ class ReportExportController extends Controller
                             $categoriesBreakdown[] = [
                                 'category_id' => $category['category_id'],
                                 'category_name' => $category['category_name'],
-                                'hours' => $category['total_hours'],
+                                'hours' => (float) $category['total_hours'],
                             ];
                         }
                     }
@@ -685,12 +845,12 @@ class ReportExportController extends Controller
                 'work_status' => $predominantWorkStatus,
                 'region_id' => $predominantRegionId,
                 'region_name' => $predominantRegionName,
-                'billable_hours' => round($yearMetrics['billable_hours'], 2),
-                'non_billable_hours' => round($yearMetrics['non_billable_hours'], 2),
-                'total_hours' => round($yearMetrics['total_hours'], 2),
-                'target_hours' => round($yearPerformance[0]['target_total_hours'] ?? 0, 2),
+                'billable_hours' => (float) $yearMetrics['billable_hours'],
+                'non_billable_hours' => (float) $yearMetrics['non_billable_hours'],
+                'total_hours' => (float) $yearMetrics['total_hours'],
+                'target_hours' => (float) ($yearPerformance[0]['target_total_hours'] ?? 0),
                 'nad_count' => $userNadData['nad_count'],
-                'nad_hours' => round($userNadData['nad_hours'], 2),
+                'nad_hours' => (float) $userNadData['nad_hours'],
                 'performance' => $yearPerformance[0] ?? null,
                 'categories' => $categoriesBreakdown,
             ];
@@ -901,12 +1061,12 @@ class ReportExportController extends Controller
 
         return [
             'total_users' => count($users),
-            'total_billable_hours' => round($totalBillableHours, 2),
-            'total_non_billable_hours' => round($totalNonBillableHours, 2),
-            'total_hours' => round($totalBillableHours + $totalNonBillableHours, 2),
-            'total_target_hours' => round($totalTargetHours, 2),
+            'total_billable_hours' => $totalBillableHours,
+            'total_non_billable_hours' => $totalNonBillableHours,
+            'total_hours' => $totalBillableHours + $totalNonBillableHours,
+            'total_target_hours' => $totalTargetHours,
             'total_nad_count' => $totalNadCount,
-            'total_nad_hours' => round($totalNadHours, 2),
+            'total_nad_hours' => $totalNadHours,
             'avg_performance' => $avgPerformance,
             'performance_breakdown' => $performanceBreakdown,
         ];
@@ -952,11 +1112,11 @@ class ReportExportController extends Controller
             return $b['total_hours'] <=> $a['total_hours'];
         });
 
-        // Calculate averages and round hours
+        // Calculate averages (keep raw precision)
         foreach ($result as &$category) {
-            $category['total_hours'] = round($category['total_hours'], 2);
+            $category['total_hours'] = $category['total_hours'];
             $category['avg_hours_per_user'] = $category['user_count'] > 0
-            ? round($category['total_hours'] / $category['user_count'], 2)
+            ? ($category['total_hours'] / $category['user_count'])
             : 0;
         }
 

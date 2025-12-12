@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\IvaUser;
@@ -20,15 +19,15 @@ class IvaOverallReportController extends Controller
         $managerRegionFilter = getManagerRegionFilter($request->user());
 
         $request->merge([
-            'show_details' => filter_var($request->query('show_details'), FILTER_VALIDATE_BOOLEAN),
+            'show_details'          => filter_var($request->query('show_details'), FILTER_VALIDATE_BOOLEAN),
             'manager_region_filter' => $managerRegionFilter, // Pass to report generation
         ]);
 
         $validator = Validator::make($request->all(), [
-            'year' => 'required|integer|min:2024',
-            'start_date' => 'required|date|date_format:Y-m-d',
-            'end_date' => 'required|date|date_format:Y-m-d|after_or_equal:start_date',
-            'mode' => 'required|in:weekly,monthly,yearly',
+            'year'         => 'required|integer|min:2024',
+            'start_date'   => 'required|date|date_format:Y-m-d',
+            'end_date'     => 'required|date|date_format:Y-m-d|after_or_equal:start_date',
+            'mode'         => 'required|in:weekly,monthly,yearly',
             'show_details' => 'nullable|boolean',
         ]);
 
@@ -36,13 +35,13 @@ class IvaOverallReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors' => $validator->errors(),
+                'errors'  => $validator->errors(),
             ], 422);
         }
 
         // Validate date range (must be Monday to Sunday)
         $startDate = Carbon::parse($request->input('start_date'));
-        $endDate = Carbon::parse($request->input('end_date'));
+        $endDate   = Carbon::parse($request->input('end_date'));
 
         if (! $startDate->isMonday()) {
             return response()->json([
@@ -93,7 +92,7 @@ class IvaOverallReportController extends Controller
 
         Log::info('Overall report generated', [
             'regions_count' => count($reportData['regions_data'] ?? []),
-            'users_count' => count($reportData['users_data'] ?? []),
+            'users_count'   => count($reportData['users_data'] ?? []),
         ]);
 
         return response()->json([
@@ -102,16 +101,15 @@ class IvaOverallReportController extends Controller
         ]);
     }
 
-
     /**
      * Generate overall report data grouped by regions using optimized daily summaries
      */
     private function generateOverallReportData(Request $request)
     {
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
-        $mode = $request->input('mode');
-        $year = $request->input('year');
+        $startDate           = $request->input('start_date');
+        $endDate             = $request->input('end_date');
+        $mode                = $request->input('mode');
+        $year                = $request->input('year');
         $managerRegionFilter = $request->input('manager_region_filter');
 
         // Get all active regions (filtered if manager has view_team_data only)
@@ -129,21 +127,21 @@ class IvaOverallReportController extends Controller
 
         // Process performance data based on mode using optimized functions
         $reportData = [
-            'year' => $year,
-            'mode' => $mode,
-            'date_range' => [
+            'year'         => $year,
+            'mode'         => $mode,
+            'date_range'   => [
                 'start' => $startDate,
-                'end' => $endDate,
+                'end'   => $endDate,
             ],
             'regions_data' => [],
-            'users_data' => [],
-            'summary' => [],
+            'users_data'   => [],
+            'summary'      => [],
         ];
 
         // Group users by region and work status
         $allFullTimeUsers = [];
         $allPartTimeUsers = [];
-        $allUsersData = [];
+        $allUsersData     = [];
 
         foreach ($regions as $region) {
             // Filter users who were predominantly in this region during the reporting period
@@ -164,14 +162,14 @@ class IvaOverallReportController extends Controller
                 $reportData['regions_data'][] = $regionData;
 
                 // Add to overall collections
-                $allUsersData = array_merge($allUsersData, $regionData['users_data']);
+                $allUsersData     = array_merge($allUsersData, $regionData['users_data']);
                 $allFullTimeUsers = array_merge($allFullTimeUsers, $regionData['full_time_users']);
                 $allPartTimeUsers = array_merge($allPartTimeUsers, $regionData['part_time_users']);
             }
         }
 
         // Store overall user collections
-        $reportData['users_data'] = $allUsersData;
+        $reportData['users_data']      = $allUsersData;
         $reportData['full_time_users'] = $allFullTimeUsers;
         $reportData['part_time_users'] = $allPartTimeUsers;
 
@@ -179,7 +177,7 @@ class IvaOverallReportController extends Controller
         $reportData['summary'] = [
             'full_time' => $this->calculateGroupSummary($allFullTimeUsers),
             'part_time' => $this->calculateGroupSummary($allPartTimeUsers),
-            'overall' => $this->calculateGroupSummary($allUsersData),
+            'overall'   => $this->calculateGroupSummary($allUsersData),
         ];
 
         // Add category summary for all users
@@ -205,16 +203,17 @@ class IvaOverallReportController extends Controller
             'timedoctor_version',
         ])
             ->with(['customizations.setting.settingType', 'region'])
-            ->where('is_active', true)
+        // ->where('is_active', true) -- Duy remove inactive because we have end date.
             ->where(function ($query) use ($startDate, $endDate) {
                 // User was active during the period
                 $query->where(function ($q) use ($startDate) {
                     $q->whereNull('hire_date')
                         ->orWhere('hire_date', '<=', $startDate);
                 })
-                    ->where(function ($q) use ($endDate) {
+                // where(function ($q) use ($endDate) -> use in orwhere
+                    ->where(function ($q) use ($startDate) {
                         $q->whereNull('end_date')
-                            ->orWhere('end_date', '>=', $endDate);
+                            ->orWhere('end_date', '>=', $startDate);
                     });
             });
 
@@ -236,7 +235,7 @@ class IvaOverallReportController extends Controller
     {
         $regionFullTimeUsers = [];
         $regionPartTimeUsers = [];
-        $regionAllUsers = [];
+        $regionAllUsers      = [];
 
         switch ($mode) {
             case 'weekly':
@@ -250,22 +249,22 @@ class IvaOverallReportController extends Controller
                 break;
         }
 
-        $regionAllUsers = $reportData['users_data'];
+        $regionAllUsers      = $reportData['users_data'];
         $regionFullTimeUsers = $reportData['full_time_users'];
         $regionPartTimeUsers = $reportData['part_time_users'];
 
         return [
-            'region' => [
-                'id' => $region->id,
+            'region'          => [
+                'id'   => $region->id,
                 'name' => $region->name,
             ],
-            'users_data' => $regionAllUsers,
+            'users_data'      => $regionAllUsers,
             'full_time_users' => $regionFullTimeUsers,
             'part_time_users' => $regionPartTimeUsers,
-            'summary' => [
+            'summary'         => [
                 'full_time' => $this->calculateGroupSummary($regionFullTimeUsers),
                 'part_time' => $this->calculateGroupSummary($regionPartTimeUsers),
-                'overall' => $this->calculateGroupSummary($regionAllUsers),
+                'overall'   => $this->calculateGroupSummary($regionAllUsers),
             ],
         ];
     }
@@ -277,20 +276,20 @@ class IvaOverallReportController extends Controller
      */
     private function processWeeklySummaryDataOptimized($users, $startDate, $endDate)
     {
-        $allUsersData = [];
+        $allUsersData  = [];
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
         // Fetch NAD data for all users once (optimized)
         $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
-        $nadDataByEmail = [];
+        $nadDataByEmail  = [];
 
         if (isset($nadDataResponse['nad_data']) && is_array($nadDataResponse['nad_data'])) {
             foreach ($nadDataResponse['nad_data'] as $nadUser) {
                 $nadDataByEmail[$nadUser['email']] = [
                     'nad_count' => $nadUser['nad_count'] ?? 0,
                     'nad_hours' => ($nadUser['nad_count'] ?? 0) * ($nadDataResponse['nad_hour_rate'] ?? 8),
-                    'requests' => $nadUser['requests'] ?? 0,
+                    'requests'  => $nadUser['requests'] ?? 0,
                 ];
             }
         }
@@ -317,28 +316,30 @@ class IvaOverallReportController extends Controller
             // Get categories breakdown
             $categoriesBreakdown = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
+            // Calculate historical work status for the period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+
             $userData = [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'email' => $user->email,
-                'job_title' => $user->job_title,
-                'work_status' => $user->work_status,
-                'region_id' => $user->region_id,
-                'region_name' => $user->region->name ?? 'Unknown',
-                'billable_hours' => round($weekMetrics['billable_hours'], 2),
+                'id'                 => $user->id,
+                'full_name'          => $user->full_name,
+                'email'              => $user->email,
+                'job_title'          => $user->job_title,
+                'work_status'        => $predominantWorkStatus,
+                'region_id'          => $user->region_id,
+                'region_name'        => $user->region->name ?? 'Unknown',
+                'billable_hours'     => round($weekMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($weekMetrics['non_billable_hours'], 2),
-                'total_hours' => round($weekMetrics['total_hours'], 2),
-                'target_hours' => round($weekPerformance[0]['target_total_hours'] ?? 0, 2),
-                'nad_count' => $userNadData['nad_count'],
-                'nad_hours' => round($userNadData['nad_hours'], 2),
-                'performance' => $weekPerformance[0] ?? [],
-                'categories' => $categoriesBreakdown,
+                'total_hours'        => round($weekMetrics['total_hours'], 2),
+                'target_hours'       => round($weekPerformance[0]['target_total_hours'] ?? 0, 2),
+                'nad_count'          => $userNadData['nad_count'],
+                'nad_hours'          => round($userNadData['nad_hours'], 2),
+                'performance'        => $weekPerformance[0] ?? [],
+                'categories'         => $categoriesBreakdown,
             ];
 
             $allUsersData[] = $userData;
 
-            // Separate by work status - use historical work status for the period
-            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            // Separate by work status - use already calculated historical work status
             if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
@@ -347,7 +348,7 @@ class IvaOverallReportController extends Controller
         }
 
         return [
-            'users_data' => $allUsersData,
+            'users_data'      => $allUsersData,
             'full_time_users' => $fullTimeUsers,
             'part_time_users' => $partTimeUsers,
         ];
@@ -358,20 +359,20 @@ class IvaOverallReportController extends Controller
      */
     private function processMonthlySummaryDataOptimized($users, $startDate, $endDate)
     {
-        $allUsersData = [];
+        $allUsersData  = [];
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
         // Fetch NAD data for all users once (optimized)
         $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
-        $nadDataByEmail = [];
+        $nadDataByEmail  = [];
 
         if (isset($nadDataResponse['nad_data']) && is_array($nadDataResponse['nad_data'])) {
             foreach ($nadDataResponse['nad_data'] as $nadUser) {
                 $nadDataByEmail[$nadUser['email']] = [
                     'nad_count' => $nadUser['nad_count'] ?? 0,
                     'nad_hours' => ($nadUser['nad_count'] ?? 0) * ($nadDataResponse['nad_hour_rate'] ?? 8),
-                    'requests' => $nadUser['requests'] ?? 0,
+                    'requests'  => $nadUser['requests'] ?? 0,
                 ];
             }
         }
@@ -398,28 +399,30 @@ class IvaOverallReportController extends Controller
             // Get categories breakdown
             $categoriesBreakdown = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
+            // Calculate historical work status for the period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+
             $userData = [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'email' => $user->email,
-                'job_title' => $user->job_title,
-                'work_status' => $user->work_status,
-                'region_id' => $user->region_id,
-                'region_name' => $user->region->name ?? 'Unknown',
-                'billable_hours' => round($monthMetrics['billable_hours'], 2),
+                'id'                 => $user->id,
+                'full_name'          => $user->full_name,
+                'email'              => $user->email,
+                'job_title'          => $user->job_title,
+                'work_status'        => $predominantWorkStatus,
+                'region_id'          => $user->region_id,
+                'region_name'        => $user->region->name ?? 'Unknown',
+                'billable_hours'     => round($monthMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($monthMetrics['non_billable_hours'], 2),
-                'total_hours' => round($monthMetrics['total_hours'], 2),
-                'target_hours' => round($monthPerformance[0]['target_total_hours'] ?? 0, 2),
-                'nad_count' => $userNadData['nad_count'],
-                'nad_hours' => round($userNadData['nad_hours'], 2),
-                'performance' => $monthPerformance[0] ?? [],
-                'categories' => $categoriesBreakdown,
+                'total_hours'        => round($monthMetrics['total_hours'], 2),
+                'target_hours'       => round($monthPerformance[0]['target_total_hours'] ?? 0, 2),
+                'nad_count'          => $userNadData['nad_count'],
+                'nad_hours'          => round($userNadData['nad_hours'], 2),
+                'performance'        => $monthPerformance[0] ?? [],
+                'categories'         => $categoriesBreakdown,
             ];
 
             $allUsersData[] = $userData;
 
-            // Separate by work status - use historical work status for the period
-            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            // Separate by work status - use already calculated historical work status
             if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
@@ -428,7 +431,7 @@ class IvaOverallReportController extends Controller
         }
 
         return [
-            'users_data' => $allUsersData,
+            'users_data'      => $allUsersData,
             'full_time_users' => $fullTimeUsers,
             'part_time_users' => $partTimeUsers,
         ];
@@ -439,20 +442,20 @@ class IvaOverallReportController extends Controller
      */
     private function processYearlyDataOptimized($users, $startDate, $endDate)
     {
-        $allUsersData = [];
+        $allUsersData  = [];
         $fullTimeUsers = [];
         $partTimeUsers = [];
 
         // Fetch NAD data for all users once (optimized)
         $nadDataResponse = fetchNADDataForUsers($startDate, $endDate);
-        $nadDataByEmail = [];
+        $nadDataByEmail  = [];
 
         if (isset($nadDataResponse['nad_data']) && is_array($nadDataResponse['nad_data'])) {
             foreach ($nadDataResponse['nad_data'] as $nadUser) {
                 $nadDataByEmail[$nadUser['email']] = [
                     'nad_count' => $nadUser['nad_count'] ?? 0,
                     'nad_hours' => ($nadUser['nad_count'] ?? 0) * ($nadDataResponse['nad_hour_rate'] ?? 8),
-                    'requests' => $nadUser['requests'] ?? 0,
+                    'requests'  => $nadUser['requests'] ?? 0,
                 ];
             }
         }
@@ -475,28 +478,30 @@ class IvaOverallReportController extends Controller
             // Get categories breakdown
             $categoriesBreakdown = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
 
+            // Calculate historical work status for the period
+            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+
             $userData = [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'email' => $user->email,
-                'job_title' => $user->job_title,
-                'work_status' => $user->work_status,
-                'region_id' => $user->region_id,
-                'region_name' => $user->region->name ?? 'Unknown',
-                'billable_hours' => round($yearMetrics['billable_hours'], 2),
+                'id'                 => $user->id,
+                'full_name'          => $user->full_name,
+                'email'              => $user->email,
+                'job_title'          => $user->job_title,
+                'work_status'        => $predominantWorkStatus,
+                'region_id'          => $user->region_id,
+                'region_name'        => $user->region->name ?? 'Unknown',
+                'billable_hours'     => round($yearMetrics['billable_hours'], 2),
                 'non_billable_hours' => round($yearMetrics['non_billable_hours'], 2),
-                'total_hours' => round($yearMetrics['total_hours'], 2),
-                'target_hours' => round($yearPerformance[0]['target_total_hours'] ?? 0, 2),
-                'nad_count' => $userNadData['nad_count'],
-                'nad_hours' => round($userNadData['nad_hours'], 2),
-                'performance' => $yearPerformance[0] ?? [],
-                'categories' => $categoriesBreakdown,
+                'total_hours'        => round($yearMetrics['total_hours'], 2),
+                'target_hours'       => round($yearPerformance[0]['target_total_hours'] ?? 0, 2),
+                'nad_count'          => $userNadData['nad_count'],
+                'nad_hours'          => round($userNadData['nad_hours'], 2),
+                'performance'        => $yearPerformance[0] ?? [],
+                'categories'         => $categoriesBreakdown,
             ];
 
             $allUsersData[] = $userData;
 
-            // Separate by work status - use historical work status for the period
-            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
+            // Separate by work status - use already calculated historical work status
             if ($predominantWorkStatus === 'full-time') {
                 $fullTimeUsers[] = $userData;
             } else {
@@ -505,7 +510,7 @@ class IvaOverallReportController extends Controller
         }
 
         return [
-            'users_data' => $allUsersData,
+            'users_data'      => $allUsersData,
             'full_time_users' => $fullTimeUsers,
             'part_time_users' => $partTimeUsers,
         ];
@@ -531,10 +536,10 @@ class IvaOverallReportController extends Controller
 
                     if (! isset($categorySummary[$categoryId])) {
                         $categorySummary[$categoryId] = [
-                            'category_id' => $categoryId,
+                            'category_id'   => $categoryId,
                             'category_name' => $category['category_name'],
-                            'total_hours' => 0,
-                            'user_count' => 0,
+                            'total_hours'   => 0,
+                            'user_count'    => 0,
                         ];
                     }
 
@@ -556,10 +561,10 @@ class IvaOverallReportController extends Controller
 
         // Calculate averages and round hours
         foreach ($result as &$category) {
-            $category['total_hours'] = round($category['total_hours'], 2);
+            $category['total_hours']        = round($category['total_hours'], 2);
             $category['avg_hours_per_user'] = $category['user_count'] > 0
-            ? round($category['total_hours'] / $category['user_count'], 2)
-            : 0;
+                ? round($category['total_hours'] / $category['user_count'], 2)
+                : 0;
         }
 
         return $result;
@@ -569,31 +574,31 @@ class IvaOverallReportController extends Controller
     {
         if (empty($users)) {
             return [
-                'total_users' => 0,
-                'total_billable_hours' => 0,
+                'total_users'              => 0,
+                'total_billable_hours'     => 0,
                 'total_non_billable_hours' => 0,
-                'total_hours' => 0,
-                'total_target_hours' => 0,
-                'total_nad_count' => 0,
-                'total_nad_hours' => 0,
-                'avg_performance' => 0,
-                'performance_breakdown' => [
+                'total_hours'              => 0,
+                'total_target_hours'       => 0,
+                'total_nad_count'          => 0,
+                'total_nad_hours'          => 0,
+                'avg_performance'          => 0,
+                'performance_breakdown'    => [
                     'exceeded' => 0,
-                    'meet' => 0,
-                    'below' => 0,
+                    'meet'     => 0,
+                    'below'    => 0,
                 ],
             ];
         }
 
-        $totalBillableHours = 0;
+        $totalBillableHours    = 0;
         $totalNonBillableHours = 0;
-        $totalTargetHours = 0;
-        $totalNadCount = 0;
-        $totalNadHours = 0;
-        $performanceBreakdown = [
+        $totalTargetHours      = 0;
+        $totalNadCount         = 0;
+        $totalNadHours         = 0;
+        $performanceBreakdown  = [
             'exceeded' => 0,
-            'meet' => 0,
-            'below' => 0,
+            'meet'     => 0,
+            'below'    => 0,
         ];
 
         foreach ($users as $user) {
@@ -621,19 +626,19 @@ class IvaOverallReportController extends Controller
         }
 
         $avgPerformance = $totalTargetHours > 0
-        ? round(($totalBillableHours / $totalTargetHours) * 100, 1)
-        : 0;
+            ? round(($totalBillableHours / $totalTargetHours) * 100, 1)
+            : 0;
 
         return [
-            'total_users' => count($users),
-            'total_billable_hours' => round($totalBillableHours, 2),
+            'total_users'              => count($users),
+            'total_billable_hours'     => round($totalBillableHours, 2),
             'total_non_billable_hours' => round($totalNonBillableHours, 2),
-            'total_hours' => round($totalBillableHours + $totalNonBillableHours, 2),
-            'total_target_hours' => round($totalTargetHours, 2),
-            'total_nad_count' => $totalNadCount,
-            'total_nad_hours' => round($totalNadHours, 2),
-            'avg_performance' => $avgPerformance,
-            'performance_breakdown' => $performanceBreakdown,
+            'total_hours'              => round($totalBillableHours + $totalNonBillableHours, 2),
+            'total_target_hours'       => round($totalTargetHours, 2),
+            'total_nad_count'          => $totalNadCount,
+            'total_nad_hours'          => round($totalNadHours, 2),
+            'avg_performance'          => $avgPerformance,
+            'performance_breakdown'    => $performanceBreakdown,
         ];
     }
 

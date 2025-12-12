@@ -40,8 +40,8 @@ return [
         'manage_ivas'          => 'Manage IVAs',   // used
         'edit_iva_data'        => 'Edit IVA Data', // used
 
-        // Reports
-        'generate_reports'     => 'Generate Reports',
+                                                      // Reports
+        'generate_reports'     => 'Generate Reports', // should remove
         'view_reports'         => 'View Reports',
         'export_reports'       => 'Export Reports',
 

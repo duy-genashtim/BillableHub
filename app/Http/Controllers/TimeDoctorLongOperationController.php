@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\TaskMatchingHelper;
 use App\Models\IvaUser;
 use App\Models\Project;
 use App\Models\Task;
@@ -426,16 +427,12 @@ class TimeDoctorLongOperationController extends Controller
                         }
                     }
 
-                    if (isset($worklog['task_id'])) {
-                        $task = Task::whereJsonContains('user_list', ['tId' => $worklog['task_id']])
-                            ->orWhere('user_list', 'like', '%"tId":"'.$worklog['task_id'].'"%')
-                            ->orWhere('user_list', 'like', '%"tId":'.$worklog['task_id'].'%')
-                            ->first();
-
-                        if ($task) {
-                            $taskId = $task->id;
-                        }
-                    }
+                    // Find task mapping (with fallback to task_name)
+                    $taskId = TaskMatchingHelper::matchTaskForWorklog(
+                        $worklog['task_id'] ?? null,
+                        $worklog['task_name'] ?? null,
+                        1 // TimeDoctor V1
+                    );
 
                     $existingWorklog = WorklogsData::where('timedoctor_worklog_id', $worklog['id'])
                         ->where('api_type', 'timedoctor')

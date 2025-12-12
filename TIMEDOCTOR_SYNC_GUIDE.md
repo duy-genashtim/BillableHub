@@ -260,6 +260,11 @@ php artisan timedoctor:sync-worklogs --start-date=2025-01-10 --end-date=2025-01-
 php artisan timedoctor:sync-worklogs --start-date=2025-01-01 --end-date=2025-01-07
 ```
 
+ Cron Entry for Debian:
+     # Weekly sync every Tuesday 3AM GMT+8 (Monday 7PM UTC)
+     0 19 * * 1 cd /var/www/iva && /usr/bin/php artisan timedoctor:sync-worklogs
+     --synclastweek >> /var/log/laravel/timedoctor-weekly-sync.log 2>&1
+
 ## Security Considerations
 
 1. **Log File Permissions**: Ensure log files are not publicly accessible

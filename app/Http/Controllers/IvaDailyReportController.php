@@ -33,6 +33,17 @@ class IvaDailyReportController extends Controller
             ], 422);
         }
 
+        // Validate region access for users with view_team_data permission
+        $regionValidation = validateManagerRegionAccess($request->user());
+        if ($regionValidation) {
+            return response()->json([
+                'success' => false,
+                'error' => $regionValidation['error'],
+                'message' => $regionValidation['message'],
+                'region_access_error' => true
+            ], 403);
+        }
+
         // Check if current user should be filtered by region
         $managerRegionFilter = getManagerRegionFilter($request->user());
 

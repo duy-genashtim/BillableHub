@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\TaskMatchingHelper;
 use App\Models\IvaUser;
 use App\Models\Project;
 use App\Models\Task;
@@ -373,17 +374,12 @@ class IvaUserTimeDoctorRecordsController extends Controller
                                 }
                             }
 
-                            // Find task mapping
-                            $taskId = null;
-                            if (isset($worklog['task_id'])) {
-                                $task = Task::where('user_list', 'like', '%"tId":"'.$worklog['task_id'].'"%')
-                                    ->orWhere('user_list', 'like', '%"tId":'.$worklog['task_id'].'%')
-                                    ->first();
-
-                                if ($task) {
-                                    $taskId = $task->id;
-                                }
-                            }
+                            // Find task mapping (with fallback to task_name)
+                            $taskId = TaskMatchingHelper::matchTaskForWorklog(
+                                $worklog['task_id'] ?? null,
+                                $worklog['task_name'] ?? null,
+                                1 // TimeDoctor V1
+                            );
 
                             // Determine comment based on edited status
                             $comment = null;
@@ -570,16 +566,12 @@ class IvaUserTimeDoctorRecordsController extends Controller
                             }
                         }
 
-                        // Find task mapping
-                        $taskId = null;
-                        if (isset($worklog['taskId'])) {
-                            $task = Task::whereJsonContains('user_list', ['tId' => $worklog['taskId'], 'vId' => 2])
-                                ->first();
-
-                            if ($task) {
-                                $taskId = $task->id;
-                            }
-                        }
+                        // Find task mapping (with fallback to task_name)
+                        $taskId = TaskMatchingHelper::matchTaskForWorklog(
+                            $worklog['taskId'] ?? null,
+                            $worklog['taskName'] ?? null,
+                            2 // TimeDoctor V2
+                        );
 
                         // Create unique identifier for V2 worklogs
                         $worklogId = $worklog['userId'].'_'.$worklog['start'].'_'.$worklog['time'];

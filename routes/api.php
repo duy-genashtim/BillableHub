@@ -60,6 +60,7 @@ Route::middleware('auth.jwt')->group(function () {
         Route::post('users/{targetUser}/assign-role', [UserRoleController::class, 'assignRole']);
         Route::delete('users/{targetUser}/remove-role', [UserRoleController::class, 'removeRole']);
         Route::put('users/{targetUser}/sync-roles', [UserRoleController::class, 'syncRoles']);
+        Route::delete('users/{targetUser}', [UserRoleController::class, 'destroy']);
         Route::get('available-roles', [UserRoleController::class, 'availableRoles']);
 
         // Activity logs
@@ -263,6 +264,8 @@ Route::middleware('auth.jwt')->group(function () {
         // Export routes
         Route::post('/export', [ReportExportController::class, 'exportReport'])
             ->name('export');
+        Route::post('/export-data', [ReportExportController::class, 'exportReportData'])
+            ->name('export-data');
         Route::get('/available-regions', [ReportExportController::class, 'getAvailableRegions'])
             ->name('available-regions');
     });

@@ -133,7 +133,7 @@ if (! function_exists('calculateBasicMetricsFromDailySummaries')) {
                 ->select([
                     // Billable metrics
                     \Illuminate\Support\Facades\DB::raw("
-                        ROUND(COALESCE(SUM(CASE WHEN category_type LIKE 'billable%' THEN total_duration END), 0) / 3600, 2) as billable_hours
+                        COALESCE(SUM(CASE WHEN category_type LIKE 'billable%' THEN total_duration END), 0) / 3600 as billable_hours
                     "),
                     \Illuminate\Support\Facades\DB::raw("
                         COALESCE(SUM(CASE WHEN category_type LIKE 'billable%' THEN entries_count END), 0) as billable_entries
@@ -144,7 +144,7 @@ if (! function_exists('calculateBasicMetricsFromDailySummaries')) {
 
                     // Non-billable metrics
                     \Illuminate\Support\Facades\DB::raw("
-                        ROUND(COALESCE(SUM(CASE WHEN category_type LIKE '%non-billable%' THEN total_duration END), 0) / 3600, 2) as non_billable_hours
+                        COALESCE(SUM(CASE WHEN category_type LIKE '%non-billable%' THEN total_duration END), 0) / 3600 as non_billable_hours
                     "),
                     \Illuminate\Support\Facades\DB::raw("
                         COALESCE(SUM(CASE WHEN category_type LIKE '%non-billable%' THEN entries_count END), 0) as non_billable_entries
@@ -155,7 +155,7 @@ if (! function_exists('calculateBasicMetricsFromDailySummaries')) {
 
                     // Uncategorized metrics
                     \Illuminate\Support\Facades\DB::raw("
-                        ROUND(COALESCE(SUM(CASE WHEN category_type = 'uncategorized' THEN total_duration END), 0) / 3600, 2) as uncategorized_hours
+                        COALESCE(SUM(CASE WHEN category_type = 'uncategorized' THEN total_duration END), 0) / 3600 as uncategorized_hours
                     "),
                     \Illuminate\Support\Facades\DB::raw("
                         COALESCE(SUM(CASE WHEN category_type = 'uncategorized' THEN entries_count END), 0) as uncategorized_entries
@@ -166,7 +166,7 @@ if (! function_exists('calculateBasicMetricsFromDailySummaries')) {
 
                     // Overall totals
                     \Illuminate\Support\Facades\DB::raw('
-                        ROUND(COALESCE(SUM(total_duration), 0) / 3600, 2) as total_hours
+                        COALESCE(SUM(total_duration), 0) / 3600 as total_hours
                     '),
                     \Illuminate\Support\Facades\DB::raw('
                         COALESCE(SUM(entries_count), 0) as total_entries
@@ -247,16 +247,16 @@ if (! function_exists('calculateDailyBreakdownFromSummaries')) {
                 ->select([
                     'report_date',
                     \Illuminate\Support\Facades\DB::raw("
-                        ROUND(COALESCE(SUM(CASE WHEN category_type LIKE 'billable%' THEN total_duration END), 0) / 3600, 2) as billable_hours
+                        COALESCE(SUM(CASE WHEN category_type LIKE 'billable%' THEN total_duration END), 0) / 3600 as billable_hours
                     "),
                     \Illuminate\Support\Facades\DB::raw("
-                        ROUND(COALESCE(SUM(CASE WHEN category_type LIKE '%non-billable%' THEN total_duration END), 0) / 3600, 2) as non_billable_hours
+                        COALESCE(SUM(CASE WHEN category_type LIKE '%non-billable%' THEN total_duration END), 0) / 3600 as non_billable_hours
                     "),
                     \Illuminate\Support\Facades\DB::raw("
-                        ROUND(COALESCE(SUM(CASE WHEN category_type = 'uncategorized' THEN total_duration END), 0) / 3600, 2) as uncategorized_hours
+                        COALESCE(SUM(CASE WHEN category_type = 'uncategorized' THEN total_duration END), 0) / 3600 as uncategorized_hours
                     "),
                     \Illuminate\Support\Facades\DB::raw('
-                        ROUND(COALESCE(SUM(total_duration), 0) / 3600, 2) as total_hours
+                        COALESCE(SUM(total_duration), 0) / 3600 as total_hours
                     '),
                     \Illuminate\Support\Facades\DB::raw("
                         COALESCE(SUM(CASE WHEN category_type LIKE 'billable%' THEN entries_count END), 0) as billable_entries
@@ -460,7 +460,7 @@ if (! function_exists('calculateCategoryBreakdownFromSummaries')) {
                     'dws.category_type',
                     'dws.report_category_id',
                     'rc.cat_name as category_name',
-                    \Illuminate\Support\Facades\DB::raw('ROUND(SUM(dws.total_duration) / 3600, 2) as total_hours'),
+                    \Illuminate\Support\Facades\DB::raw('SUM(dws.total_duration) / 3600 as total_hours'),
                     \Illuminate\Support\Facades\DB::raw('SUM(dws.entries_count) as entries_count'),
                 ])
                 ->where('dws.iva_id', $ivaId)
@@ -1031,7 +1031,7 @@ if (! function_exists('calculateFullCategoryBreakdownFromSummaries')) {
                     'rc.cat_name as category_name',
                     'rc.category_order',
                     \Illuminate\Support\Facades\DB::raw("COALESCE(cs.setting_value, 'Uncategorized') as category_type"), // ✅ FIXED HERE
-                    \Illuminate\Support\Facades\DB::raw('ROUND(COALESCE(SUM(dws.total_duration), 0) / 3600, 2) as total_hours'),
+                    \Illuminate\Support\Facades\DB::raw('COALESCE(SUM(dws.total_duration), 0) / 3600 as total_hours'),
                     \Illuminate\Support\Facades\DB::raw('COALESCE(SUM(dws.entries_count), 0) as entries_count'),
                 ])
                 ->where('rc.is_active', true)

@@ -20,6 +20,8 @@ const loadingRegions = ref(true);
 const showDetails = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 const regionFilter = ref({ applied: false, region_id: null, reason: null });
+const regionAccessError = ref(false);
+const regionAccessErrorMessage = ref('');
 
 // Date selection
 const dateMode = ref('weekly');
@@ -143,6 +145,14 @@ async function fetchRegions() {
 
   try {
     const response = await axios.get('/api/reports/region-performance/regions');
+
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     regions.value = response.data.regions;
 
     // Handle region filter from backend
@@ -157,6 +167,13 @@ async function fetchRegions() {
       selectedRegion.value = regions.value[0].id;
     }
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error fetching regions:', error);
     showSnackbar('Failed to load regions', 'error');
   } finally {
@@ -243,9 +260,23 @@ async function loadPerformanceData() {
 
     const response = await axios.get('/api/reports/region-performance', { params });
 
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     performanceData.value = response.data;
 
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error loading performance data:', error);
     showSnackbar(error.response?.data?.message || 'Failed to load performance data', 'error');
   } finally {
@@ -470,8 +501,20 @@ watch(showDetails, (newValue) => {
       </VCardText>
     </VCard>
 
+    <!-- Region Access Error Alert -->
+    <VAlert v-if="regionAccessError" type="error" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2">
+        <VIcon icon="ri-error-warning-line" class="me-2" />
+        Region Assignment Required
+      </VAlertTitle>
+      <p>{{ regionAccessErrorMessage }}</p>
+      <p class="mt-3 mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have a region assigned to your account.
+      </p>
+    </VAlert>
+
     <!-- Region Filter Notice -->
-    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6" prominent>
+    <VAlert v-if="regionFilter.applied && !regionAccessError" type="info" variant="tonal" class="mb-6" prominent>
       <VAlertTitle class="d-flex align-center">
         <VIcon icon="ri-lock-line" class="me-2" />
         Region-Filtered View
@@ -482,9 +525,11 @@ watch(showDetails, (newValue) => {
       </p>
     </VAlert>
 
-    <!-- Region and Date Selection Card -->
-    <VCard class="mb-6">
-      <VCardText>
+    <!-- Hide all data when error exists -->
+    <template v-if="!regionAccessError">
+      <!-- Region and Date Selection Card -->
+      <VCard class="mb-6">
+        <VCardText>
         <h2 class="text-h6 font-weight-medium mb-4">Selection Parameters</h2>
 
         <VRow>
@@ -646,6 +691,7 @@ watch(showDetails, (newValue) => {
         </p>
       </VCardText>
     </VCard>
+    </template>
 
     <!-- Snackbar for notifications -->
     <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="3000" role="alert" aria-live="assertive">

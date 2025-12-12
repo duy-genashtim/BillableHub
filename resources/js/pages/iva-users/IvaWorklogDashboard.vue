@@ -289,6 +289,18 @@ async function fetchDashboardData() {
 
   try {
     const params = getDateParams();
+
+    // Validate that start_date and end_date are always present
+    if (!params.start_date || !params.end_date) {
+      console.error('Missing required date parameters:', params);
+      snackbarText.value = 'Unable to calculate date range. Please select a valid date range.';
+      snackbarColor.value = 'error';
+      snackbar.value = true;
+      loadingDashboard.value = false;
+      loading.value = false;
+      return;
+    }
+
     const response = await axios.get(`/api/admin/iva-users/${userId}/worklog-dashboard`, { params });
     dashboardData.value = response.data.dashboard;
   } catch (error) {
@@ -313,11 +325,30 @@ function getDateParams() {
       const endWeek = selectedWeekNumber.value + selectedWeekCount.value - 1;
 
       const startWeekObj = weeks.find(w => w.week_number === startWeek);
-      const endWeekObj = weeks.find(w => w.week_number === endWeek);
+      let endWeekObj = weeks.find(w => w.week_number === endWeek);
 
-      if (startWeekObj && endWeekObj) {
+      // If end week exceeds current year (week > 52), calculate from next year
+      if (startWeekObj && !endWeekObj && endWeek > 52) {
+        const nextYearWeeks = getWeekRangeForYear(selectedYear.value + 1);
+        const nextYearWeekNumber = endWeek - 52;
+        endWeekObj = nextYearWeeks.find(w => w.week_number === nextYearWeekNumber);
+      }
+
+      // Ensure start_date and end_date are always set
+      if (startWeekObj) {
         params.start_date = startWeekObj.start_date;
-        params.end_date = endWeekObj.end_date;
+
+        if (endWeekObj) {
+          params.end_date = endWeekObj.end_date;
+        } else {
+          // Fallback: Calculate end date manually by adding weeks
+          const startDate = new Date(startWeekObj.start_date);
+          const endDate = new Date(startDate);
+          endDate.setUTCDate(startDate.getUTCDate() + (selectedWeekCount.value * 7) - 1);
+          params.end_date = endDate.toISOString().split('T')[0];
+        }
+      } else {
+        console.error('Unable to find start week', startWeek, 'in year', selectedYear.value);
       }
 
       params.year = selectedYear.value;
@@ -336,9 +367,31 @@ function getDateParams() {
       const startMonthIndex = selectedMonth.value - 1; // Convert to 0-based
       const endMonthIndex = startMonthIndex + selectedMonthCount.value - 1;
 
-      if (monthOptions[startMonthIndex] && monthOptions[endMonthIndex]) {
-        params.start_date = monthOptions[startMonthIndex].start_date;
-        params.end_date = monthOptions[endMonthIndex].end_date;
+      const startMonthObj = monthOptions[startMonthIndex];
+      let endMonthObj = monthOptions[endMonthIndex];
+
+      // If end month exceeds current year (month > 13), calculate from next year
+      if (startMonthObj && !endMonthObj && endMonthIndex >= 13) {
+        const nextYearMonthOptions = getCustomMonthOptionsForSummary(selectedYear.value + 1);
+        const nextYearMonthIndex = endMonthIndex - 13;
+        endMonthObj = nextYearMonthOptions[nextYearMonthIndex];
+      }
+
+      // Ensure start_date and end_date are always set
+      if (startMonthObj) {
+        params.start_date = startMonthObj.start_date;
+
+        if (endMonthObj) {
+          params.end_date = endMonthObj.end_date;
+        } else {
+          // Fallback: Calculate end date manually by adding month_count * 4 weeks
+          const startDate = new Date(startMonthObj.start_date);
+          const endDate = new Date(startDate);
+          endDate.setUTCDate(startDate.getUTCDate() + (selectedMonthCount.value * 4 * 7) - 1);
+          params.end_date = endDate.toISOString().split('T')[0];
+        }
+      } else {
+        console.error('Unable to find start month', selectedMonth.value, 'in year', selectedYear.value);
       }
 
       params.year = selectedYear.value;

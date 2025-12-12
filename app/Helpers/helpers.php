@@ -1777,3 +1777,46 @@ if (! function_exists('getManagerRegionFilter')) {
         return getManagerRegion($user);
     }
 }
+
+if (! function_exists('validateManagerRegionAccess')) {
+    /**
+     * Validate that a user who needs region filtering has a valid region assigned
+     *
+     * @param object $user The authenticated user
+     * @return array|null Returns error array if validation fails, null if valid
+     */
+    function validateManagerRegionAccess($user)
+    {
+        // If user doesn't need filtering, validation passes
+        if (!shouldFilterByRegion($user)) {
+            return null;
+        }
+
+        // User needs filtering, check if they have a region
+        $region = getManagerRegion($user);
+
+        if ($region === null) {
+            return [
+                'error' => 'no_region_assigned',
+                'message' => 'Your account does not have a region assigned. Please contact your administrator to assign you to a region.',
+                'user_email' => $user->email
+            ];
+        }
+
+        // Validate that the region exists in regions table
+        $regionExists = DB::table('regions')
+            ->where('id', $region)
+            ->exists();
+
+        if (!$regionExists) {
+            return [
+                'error' => 'invalid_region',
+                'message' => 'Your assigned region (ID: ' . $region . ') is invalid. Please contact your administrator to correct your region assignment.',
+                'user_email' => $user->email,
+                'region_id' => $region
+            ];
+        }
+
+        return null; // Validation passed
+    }
+}

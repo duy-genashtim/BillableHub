@@ -9,6 +9,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 const loading = ref(false);
 const regions = ref([]);
 const regionFilter = ref({ applied: false, region_id: null, reason: null });
+const regionAccessError = ref(false);
+const regionAccessErrorMessage = ref('');
 
 // Form data
 const formData = ref({
@@ -29,6 +31,8 @@ const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
 const exporting = ref(false);
+const exportingCsv = ref(false);
+const errors = ref({});
 
 // Date ranges for pre-defined periods
 const dateRanges = ref([]);
@@ -156,6 +160,10 @@ const canExport = computed(() => {
   return true;
 });
 
+const showCsvButton = computed(() => {
+  return formData.value.reportPeriod === 'custom';
+});
+
 const isReportTypeDisabled = computed(() => {
   return regionFilter.value.applied;
 });
@@ -203,13 +211,24 @@ watch(() => formData.value.year, () => {
 
 watch(() => formData.value.reportType, () => {
   // Reset region selection when switching report types
-  formData.value.regionId = null;
+  // But don't reset if region filter is applied (user is locked to their region)
+  if (!regionFilter.value.applied) {
+    formData.value.regionId = null;
+  }
 });
 
 // Methods
 async function loadRegions() {
   try {
     const response = await axios.get('/api/reports/available-regions');
+
+    // Check for region access error
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
     if (response.data.success) {
       regions.value = response.data.regions;
 
@@ -224,6 +243,13 @@ async function loadRegions() {
       }
     }
   } catch (error) {
+    // Check if error response contains region access error
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
     console.error('Error loading regions:', error);
     showSnackbar('Error loading regions', 'error');
   }
@@ -307,6 +333,7 @@ async function exportReport() {
 
   try {
     exporting.value = true;
+    errors.value = {}; // Clear previous errors
 
     // Build export parameters
     const exportParams = {
@@ -386,11 +413,206 @@ async function exportReport() {
 
   } catch (error) {
     console.error('Error exporting report:', error);
+
+    // Handle 403 region access errors
+    if (error.response?.status === 403) {
+      try {
+        const text = await error.response.data.text();
+        const errorData = JSON.parse(text);
+
+        if (errorData.region_access_error) {
+          regionAccessError.value = true;
+          regionAccessErrorMessage.value = errorData.message;
+          return;
+        }
+      } catch (parseError) {
+        console.error('Error parsing error response:', parseError);
+      }
+    }
+
+    // Handle 422 validation errors from blob response
+    if (error.response?.status === 422) {
+      try {
+        // For blob responses, convert to text then parse JSON
+        const text = await error.response.data.text();
+        const errorData = JSON.parse(text);
+
+        if (errorData.errors) {
+          errors.value = errorData.errors;
+          showSnackbar('Please fix the validation errors', 'warning');
+          return;
+        }
+      } catch (parseError) {
+        console.error('Error parsing validation errors:', parseError);
+      }
+    }
+
+    // Generic error handling for other cases
     const errorMessage = error.response?.data?.message || 'Error exporting report';
     showSnackbar(errorMessage, 'error');
   } finally {
     exporting.value = false;
   }
+}
+
+async function exportCsv() {
+  if (!canExport.value) {
+    showSnackbar('Please complete all required fields', 'warning');
+    return;
+  }
+
+  try {
+    exportingCsv.value = true;
+    errors.value = {}; // Clear previous errors
+
+    // Build export parameters (same as exportReport)
+    const exportParams = {
+      report_type: formData.value.reportType,
+      report_period: formData.value.reportPeriod,
+      year: formData.value.year
+    };
+
+    if (formData.value.reportType === 'region' && formData.value.regionId) {
+      exportParams.region_id = formData.value.regionId;
+    }
+
+    // Add date parameters
+    if (showDateRangeSelect.value && selectedDateRange.value !== null) {
+      const selectedRange = dateRanges.value[selectedDateRange.value];
+      exportParams.start_date = selectedRange.start_date;
+      exportParams.end_date = selectedRange.end_date;
+    } else if (formData.value.reportPeriod === 'custom') {
+      exportParams.start_date = formData.value.customStartDate;
+      exportParams.end_date = formData.value.customEndDate;
+    }
+
+    // Fetch JSON data
+    const response = await axios.post('/api/reports/export-data', exportParams);
+
+    // Check for region access error FIRST
+    if (response.data.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = response.data.message;
+      return;
+    }
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to fetch report data');
+    }
+
+    // Generate and download CSV
+    const csvContent = generateCsvContent(response.data.data);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = generateCsvFilename(response.data.data);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    showSnackbar('CSV report exported successfully!', 'success');
+
+  } catch (error) {
+    // Handle 403 region access errors
+    if (error.response?.data?.region_access_error) {
+      regionAccessError.value = true;
+      regionAccessErrorMessage.value = error.response.data.message;
+      return;
+    }
+
+    // Handle 422 validation errors (JSON response)
+    if (error.response?.status === 422 && error.response?.data?.errors) {
+      errors.value = error.response.data.errors;
+      showSnackbar('Please fix the validation errors', 'warning');
+      return;
+    }
+
+    console.error('Error exporting CSV:', error);
+    const errorMessage = error.response?.data?.message || error.message || 'Error exporting CSV';
+    showSnackbar(errorMessage, 'error');
+  } finally {
+    exportingCsv.value = false;
+  }
+}
+
+function generateCsvContent(reportData) {
+  // CSV Headers - matching Overall Performance Report format
+  const headers = [
+    'Region', 'Name', 'Email', 'Job Title', 'Work Status',
+    'Billable Hours', 'Non-Billable Hours', 'Total Hours', 'Target Hours',
+    'Performance %', 'Performance Status', 'NAD Count', 'NAD Hours'
+  ];
+
+  // Add dynamic category headers
+  const categoryNames = (reportData.category_summary || []).map(cat => cat.category_name);
+  headers.push(...categoryNames);
+
+  // Get all users data
+  let allUsers = [];
+  if (reportData.report_type === 'overall') {
+    // For overall reports, collect from all regions
+    if (reportData.regions_data && Array.isArray(reportData.regions_data)) {
+      reportData.regions_data.forEach(regionData => {
+        if (regionData.users_data) {
+          allUsers.push(...regionData.users_data);
+        }
+      });
+    }
+  } else {
+    // For region reports
+    allUsers = reportData.users_data || [];
+  }
+
+  // Process user data into CSV rows (round numeric values for display)
+  const rows = allUsers.map(user => {
+    const row = [
+      user.region_name || '',
+      user.full_name || '',
+      user.email || '',
+      user.job_title || '',
+      user.work_status || '',
+      parseFloat(user.billable_hours || 0).toFixed(2),              // Round to 2 decimals
+      parseFloat(user.non_billable_hours || 0).toFixed(2),          // Round to 2 decimals
+      parseFloat(user.total_hours || 0).toFixed(2),                 // Round to 2 decimals
+      parseFloat(user.target_hours || 0).toFixed(2),                // Round to 2 decimals
+      user.performance?.percentage || 0,
+      user.performance?.status || 'BELOW',
+      user.nad_count || 0,                                          // Integer, no rounding needed
+      parseFloat(user.nad_hours || 0).toFixed(2)                    // Round to 2 decimals
+    ];
+
+    // Add category hours (round to 2 decimals)
+    categoryNames.forEach(catName => {
+      const category = user.categories?.find(c => c.category_name === catName);
+      row.push(parseFloat(category?.hours || 0).toFixed(2));
+    });
+
+    return row;
+  });
+
+  // Create CSV with quoted values
+  return [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+  ].join('\n');
+}
+
+function generateCsvFilename(reportData) {
+  const reportType = reportData.report_type === 'region' ? 'region' : 'overall';
+  const startDate = reportData.date_range.start.replace(/-/g, '');
+  const endDate = reportData.date_range.end.replace(/-/g, '');
+
+  let filename = `${reportType}_performance`;
+
+  if (reportData.region?.name) {
+    filename += `_${reportData.region.name.replace(/\s+/g, '_')}`;
+  }
+
+  filename += `_${startDate}_to_${endDate}.csv`;
+
+  return filename;
 }
 
 
@@ -419,8 +641,20 @@ onMounted(async () => {
       { title: 'Export', disabled: true }
     ]" class="mb-6" aria-label="Breadcrumb navigation" />
 
+    <!-- Region Access Error Alert -->
+    <VAlert v-if="regionAccessError" type="error" variant="tonal" prominent class="mb-6">
+      <VAlertTitle class="mb-2">
+        <VIcon icon="ri-error-warning-line" class="me-2" />
+        Region Assignment Required
+      </VAlertTitle>
+      <p>{{ regionAccessErrorMessage }}</p>
+      <p class="mt-3 mb-0">
+        <strong>What to do:</strong> Please contact your administrator to have a region assigned to your account.
+      </p>
+    </VAlert>
+
     <!-- Region Filter Notice -->
-    <VAlert v-if="regionFilter.applied" type="info" variant="tonal" class="mb-6" prominent>
+    <VAlert v-if="regionFilter.applied && !regionAccessError" type="info" variant="tonal" class="mb-6" prominent>
       <VAlertTitle class="d-flex align-center">
         <VIcon icon="ri-lock-line" class="me-2" />
         Region-Filtered Export
@@ -431,9 +665,11 @@ onMounted(async () => {
       </p>
     </VAlert>
 
-    <VRow>
-      <VCol cols="12">
-        <VCard>
+    <!-- Hide all data when error exists -->
+    <template v-if="!regionAccessError">
+      <VRow>
+        <VCol cols="12">
+          <VCard>
           <VCardTitle class="d-flex align-center">
             <VIcon icon="ri-download-line" class="me-3" />
             Report Export
@@ -454,6 +690,7 @@ onMounted(async () => {
                   <VSelect v-model="formData.reportType" :items="reportTypeOptions" item-title="title"
                     item-value="value" label="Report Type" placeholder="Select report type" variant="outlined"
                     :loading="loading" :disabled="isReportTypeDisabled"
+                    :error-messages="errors.report_type"
                     :prepend-inner-icon="isReportTypeDisabled ? 'ri-lock-line' : undefined" />
                   <VCardText class="text-body-2 text-medium-emphasis pa-0 mt-1">
                     📍 Region: Single region performance | Overall: All regions combined
@@ -464,7 +701,9 @@ onMounted(async () => {
                 <VCol v-if="showRegionSelect" cols="12" md="6">
                   <VSelect v-model="formData.regionId" :items="regionOptions" item-title="title" item-value="value"
                     label="Region" placeholder="Select region" variant="outlined" :loading="loading"
-                    :disabled="isRegionSelectorDisabled" :prepend-inner-icon="isRegionSelectorDisabled ? 'ri-lock-line' : undefined">
+                    :disabled="isRegionSelectorDisabled"
+                    :error-messages="errors.region_id"
+                    :prepend-inner-icon="isRegionSelectorDisabled ? 'ri-lock-line' : undefined">
                     <template #item="{ item, props }">
                       <VListItem v-bind="props">
                         <template #prepend>
@@ -490,7 +729,8 @@ onMounted(async () => {
                 <VCol cols="12">
                   <VSelect v-model="formData.reportPeriod" :items="reportPeriodOptions" item-title="title"
                     item-value="value" label="Report Period Type" placeholder="Select report period type"
-                    variant="outlined" />
+                    variant="outlined"
+                    :error-messages="errors.report_period" />
                   <VCardText class="text-body-2 text-medium-emphasis pa-0 mt-1">
                     📅 Weekly: Week-based | Monthly: Month-based | Yearly: 52-week report | Calendar: Full calendar
                     month | Bimonthly:
@@ -501,7 +741,8 @@ onMounted(async () => {
                 <!-- Year Selection -->
                 <VCol v-if="showYearSelect" cols="12" :md="showDateRangeSelect ? 4 : showMonthSelect ? 4 : 12">
                   <VSelect v-model="formData.year" :items="yearOptions" item-title="title" item-value="value"
-                    label="Year" placeholder="Select year" variant="outlined" />
+                    label="Year" placeholder="Select year" variant="outlined"
+                    :error-messages="errors.year" />
                   <VCardText class="text-body-2 text-medium-emphasis pa-0 mt-1">
                     🗓️ Select the year for your report
                   </VCardText>
@@ -519,7 +760,8 @@ onMounted(async () => {
                 <!-- Month Selection (for calendar month and bimonthly) -->
                 <VCol v-if="showMonthSelect" cols="12" :md="showBimonthlyDate ? 4 : 8">
                   <VSelect v-model="formData.month" :items="monthOptions" item-title="title" item-value="value"
-                    label="Month" placeholder="Select month" variant="outlined" />
+                    label="Month" placeholder="Select month" variant="outlined"
+                    :error-messages="errors.month" />
                   <VCardText class="text-body-2 text-medium-emphasis pa-0 mt-1">
                     📆 Select the month with date ranges shown
                   </VCardText>
@@ -528,7 +770,8 @@ onMounted(async () => {
                 <!-- Bimonthly Split Date -->
                 <VCol v-if="showBimonthlyDate" cols="12" md="4">
                   <VSelect v-model="formData.bimonthlyDate" :items="bimonthlyDateOptions" item-title="title"
-                    item-value="value" label="Split Date" placeholder="Select split date" variant="outlined" />
+                    item-value="value" label="Split Date" placeholder="Select split date" variant="outlined"
+                    :error-messages="errors.bimonthly_date" />
                   <VCardText class="text-body-2 text-medium-emphasis pa-0 mt-1">
                     ✂️ Date that separates first and second half of the month
                   </VCardText>
@@ -536,20 +779,36 @@ onMounted(async () => {
 
                 <!-- Custom Date Range -->
                 <VCol v-if="showCustomDates" cols="12" md="6">
-                  <VTextField v-model="formData.customStartDate" type="date" label="Start Date" variant="outlined" :max="maxSelectableDate" />
+                  <VTextField v-model="formData.customStartDate" type="date" label="Start Date" variant="outlined" :max="maxSelectableDate"
+                    :error-messages="errors.start_date" />
                 </VCol>
 
                 <VCol v-if="showCustomDates" cols="12" md="6">
-                  <VTextField v-model="formData.customEndDate" type="date" label="End Date" variant="outlined" :max="maxSelectableDate" />
+                  <VTextField v-model="formData.customEndDate" type="date" label="End Date" variant="outlined" :max="maxSelectableDate"
+                    :error-messages="errors.end_date" />
                 </VCol>
 
-                <!-- Export Button -->
+                <!-- Export Buttons -->
                 <VCol cols="12">
-                  <VBtn type="submit" color="primary" size="large" :loading="exporting"
-                    :disabled="!canExport || exporting" block>
-                    <VIcon icon="ri-download-line" start />
-                    {{ exporting ? 'Exporting...' : 'Export Report' }}
-                  </VBtn>
+                  <VRow>
+                    <!-- XLSX Export Button -->
+                    <VCol :cols="showCsvButton ? 6 : 12">
+                      <VBtn type="submit" color="primary" size="large" :loading="exporting"
+                        :disabled="!canExport || exporting" block>
+                        <VIcon icon="ri-file-excel-line" start />
+                        {{ exporting ? 'Exporting XLSX...' : 'Export Report (XLSX)' }}
+                      </VBtn>
+                    </VCol>
+
+                    <!-- CSV Export Button (only for custom range) -->
+                    <VCol v-if="showCsvButton" cols="6">
+                      <VBtn color="success" size="large" :loading="exportingCsv"
+                        :disabled="!canExport || exportingCsv" block @click="exportCsv">
+                        <VIcon icon="ri-file-text-line" start />
+                        {{ exportingCsv ? 'Exporting CSV...' : 'Export CSV' }}
+                      </VBtn>
+                    </VCol>
+                  </VRow>
                 </VCol>
               </VRow>
             </VForm>
@@ -557,6 +816,7 @@ onMounted(async () => {
         </VCard>
       </VCol>
     </VRow>
+    </template>
   </div>
 
   <!-- Snackbar -->

@@ -791,12 +791,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Full-Time user data
         $row[0] = $rowNumber;                                                                         // A: NO.
         $row[1] = ucwords(strtolower($ftUser['full_name']));                                          // B: Name (first letter cap only)
-        $row[2] = $ftUser['non_billable_hours'] === 0 ? '0' : ($ftUser['non_billable_hours'] ?: '0'); // C: Non-Billable Hours
+        $row[2] = $this->formatDecimal($ftUser['non_billable_hours']); // C: Non-Billable Hours (formatted with 2 decimals)
 
-        // Dynamic billable categories
+        // Dynamic billable categories (format each category hour for display with 2 decimals)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $hours = $this->getCategoryHours($ftUser, $categoryId);
-            $row[$mapping['ft_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
+            $row[$mapping['ft_col_index']] = $this->formatDecimal($hours); // Format for display
         }
         // foreach ($this->categoryColumnMap as $categoryId => $mapping) {
         //     $row[$mapping['ft_col_index']] = $ftUser['categories'][$categoryId] ?? 0;
@@ -806,17 +806,17 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $billableCol = 3 + $categoryCount;
         $targetHours = $ftUser['target_hours'] ?? 35;
 
-        $billableHours = $ftUser['billable_hours'] === 0 ? '0' : ($ftUser['billable_hours'] ?: '0');
+        $billableHours = $ftUser['billable_hours']; // Keep raw for calculations
         $billableHours40 = $ftUser['performance']['target_hours_per_week'] == 35 ? 40 : $ftUser['performance']['target_hours_per_week'];
         $weekNumber = $ftUser['performance']['period_weeks'] ?? 1;
         $totalBillableHours40 = $billableHours40 == 40 ? $billableHours40 * $weekNumber : $targetHours;
-        $row[$billableCol] = $billableHours === 0 ? '0' : ($billableHours ?: '0');             // Actual Billable Hours
-        $row[$billableCol + 1] = $targetHours === 0 ? '0' : ($targetHours ?: '0');                 // Target Hours
-        $row[$billableCol + 2] = $billableHours - $targetHours;                                    // Actual vs Target
-        $row[$billableCol + 3] = $totalBillableHours40;                                            // 40 Hour Target
-        $row[$billableCol + 4] = $billableHours - $totalBillableHours40;                           // Actual vs 40
-        $row[$billableCol + 5] = $ftUser['nad_count'] === 0 ? '0' : ($ftUser['nad_count'] ?: '0'); // NAD Days
-        $row[$billableCol + 6] = $ftUser['nad_hours'] === 0 ? '0' : ($ftUser['nad_hours'] ?: '0'); // NAD Hours
+        $row[$billableCol] = $this->formatDecimal($billableHours);                                 // Actual Billable Hours (formatted with 2 decimals)
+        $row[$billableCol + 1] = $this->formatDecimal($targetHours);                               // Target Hours (formatted with 2 decimals)
+        $row[$billableCol + 2] = $this->formatDecimal($billableHours - $targetHours);              // Actual vs Target (calculate then format)
+        $row[$billableCol + 3] = $this->formatDecimal($totalBillableHours40);                      // 40 Hour Target (formatted with 2 decimals)
+        $row[$billableCol + 4] = $this->formatDecimal($billableHours - $totalBillableHours40);     // Actual vs 40 (calculate then format)
+        $row[$billableCol + 5] = $this->formatDecimal($ftUser['nad_count'], 1);                    // NAD Days (formatted with 1 decimal)
+        $row[$billableCol + 6] = $this->formatInteger($ftUser['nad_hours']);                       // NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -831,21 +831,20 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         // Full-Time user data (basic only)
         $row[0] = $rowNumber;                                                                         // A: NO.
         $row[1] = ucwords(strtolower($ftUser['full_name']));                                          // B: Name (first letter cap only)
-        $row[2] = $ftUser['non_billable_hours'] === 0 ? '0' : ($ftUser['non_billable_hours'] ?: '0'); // C: Non-Billable Hours
+        $row[2] = $this->formatDecimal($ftUser['non_billable_hours']);                                // C: Non-Billable Hours (formatted with 2 decimals)
 
-        // Dynamic billable categories
+        // Dynamic billable categories (format for display with 2 decimals)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $hours = $this->getCategoryHours($ftUser, $categoryId);
-            $row[$mapping['ft_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
+            $row[$mapping['ft_col_index']] = $this->formatDecimal($hours); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $billableCol = 3 + $categoryCount;
 
-        $billableHours = $ftUser['billable_hours'] === 0 ? '0' : ($ftUser['billable_hours'] ?: '0');
-        $row[$billableCol] = $billableHours;                                                   // Actual Billable Hours
-        $row[$billableCol + 1] = $ftUser['nad_count'] === 0 ? '0' : ($ftUser['nad_count'] ?: '0'); // NAD Days
-        $row[$billableCol + 2] = $ftUser['nad_hours'] === 0 ? '0' : ($ftUser['nad_hours'] ?: '0'); // NAD Hours
+        $row[$billableCol] = $this->formatDecimal($ftUser['billable_hours']);                         // Actual Billable Hours (formatted with 2 decimals)
+        $row[$billableCol + 1] = $this->formatDecimal($ftUser['nad_count'], 1);                       // NAD Days (formatted with 1 decimal)
+        $row[$billableCol + 2] = $this->formatInteger($ftUser['nad_hours']);                          // NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -861,25 +860,25 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptStartCol = $this->ftTableColumns + 1;
 
         $row[$ptStartCol] = $rowNumber;                                                                         // NO.
-        $row[$ptStartCol + 1] = ucwords(strtolower($ptUser['full_name']));                                          // Name (first letter cap only)
-        $row[$ptStartCol + 2] = $ptUser['non_billable_hours'] === 0 ? '0' : ($ptUser['non_billable_hours'] ?: '0'); // Non-Billable Hours
+        $row[$ptStartCol + 1] = ucwords(strtolower($ptUser['full_name']));                                      // Name (first letter cap only)
+        $row[$ptStartCol + 2] = $this->formatDecimal($ptUser['non_billable_hours']);                            // Non-Billable Hours (formatted with 2 decimals)
 
-        // Dynamic billable categories
+        // Dynamic billable categories (format for display with 2 decimals)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $hours = $this->getCategoryHours($ptUser, $categoryId);
-            $row[$ptStartCol + $mapping['pt_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
+            $row[$ptStartCol + $mapping['pt_col_index']] = $this->formatDecimal($hours); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
         $targetHours = $ptUser['target_hours'] ?? 20;
 
-        $ptBillableHours = $ptUser['billable_hours'] == 0 ? '0' : ($ptUser['billable_hours'] ?: '0');
-        $row[$ptBillableCol] = $ptBillableHours === 0 ? '0' : ($ptBillableHours ?: '0');         // Actual Billable Hours
-        $row[$ptBillableCol + 1] = $targetHours === 0 ? '0' : ($targetHours ?: '0');                 // Target Hours
-        $row[$ptBillableCol + 2] = $ptBillableHours - $targetHours;                                  // Actual vs Target
-        $row[$ptBillableCol + 3] = $ptUser['nad_count'] === 0 ? '0' : ($ptUser['nad_count'] ?: '0'); // NAD Days
-        $row[$ptBillableCol + 4] = $ptUser['nad_hours'] === 0 ? '0' : ($ptUser['nad_hours'] ?: '0'); // NAD Hours
+        $ptBillableHours = $ptUser['billable_hours']; // Keep raw for calculations
+        $row[$ptBillableCol] = $this->formatDecimal($ptBillableHours);                                          // Actual Billable Hours (formatted with 2 decimals)
+        $row[$ptBillableCol + 1] = $this->formatDecimal($targetHours);                                          // Target Hours (formatted with 2 decimals)
+        $row[$ptBillableCol + 2] = $this->formatDecimal($ptBillableHours - $targetHours);                       // Actual vs Target (calculate then format)
+        $row[$ptBillableCol + 3] = $this->formatDecimal($ptUser['nad_count'], 1);                               // NAD Days (formatted with 1 decimal)
+        $row[$ptBillableCol + 4] = $this->formatInteger($ptUser['nad_hours']);                                  // NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -895,22 +894,21 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptStartCol = $this->ftTableColumns + 1;
 
         $row[$ptStartCol] = $rowNumber;                                                                         // NO.
-        $row[$ptStartCol + 1] = ucwords(strtolower($ptUser['full_name']));                                          // Name (first letter cap only)
-        $row[$ptStartCol + 2] = $ptUser['non_billable_hours'] === 0 ? '0' : ($ptUser['non_billable_hours'] ?: '0'); // Non-Billable Hours
+        $row[$ptStartCol + 1] = ucwords(strtolower($ptUser['full_name']));                                      // Name (first letter cap only)
+        $row[$ptStartCol + 2] = $this->formatDecimal($ptUser['non_billable_hours']);                            // Non-Billable Hours (formatted with 2 decimals)
 
-        // Dynamic billable categories
+        // Dynamic billable categories (format for display with 2 decimals)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $hours = $this->getCategoryHours($ptUser, $categoryId);
-            $row[$ptStartCol + $mapping['pt_col_index']] = $hours === 0 ? '0' : ($hours ?: '0'); // Explicitly show 0
+            $row[$ptStartCol + $mapping['pt_col_index']] = $this->formatDecimal($hours); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
-        $ptBillableHours = $ptUser['billable_hours'] == 0 ? '0' : ($ptUser['billable_hours'] ?: '0');
-        $row[$ptBillableCol] = $ptBillableHours === 0 ? '0' : ($ptBillableHours ?: '0');         // Actual Billable Hours
-        $row[$ptBillableCol + 1] = $ptUser['nad_count'] === 0 ? '0' : ($ptUser['nad_count'] ?: '0'); // NAD Days
-        $row[$ptBillableCol + 2] = $ptUser['nad_hours'] === 0 ? '0' : ($ptUser['nad_hours'] ?: '0'); // NAD Hours
+        $row[$ptBillableCol] = $this->formatDecimal($ptUser['billable_hours']);                                 // Actual Billable Hours (formatted with 2 decimals)
+        $row[$ptBillableCol + 1] = $this->formatDecimal($ptUser['nad_count'], 1);                               // NAD Days (formatted with 1 decimal)
+        $row[$ptBillableCol + 2] = $this->formatInteger($ptUser['nad_hours']);                                  // NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -922,26 +920,26 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $row = array_fill(0, $this->totalColumns, '');
 
-        // Full-Time totals for this region
+        // Full-Time totals for this region (raw values from calculateTotals)
         $ftTotals = $this->calculateTotals($regionData['ft_users']);
         $row[1] = $regionName.' Total';                                                     // B: Label
-        $row[2] = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
+        $row[2] = $this->formatDecimal($ftTotals['non_billable']);                          // C: Total Non-Billable (formatted with 2 decimals)
 
-        // FT category totals
+        // FT category totals (format for display)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $categoryTotal = $ftTotals['categories'][$categoryId] ?? 0;
-            $row[$mapping['ft_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
+            $row[$mapping['ft_col_index']] = $this->formatDecimal($categoryTotal); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $billableCol = 3 + $categoryCount;
 
-        $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
-        $totalTarget = $ftTotals['target_hours'] === 0 ? '0' : ($ftTotals['target_hours'] ?: '0');
+        $totalBillable = $ftTotals['billable']; // Keep raw for calculations
+        $totalTarget = $ftTotals['target_hours']; // Keep raw for calculations
 
-        $row[$billableCol] = $totalBillable;                // Total Billable
-        $row[$billableCol + 1] = $totalTarget;                  // Total Target Hours
-        $row[$billableCol + 2] = $totalBillable - $totalTarget; // Total Actuals vs Committed
+        $row[$billableCol] = $this->formatDecimal($totalBillable);                           // Total Billable (formatted with 2 decimals)
+        $row[$billableCol + 1] = $this->formatDecimal($totalTarget);                         // Total Target Hours (formatted with 2 decimals)
+        $row[$billableCol + 2] = $this->formatDecimal($totalBillable - $totalTarget);        // Total Actuals vs Committed (calculate then format)
 
         // Sum per-user "40-hr target" logic across the region
         $sum40Target = 0;
@@ -959,13 +957,13 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 : $targetHoursUser;
         }
 
-        $row[$billableCol + 3] = $sum40Target;                  // 40 Hour Target (summed)
-        $row[$billableCol + 4] = $totalBillable - $sum40Target; // Actual vs 40
+        $row[$billableCol + 3] = $this->formatDecimal($sum40Target);                    // 40 Hour Target (summed, formatted with 2 decimals)
+        $row[$billableCol + 4] = $this->formatDecimal($totalBillable - $sum40Target); // Actual vs 40 (calculate then format)
 
         // $row[$billableCol + 3] = count($regionData['ft_users']) * 40;                                  // Total 40 Hour Target (40 * user count)
         // $row[$billableCol + 4] = $totalBillable - (count($regionData['ft_users']) * 40);               // Total Actuals vs 40
-        $row[$billableCol + 5] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$billableCol + 6] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$billableCol + 5] = $this->formatDecimal($ftTotals['nad_count'], 1);                        // Total NAD Days (formatted with 1 decimal)
+        $row[$billableCol + 6] = $this->formatInteger($ftTotals['nad_hours']);                           // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -977,24 +975,23 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $row = array_fill(0, $this->totalColumns, '');
 
-        // Full-Time totals for this region (basic only)
+        // Full-Time totals for this region (basic only, raw values from calculateTotals)
         $ftTotals = $this->calculateTotals($regionData['ft_users']);
         $row[1] = $regionName.' Total';                                                     // B: Label
-        $row[2] = $ftTotals['non_billable'] === 0 ? '0' : ($ftTotals['non_billable'] ?: '0'); // C: Total Non-Billable
+        $row[2] = $this->formatDecimal($ftTotals['non_billable']);                          // C: Total Non-Billable (formatted with 2 decimals)
 
-        // FT category totals
+        // FT category totals (format for display)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $categoryTotal = $ftTotals['categories'][$categoryId] ?? 0;
-            $row[$mapping['ft_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
+            $row[$mapping['ft_col_index']] = $this->formatDecimal($categoryTotal); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $billableCol = 3 + $categoryCount;
 
-        $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
-        $row[$billableCol] = $totalBillable;                                                       // Total Billable
-        $row[$billableCol + 1] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$billableCol + 2] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$billableCol] = $this->formatDecimal($ftTotals['billable']);                            // Total Billable (formatted with 2 decimals)
+        $row[$billableCol + 1] = $this->formatDecimal($ftTotals['nad_count'], 1);                    // Total NAD Days (formatted with 1 decimal)
+        $row[$billableCol + 2] = $this->formatInteger($ftTotals['nad_hours']);                       // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1006,30 +1003,30 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
     {
         $row = array_fill(0, $this->totalColumns, '');
 
-        // Part-Time totals for this region
+        // Part-Time totals for this region (raw values from calculateTotals)
         $ptStartCol = $this->ftTableColumns + 1;
         $ptTotals = $this->calculateTotals($regionData['pt_users']);
 
         $row[$ptStartCol + 1] = $regionName.' Total';                                                     // Name column: Label
-        $row[$ptStartCol + 2] = $ptTotals['non_billable'] === 0 ? '0' : ($ptTotals['non_billable'] ?: '0'); // Total Non-Billable
+        $row[$ptStartCol + 2] = $this->formatDecimal($ptTotals['non_billable']);                          // Total Non-Billable (formatted with 2 decimals)
 
-        // PT category totals
+        // PT category totals (format for display)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $categoryTotal = $ptTotals['categories'][$categoryId] ?? 0;
-            $row[$ptStartCol + $mapping['pt_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
+            $row[$ptStartCol + $mapping['pt_col_index']] = $this->formatDecimal($categoryTotal); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
-        $totalBillable = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
-        $totalTarget = $ptTotals['target_hours'] === 0 ? '0' : ($ptTotals['target_hours'] ?: '0');
+        $totalBillable = $ptTotals['billable']; // Keep raw for calculations
+        $totalTarget = $ptTotals['target_hours']; // Keep raw for calculations
 
-        $row[$ptBillableCol] = $totalBillable;                                                       // Total Billable
-        $row[$ptBillableCol + 1] = $totalTarget;                                                         // Total Target Hours
-        $row[$ptBillableCol + 2] = $totalBillable - $totalTarget;                                        // Total Actuals vs Committed
-        $row[$ptBillableCol + 3] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$ptBillableCol + 4] = $ptTotals['nad_hours'] === 0 ? '0' : ($ptTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$ptBillableCol] = $this->formatDecimal($totalBillable);                                            // Total Billable (formatted with 2 decimals)
+        $row[$ptBillableCol + 1] = $this->formatDecimal($totalTarget);                                          // Total Target Hours (formatted with 2 decimals)
+        $row[$ptBillableCol + 2] = $this->formatDecimal($totalBillable - $totalTarget);                         // Total Actuals vs Committed (calculate then format)
+        $row[$ptBillableCol + 3] = $this->formatDecimal($ptTotals['nad_count'], 1);                             // Total NAD Days (formatted with 1 decimal)
+        $row[$ptBillableCol + 4] = $this->formatInteger($ptTotals['nad_hours']);                                // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1046,21 +1043,20 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $ptTotals = $this->calculateTotals($regionData['pt_users']);
 
         $row[$ptStartCol + 1] = $regionName.' Total';                                                     // Name column: Label
-        $row[$ptStartCol + 2] = $ptTotals['non_billable'] === 0 ? '0' : ($ptTotals['non_billable'] ?: '0'); // Total Non-Billable
+        $row[$ptStartCol + 2] = $this->formatDecimal($ptTotals['non_billable']);                          // Total Non-Billable (formatted with 2 decimals)
 
-        // PT category totals
+        // PT category totals (format for display)
         foreach ($this->categoryColumnMap as $categoryId => $mapping) {
             $categoryTotal = $ptTotals['categories'][$categoryId] ?? 0;
-            $row[$ptStartCol + $mapping['pt_col_index']] = $categoryTotal === 0 ? '0' : ($categoryTotal ?: '0');
+            $row[$ptStartCol + $mapping['pt_col_index']] = $this->formatDecimal($categoryTotal); // Format for display
         }
 
         $categoryCount = count($this->billableCategories);
         $ptBillableCol = $ptStartCol + 3 + $categoryCount;
 
-        $totalBillable = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
-        $row[$ptBillableCol] = $totalBillable;                                                       // Total Billable
-        $row[$ptBillableCol + 1] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$ptBillableCol + 2] = $ptTotals['nad_hours'] === 0 ? '0' : ($ptTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$ptBillableCol] = $this->formatDecimal($ptTotals['billable']);                                // Total Billable (formatted with 2 decimals)
+        $row[$ptBillableCol + 1] = $this->formatDecimal($ptTotals['nad_count'], 1);                        // Total NAD Days (formatted with 1 decimal)
+        $row[$ptBillableCol + 2] = $this->formatInteger($ptTotals['nad_hours']);                           // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1117,8 +1113,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $row[$billableCol + 4] = $totalBillable - $sum40TargetAll;                                     // Actual vs 40
         // $row[$billableCol + 3] = count($allFtUsers) * 40;                                              // Total 40 Hour Target (40 * user count)
         // $row[$billableCol + 4] = $totalBillable - (count($allFtUsers) * 40);                           // Total Actuals vs 40
-        $row[$billableCol + 5] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$billableCol + 6] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$billableCol + 5] = $this->formatDecimal($ftTotals['nad_count'], 1);                        // Total NAD Days (formatted with 1 decimal)
+        $row[$billableCol + 6] = $this->formatInteger($ftTotals['nad_hours']);                           // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1158,8 +1154,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         $row[$ptBillableCol] = $totalBillablePT;                                                     // Total Billable
         $row[$ptBillableCol + 1] = $totalTargetPT;                                                       // Total Target Hours
         $row[$ptBillableCol + 2] = $totalBillablePT - $totalTargetPT;                                    // Total Actuals vs Committed
-        $row[$ptBillableCol + 3] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$ptBillableCol + 4] = $ptTotals['nad_hours'] === 0 ? '0' : ($ptTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$ptBillableCol + 3] = $this->formatDecimal($ptTotals['nad_count'], 1);                      // Total NAD Days (formatted with 1 decimal)
+        $row[$ptBillableCol + 4] = $this->formatInteger($ptTotals['nad_hours']);                         // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1193,8 +1189,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         $totalBillable = $ftTotals['billable'] === 0 ? '0' : ($ftTotals['billable'] ?: '0');
         $row[$billableCol] = $totalBillable;                                                       // Total Billable
-        $row[$billableCol + 1] = $ftTotals['nad_count'] === 0 ? '0' : ($ftTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$billableCol + 2] = $ftTotals['nad_hours'] === 0 ? '0' : ($ftTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$billableCol + 1] = $this->formatDecimal($ftTotals['nad_count'], 1);                  // Total NAD Days (formatted with 1 decimal)
+        $row[$billableCol + 2] = $this->formatInteger($ftTotals['nad_hours']);                     // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1230,8 +1226,8 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
 
         $totalBillablePT = $ptTotals['billable'] === 0 ? '0' : ($ptTotals['billable'] ?: '0');
         $row[$ptBillableCol] = $totalBillablePT;                                                     // Total Billable
-        $row[$ptBillableCol + 1] = $ptTotals['nad_count'] === 0 ? '0' : ($ptTotals['nad_count'] ?: '0'); // Total NAD Days
-        $row[$ptBillableCol + 2] = $ptTotals['nad_hours'] === 0 ? '0' : ($ptTotals['nad_hours'] ?: '0'); // Total NAD Hours
+        $row[$ptBillableCol + 1] = $this->formatDecimal($ptTotals['nad_count'], 1);                  // Total NAD Days (formatted with 1 decimal)
+        $row[$ptBillableCol + 2] = $this->formatInteger($ptTotals['nad_hours']);                     // Total NAD Hours (formatted as integer)
 
         return $row;
     }
@@ -1370,6 +1366,30 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
         }
 
         return 0;
+    }
+
+    /**
+     * Format numeric value for Excel display
+     * Ensures zeros display as "0.00" instead of empty
+     *
+     * @param float $value The value to format
+     * @param int $decimals Number of decimal places (default: 2)
+     * @return string Formatted value as string
+     */
+    private function formatDecimal($value, $decimals = 2)
+    {
+        return number_format((float)$value, $decimals, '.', '');
+    }
+
+    /**
+     * Format integer value for Excel display
+     *
+     * @param int $value The value to format
+     * @return string Formatted value as string (ensures "0" displays instead of empty)
+     */
+    private function formatInteger($value)
+    {
+        return number_format((int)$value, 0, '.', '');
     }
 
     /**
@@ -1866,16 +1886,16 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
 
-        // NAD hours columns (last columns in each table)
+        // NAD hours columns (last columns in each table) - Format: 0 (integer, no decimals)
         $ftNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 5 + 1); // Last FT column
         $ptNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns);            // Last PT column
 
         $sheet->getStyle($ftNadHoursCol.'5:'.$ftNadHoursCol.$dataRowCount)
-            ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+            ->getNumberFormat()->setFormatCode('0');
         $sheet->getStyle($ptNadHoursCol.'5:'.$ptNadHoursCol.$dataRowCount)
-            ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+            ->getNumberFormat()->setFormatCode('0');
 
-        // Number format for NAD days: 0
+        // Number format for NAD days - Format: 0.0 (1 decimal place)
         $ftNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 5); // Second to last FT column
         $ptNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($this->totalColumns - 1);    // Second to last PT column
 
@@ -2408,12 +2428,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
 
-        // FT NAD Hours column
+        // FT NAD Hours column - Format: 0 (integer, no decimals)
         $ftNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 2);
         $sheet->getStyle($ftNadHoursCol.'5:'.$ftNadHoursCol.$dataRowCount)
-            ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+            ->getNumberFormat()->setFormatCode('0');
 
-        // FT NAD Days column (1 decimal place)
+        // FT NAD Days column - Format: 0.0 (1 decimal place)
         $ftNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $categoryCount + 1 + 1);
         $sheet->getStyle($ftNadDaysCol.'5:'.$ftNadDaysCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode('0.0');
@@ -2426,12 +2446,12 @@ class PerformanceReportExport implements FromArray, WithEvents, WithTitle
                 ->setFormatCode(NumberFormat::FORMAT_NUMBER_00);
         }
 
-        // PT NAD Hours column
+        // PT NAD Hours column - Format: 0 (integer, no decimals)
         $ptNadHoursCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 3 + $categoryCount + 1 + 2);
         $sheet->getStyle($ptNadHoursCol.'5:'.$ptNadHoursCol.$dataRowCount)
-            ->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+            ->getNumberFormat()->setFormatCode('0');
 
-        // PT NAD Days column (1 decimal place)
+        // PT NAD Days column - Format: 0.0 (1 decimal place)
         $ptNadDaysCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($ptStartCol + 3 + $categoryCount + 1 + 1);
         $sheet->getStyle($ptNadDaysCol.'5:'.$ptNadDaysCol.$dataRowCount)
             ->getNumberFormat()->setFormatCode('0.0');
