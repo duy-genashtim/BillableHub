@@ -15,7 +15,7 @@ export const getMaxSelectableDate = () => {
  * @param {number} year - The year to check
  * @returns {number} Maximum week number (current week if current year, otherwise 52)
  */
-export const getMaxSelectableWeek = (year) => {
+export const getMaxSelectableWeek = year => {
   const currentYear = new Date().getFullYear()
 
   if (year === currentYear) {
@@ -31,16 +31,28 @@ export const getMaxSelectableWeek = (year) => {
  * @param {number} year - The year to check
  * @returns {number} Maximum month number (current month if current year, otherwise 12)
  */
-export const getMaxSelectableMonth = (year) => {
+export const getMaxSelectableMonth = year => {
+  // const currentYear = new Date().getFullYear()
+  // const currentMonth = new Date().getMonth() + 1 // getMonth() returns 0-11
+
+  // if (year === currentYear) {
+  //   return currentMonth
+  // }
+
+  // // For past years, allow all months
+  // return year < currentYear ? 12 : 0
   const currentYear = new Date().getFullYear()
-  const currentMonth = new Date().getMonth() + 1 // getMonth() returns 0-11
 
   if (year === currentYear) {
-    return currentMonth
+    const currentWeek = getCurrentWeekNumber() // 1..52 theo lịch 4 tuần
+    if (!currentWeek || currentWeek <= 0) return 0
+
+    // Month 1 = weeks 1-4, Month 13 = weeks 49-52
+    return Math.floor((currentWeek - 1) / 4) + 1
   }
 
-  // For past years, allow all months
-  return year < currentYear ? 12 : 0
+  // Past years: đủ 13 "tháng 4 tuần"
+  return year < currentYear ? 13 : 0
 }
 
 /**
@@ -92,7 +104,7 @@ export const filterFutureMonths = (monthOptions, year, isYearlyReport = false) =
  * @param {string|Date} date - Date to check
  * @returns {boolean} True if date is today or in the past
  */
-export const isDateAllowed = (date) => {
+export const isDateAllowed = date => {
   const checkDate = new Date(date)
   const today = new Date()
 
@@ -130,7 +142,7 @@ export const isMonthAllowed = (year, month) => {
  * @param {number} year - The year to get weeks for
  * @returns {Array} Array of available week objects
  */
-export const getAvailableWeeksForYear = (year) => {
+export const getAvailableWeeksForYear = year => {
   const allWeeks = getWeekRangeForYear(year)
   return filterFutureWeeks(allWeeks, year)
 }

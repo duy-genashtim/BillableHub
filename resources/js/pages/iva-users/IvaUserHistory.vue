@@ -1,5 +1,5 @@
 <script setup>
-import { formatDateTime, safeJsonParse } from '@/@core/utils/helpers';
+import { formatDateTime, formatDate, safeJsonParse } from '@/@core/utils/helpers';
 
 const props = defineProps({
   user: {
@@ -120,7 +120,7 @@ function getChangeColor(fieldChanged) {
                     </span>
                     <span v-if="change.effective_date">
                       <VIcon icon="ri-calendar-line" size="14" class="mr-1" />
-                      Effective: {{ formatDateTime(change.effective_date) }}
+                      Effective: {{ formatDate(change.effective_date) }}
                     </span>
                   </div>
                 </div>
