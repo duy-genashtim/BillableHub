@@ -19,10 +19,10 @@ class IvaRegionReportController extends Controller
         $regionValidation = validateManagerRegionAccess($request->user());
         if ($regionValidation) {
             return response()->json([
-                'success' => false,
-                'error' => $regionValidation['error'],
-                'message' => $regionValidation['message'],
-                'region_access_error' => true
+                'success'             => false,
+                'error'               => $regionValidation['error'],
+                'message'             => $regionValidation['message'],
+                'region_access_error' => true,
             ], 403);
         }
 
@@ -235,6 +235,236 @@ class IvaRegionReportController extends Controller
     }
 
     /**
+     * Process a single user considering work status changes during the period.
+     * Returns an array of user data entries - one for each work status the user had.
+     * FIXED: Correct target hours per work status (weekly-based), region report safe.
+     */
+    private function processUserWithWorkStatusPeriods(
+        $user,
+        $startDate,
+        $endDate,
+        $nadDataByEmail,
+        $mode
+    ) {
+        $userEntries = [];
+
+        // 1. Work status periods
+        $workStatusChanges = getWorkStatusChanges($user, $startDate, $endDate);
+        $workStatusPeriods = calculateWorkStatusPeriods(
+            $user,
+            $startDate,
+            $endDate,
+            $workStatusChanges
+        );
+
+        if (empty($workStatusPeriods)) {
+            $workStatusPeriods = [[
+                'work_status' => $user->work_status ?: 'full-time',
+                'start_date'  => $startDate,
+                'end_date'    => $endDate,
+                'days'        => Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1,
+            ]];
+        }
+
+        // 2. Group by work status
+        $periodsByStatus = [];
+        foreach ($workStatusPeriods as $period) {
+            $status                     = $period['work_status'] ?: 'full-time';
+            $periodsByStatus[$status][] = $period;
+        }
+
+        // 3. Process per work status
+        foreach ($periodsByStatus as $workStatus => $periods) {
+
+            $totalBillableHours    = 0;
+            $totalNonBillableHours = 0;
+            $totalHours            = 0;
+            $allCategories         = [];
+
+            // ============================
+            // 4. HOURS & CATEGORIES
+            // ============================
+            foreach ($periods as $period) {
+                $periodStart = $period['start_date'];
+                $periodEnd   = $period['end_date'];
+
+                $metrics = calculateBasicMetricsFromDailySummaries(
+                    $user->id,
+                    $periodStart,
+                    $periodEnd
+                );
+
+                $totalBillableHours += $metrics['billable_hours'];
+                $totalNonBillableHours += $metrics['non_billable_hours'];
+                $totalHours += $metrics['total_hours'];
+
+                $periodCategories = ($mode === 'weekly')
+                    ? calculateFullCategoryBreakdownFromSummaries($user->id, $periodStart, $periodEnd)
+                    : calculateCategoryBreakdownFromSummaries($user->id, $periodStart, $periodEnd);
+
+                if (is_array($periodCategories)) {
+                    foreach ($periodCategories as $typeGroup) {
+                        foreach ($typeGroup['categories'] ?? [] as $category) {
+                            $categoryId = $category['category_id'];
+                            if (! isset($allCategories[$categoryId])) {
+                                $allCategories[$categoryId] = [
+                                    'category_id'   => $categoryId,
+                                    'category_name' => $category['category_name'],
+                                    'hours'         => 0,
+                                ];
+                            }
+                            $allCategories[$categoryId]['hours']
+                            += $category['total_hours'] ?? $category['hours'] ?? 0;
+                        }
+                    }
+                }
+            }
+
+            $categoriesBreakdown = array_values($allCategories);
+
+            // ============================
+            // 5. TARGET HOURS (FIXED CORE)
+            // ============================
+            $targetTotalHours = 0;
+
+            foreach ($periods as $period) {
+
+                $current   = Carbon::parse($period['start_date'])->startOfDay();
+                $periodEnd = Carbon::parse($period['end_date'])->endOfDay();
+
+                // Align to Monday
+                if (! $current->isMonday()) {
+                    $current->startOfWeek(Carbon::MONDAY);
+                }
+
+                while ($current->lte($periodEnd)) {
+
+                    $weekStart = $current->copy();
+                    $weekEnd   = $current->copy()->endOfWeek(Carbon::SUNDAY);
+
+                    if ($weekEnd->gt($periodEnd)) {
+                        $weekEnd = $periodEnd->copy();
+                    }
+
+                    // Week-specific hours (admin override aware)
+                    $hourSettings = getWorkHourSettings(
+                        $user,
+                        $workStatus,
+                        $weekStart->toDateString(),
+                        $weekEnd->toDateString()
+                    );
+
+                    $hoursPerWeek = $hourSettings[0]['hours'] ?? ($workStatus === 'full-time' ? 35 : 20);
+
+                    $targetTotalHours += $hoursPerWeek;
+
+                    $current->addWeek();
+                }
+            }
+
+            // ============================
+            // 6. PERFORMANCE
+            // ============================
+            $percentage = $targetTotalHours > 0
+                ? ($totalBillableHours / $targetTotalHours) * 100
+                : 0;
+
+            $thresholds = config('constants.performance_percentage_thresholds', [
+                'EXCEEDED' => 101,
+                'MEET'     => 99,
+            ]);
+
+            $statusLabels = config('constants.performance_status', [
+                'BELOW'    => 'BELOW',
+                'MEET'     => 'MEET',
+                'EXCEEDED' => 'EXCEEDED',
+            ]);
+
+            $status = $statusLabels['BELOW'];
+            if ($percentage >= $thresholds['EXCEEDED']) {
+                $status = $statusLabels['EXCEEDED'];
+            } elseif ($percentage >= $thresholds['MEET']) {
+                $status = $statusLabels['MEET'];
+            }
+
+            $periodDays         = array_sum(array_column($periods, 'days'));
+            $periodWeeks        = $periodDays / 7;
+            $targetHoursPerWeek = $periodWeeks > 0
+                ? $targetTotalHours / $periodWeeks
+                : 0;
+
+            $performance = [
+                'work_status'           => ucwords(str_replace('-', ' ', $workStatus)),
+                'target_total_hours'    => round($targetTotalHours, 2),
+                'target_hours_per_week' => round($targetHoursPerWeek, 2),
+                'period_weeks'          => round($periodWeeks, 1),
+                'percentage'            => round($percentage, 1),
+                'status'                => $status,
+            ];
+
+            // ============================
+            // 7. NAD (PROPORTIONAL)
+            // ============================
+            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
+
+            $totalDays     = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+            $statusDays    = $periodDays;
+            $nadProportion = $totalDays > 0 ? $statusDays / $totalDays : 0;
+
+            // ============================
+            // 8. BUILD BASE USER DATA
+            // ============================
+            $userData = [
+                'id'                 => $user->id,
+                'full_name'          => $user->full_name,
+                'email'              => $user->email,
+                'job_title'          => $user->job_title,
+                'work_status'        => $workStatus,
+                'billable_hours'     => round($totalBillableHours, 2),
+                'non_billable_hours' => round($totalNonBillableHours, 2),
+                'total_hours'        => round($totalHours, 2),
+                'target_hours'       => round($targetTotalHours, 2),
+                'nad_count'          => round($userNadData['nad_count'] * $nadProportion),
+                'nad_hours'          => round($userNadData['nad_hours'] * $nadProportion, 2),
+                'performance'        => $performance,
+                'categories'         => $categoriesBreakdown,
+            ];
+
+            // ============================
+            // 9. MODE-SPECIFIC BREAKDOWN
+            // ============================
+            if ($mode === 'weekly') {
+                $userData['weekly_breakdown'] = [[
+                    'week_number'        => $this->calculateWeekNumber($startDate),
+                    'start_date'         => $startDate,
+                    'end_date'           => $endDate,
+                    'billable_hours'     => $totalBillableHours,
+                    'non_billable_hours' => $totalNonBillableHours,
+                    'total_hours'        => $totalHours,
+                    'target_hours'       => $targetTotalHours,
+                    'performance'        => $performance,
+                ]];
+            } elseif ($mode === 'monthly') {
+                $userData['monthly_breakdown'] = [[
+                    'month_number'       => Carbon::parse($startDate)->month,
+                    'start_date'         => $startDate,
+                    'end_date'           => $endDate,
+                    'label'              => Carbon::parse($startDate)->format('F'),
+                    'billable_hours'     => $totalBillableHours,
+                    'non_billable_hours' => $totalNonBillableHours,
+                    'total_hours'        => $totalHours,
+                    'target_hours'       => $targetTotalHours,
+                    'performance'        => $performance,
+                ]];
+            }
+
+            $userEntries[] = $userData;
+        }
+
+        return $userEntries;
+    }
+
+    /**
      * Process weekly summary data using optimized daily summaries
      */
     private function processWeeklySummaryDataOptimized($users, $startDate, $endDate, $reportData)
@@ -258,83 +488,18 @@ class IvaRegionReportController extends Controller
         }
 
         foreach ($users as $user) {
-            // Use optimized basic metrics from daily summaries for the single week
-            $weekMetrics = calculateBasicMetricsFromDailySummaries(
-                $user->id,
-                $startDate,
-                $endDate
-            );
+            // Process user with work status periods - may return multiple entries
+            $userEntries = $this->processUserWithWorkStatusPeriods($user, $startDate, $endDate, $nadDataByEmail, 'weekly');
 
-            // Calculate performance using optimized function
-            $weekPerformance = calculatePerformanceMetricsDailySummaries(
-                $user,
-                $startDate,
-                $endDate,
-                $weekMetrics['billable_hours']
-            );
+            foreach ($userEntries as $userData) {
+                $allUsersData[] = $userData;
 
-            // Get NAD data from optimized lookup
-            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
-
-            // Get categories breakdown using optimized helper
-            $categoriesResponse = calculateFullCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
-
-            // Transform nested category structure to flat array for frontend compatibility
-            $categoriesBreakdown = [];
-            if (is_array($categoriesResponse)) {
-                foreach ($categoriesResponse as $typeGroup) {
-                    if (isset($typeGroup['categories']) && is_array($typeGroup['categories'])) {
-                        foreach ($typeGroup['categories'] as $category) {
-                            $categoriesBreakdown[] = [
-                                'category_id'   => $category['category_id'],
-                                'category_name' => $category['category_name'],
-                                'hours'         => $category['total_hours'],
-                            ];
-                        }
-                    }
+                // Separate by work status
+                if ($userData['work_status'] === 'full-time') {
+                    $fullTimeUsers[] = $userData;
+                } else {
+                    $partTimeUsers[] = $userData;
                 }
-            }
-
-            // Create single-week breakdown array
-            $weeklyData = [[
-                'week_number'        => $this->calculateWeekNumber($startDate),
-                'start_date'         => $startDate,
-                'end_date'           => $endDate,
-                'billable_hours'     => $weekMetrics['billable_hours'],
-                'non_billable_hours' => $weekMetrics['non_billable_hours'],
-                'total_hours'        => $weekMetrics['total_hours'],
-                'target_hours'       => $weekPerformance[0]['target_total_hours'] ?? 0,
-                'performance'        => $weekPerformance[0] ?? null,
-            ]];
-
-            // Calculate historical work status for the period
-            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
-
-            $userData = [
-                'id'                 => $user->id,
-                'full_name'          => $user->full_name,
-                'email'              => $user->email,
-                'job_title'          => $user->job_title,
-                'work_status'        => $predominantWorkStatus,
-                'billable_hours'     => round($weekMetrics['billable_hours'], 2),
-                'non_billable_hours' => round($weekMetrics['non_billable_hours'], 2),
-                'total_hours'        => round($weekMetrics['total_hours'], 2),
-                'target_hours'       => round($weekPerformance[0]['target_total_hours'] ?? 0, 2),
-                'nad_count'          => $userNadData['nad_count'],
-                'nad_hours'          => round($userNadData['nad_hours'], 2),
-                'performance'        => $weekPerformance[0] ?? null,
-                'weekly_breakdown'   => $weeklyData,
-                'categories'         => $categoriesBreakdown,
-                'categoryresponse'   => $categoriesResponse, // For debugging only
-            ];
-
-            $allUsersData[] = $userData;
-
-            // Separate by work status - use already calculated historical work status
-            if ($predominantWorkStatus === 'full-time') {
-                $fullTimeUsers[] = $userData;
-            } else {
-                $partTimeUsers[] = $userData;
             }
         }
 
@@ -376,84 +541,18 @@ class IvaRegionReportController extends Controller
         }
 
         foreach ($users as $user) {
-            // Use optimized basic metrics from daily summaries for the single month
-            $monthMetrics = calculateBasicMetricsFromDailySummaries(
-                $user->id,
-                $startDate,
-                $endDate
-            );
+            // Process user with work status periods - may return multiple entries
+            $userEntries = $this->processUserWithWorkStatusPeriods($user, $startDate, $endDate, $nadDataByEmail, 'monthly');
 
-            // Calculate performance using optimized function
-            $monthPerformance = calculatePerformanceMetricsDailySummaries(
-                $user,
-                $startDate,
-                $endDate,
-                $monthMetrics['billable_hours']
-            );
+            foreach ($userEntries as $userData) {
+                $allUsersData[] = $userData;
 
-            // Get NAD data from optimized lookup
-            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
-
-            // Get categories breakdown using optimized helper
-            $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
-
-            // Transform nested category structure to flat array for frontend compatibility
-            $categoriesBreakdown = [];
-            if (is_array($categoriesResponse)) {
-                foreach ($categoriesResponse as $typeGroup) {
-                    if (isset($typeGroup['categories']) && is_array($typeGroup['categories'])) {
-                        foreach ($typeGroup['categories'] as $category) {
-                            $categoriesBreakdown[] = [
-                                'category_id'   => $category['category_id'],
-                                'category_name' => $category['category_name'],
-                                'hours'         => $category['total_hours'],
-                            ];
-                        }
-                    }
+                // Separate by work status
+                if ($userData['work_status'] === 'full-time') {
+                    $fullTimeUsers[] = $userData;
+                } else {
+                    $partTimeUsers[] = $userData;
                 }
-            }
-
-            // Create single-month breakdown array
-            $monthName   = Carbon::parse($startDate)->format('F');
-            $monthlyData = [[
-                'month_number'       => Carbon::parse($startDate)->month,
-                'start_date'         => $startDate,
-                'end_date'           => $endDate,
-                'label'              => $monthName,
-                'billable_hours'     => $monthMetrics['billable_hours'],
-                'non_billable_hours' => $monthMetrics['non_billable_hours'],
-                'total_hours'        => $monthMetrics['total_hours'],
-                'target_hours'       => $monthPerformance[0]['target_total_hours'] ?? 0,
-                'performance'        => $monthPerformance[0] ?? null,
-            ]];
-
-            // Calculate historical work status for the period
-            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
-
-            $userData = [
-                'id'                 => $user->id,
-                'full_name'          => $user->full_name,
-                'email'              => $user->email,
-                'job_title'          => $user->job_title,
-                'work_status'        => $predominantWorkStatus,
-                'billable_hours'     => round($monthMetrics['billable_hours'], 2),
-                'non_billable_hours' => round($monthMetrics['non_billable_hours'], 2),
-                'total_hours'        => round($monthMetrics['total_hours'], 2),
-                'target_hours'       => round($monthPerformance[0]['target_total_hours'] ?? 0, 2),
-                'nad_count'          => $userNadData['nad_count'],
-                'nad_hours'          => round($userNadData['nad_hours'], 2),
-                'performance'        => $monthPerformance[0] ?? null,
-                'monthly_breakdown'  => $monthlyData,
-                'categories'         => $categoriesBreakdown,
-            ];
-
-            $allUsersData[] = $userData;
-
-            // Separate by work status - use already calculated historical work status
-            if ($predominantWorkStatus === 'full-time') {
-                $fullTimeUsers[] = $userData;
-            } else {
-                $partTimeUsers[] = $userData;
             }
         }
 
@@ -495,69 +594,18 @@ class IvaRegionReportController extends Controller
         }
 
         foreach ($users as $user) {
-            // Use optimized basic metrics from daily summaries for the year
-            $yearMetrics = calculateBasicMetricsFromDailySummaries(
-                $user->id,
-                $startDate,
-                $endDate
-            );
+            // Process user with work status periods - may return multiple entries
+            $userEntries = $this->processUserWithWorkStatusPeriods($user, $startDate, $endDate, $nadDataByEmail, 'yearly');
 
-            // Calculate performance using optimized function
-            $yearPerformance = calculatePerformanceMetricsDailySummaries(
-                $user,
-                $startDate,
-                $endDate,
-                $yearMetrics['billable_hours']
-            );
+            foreach ($userEntries as $userData) {
+                $allUsersData[] = $userData;
 
-            // Get NAD data from optimized lookup
-            $userNadData = $nadDataByEmail[$user->email] ?? ['nad_count' => 0, 'nad_hours' => 0, 'requests' => 0];
-
-            // Get categories breakdown using optimized helper
-            $categoriesResponse = calculateCategoryBreakdownFromSummaries($user->id, $startDate, $endDate);
-
-            // Transform nested category structure to flat array for frontend compatibility
-            $categoriesBreakdown = [];
-            if (is_array($categoriesResponse)) {
-                foreach ($categoriesResponse as $typeGroup) {
-                    if (isset($typeGroup['categories']) && is_array($typeGroup['categories'])) {
-                        foreach ($typeGroup['categories'] as $category) {
-                            $categoriesBreakdown[] = [
-                                'category_id'   => $category['category_id'],
-                                'category_name' => $category['category_name'],
-                                'hours'         => $category['total_hours'],
-                            ];
-                        }
-                    }
+                // Separate by work status
+                if ($userData['work_status'] === 'full-time') {
+                    $fullTimeUsers[] = $userData;
+                } else {
+                    $partTimeUsers[] = $userData;
                 }
-            }
-
-            // Calculate historical work status for the period
-            $predominantWorkStatus = getPredominantWorkStatusForPeriod($user, $startDate, $endDate);
-
-            $userData = [
-                'id'                 => $user->id,
-                'full_name'          => $user->full_name,
-                'email'              => $user->email,
-                'job_title'          => $user->job_title,
-                'work_status'        => $predominantWorkStatus,
-                'billable_hours'     => round($yearMetrics['billable_hours'], 2),
-                'non_billable_hours' => round($yearMetrics['non_billable_hours'], 2),
-                'total_hours'        => round($yearMetrics['total_hours'], 2),
-                'target_hours'       => round($yearPerformance[0]['target_total_hours'] ?? 0, 2),
-                'nad_count'          => $userNadData['nad_count'],
-                'nad_hours'          => round($userNadData['nad_hours'], 2),
-                'performance'        => $yearPerformance[0] ?? null,
-                'categories'         => $categoriesBreakdown,
-            ];
-
-            $allUsersData[] = $userData;
-
-            // Separate by work status - use already calculated historical work status
-            if ($predominantWorkStatus === 'full-time') {
-                $fullTimeUsers[] = $userData;
-            } else {
-                $partTimeUsers[] = $userData;
             }
         }
 
@@ -716,10 +764,10 @@ class IvaRegionReportController extends Controller
         $regionValidation = validateManagerRegionAccess($request->user());
         if ($regionValidation) {
             return response()->json([
-                'success' => false,
-                'error' => $regionValidation['error'],
-                'message' => $regionValidation['message'],
-                'region_access_error' => true
+                'success'             => false,
+                'error'               => $regionValidation['error'],
+                'message'             => $regionValidation['message'],
+                'region_access_error' => true,
             ], 403);
         }
 
